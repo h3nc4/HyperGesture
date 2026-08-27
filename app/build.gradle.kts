@@ -34,7 +34,7 @@ android {
         // edge overlays need to be positioned correctly.
         minSdk = 30
         targetSdk = 37
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0.0"
     }
 
