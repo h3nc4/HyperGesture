@@ -20,14 +20,14 @@ name: Security Analysis
 on:
   push:
     branches:
-      - 'main'
-      - 'release/*'
+      - "main"
+      - "release/*"
   pull_request:
     branches:
-      - 'main'
-      - 'release/*'
+      - "main"
+      - "release/*"
   schedule:
-    - cron: '23 3 * * *' # Daily at 03:23 UTC
+    - cron: "23 3 * * *" # Daily at 03:23 UTC
 
 jobs:
   analyze:
@@ -51,4 +51,4 @@ jobs:
       - name: Run github/codeql-action/analyze
         uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
-          category: '/language:java-kotlin'
+          category: "/language:java-kotlin"

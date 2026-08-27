@@ -20,7 +20,7 @@ name: HyperGesture Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 jobs:
   check-tag-branch:
@@ -86,7 +86,7 @@ jobs:
         run: |
           docker run --rm --entrypoint bash \
             -v "${PWD}:/apk:ro" \
-            "h3nc4/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }}" \
+            "${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }}" \
             -c 'set -e
               apksigner="$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort | tail -n1)"
               "${apksigner}" verify --print-certs /apk/hypergesture.apk'
@@ -133,9 +133,9 @@ jobs:
       - name: Commit and push
         uses: planetscale/ghcommit-action@a6b150b81dca5dd027baa898604418eec9e11465 # v0.2.22
         with:
-          commit_message: 'Bump versionCode after v${{ needs.prepare.outputs.version }} [skip ci]'
+          commit_message: "Bump versionCode after v${{ needs.prepare.outputs.version }} [skip ci]"
           repo: ${{ github.repository }}
           branch: main
-          file_pattern: 'app/build.gradle.kts'
+          file_pattern: "app/build.gradle.kts"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

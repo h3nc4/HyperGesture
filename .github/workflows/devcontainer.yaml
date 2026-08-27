@@ -20,7 +20,7 @@ name: HyperGesture Dev Container Release
 on:
   push:
     tags:
-      - 'dc-v*.*.*'
+      - "dc-v*.*.*"
 
 jobs:
   check-tag-branch:
@@ -76,16 +76,17 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Update .devcontainer.json
         run: |
-          sed -i 's|\("image": "h3nc4/${{ vars.IMAGE_NAME }}-dev\):.*"|\1:${{ env.VERSION }}"|' .devcontainer.json
+          sed -i "s|-dev:[^\"]*\"|-dev:${{ env.VERSION }}\"|" .devcontainer.json
+          grep -q -- "-dev:${{ env.VERSION }}\"" .devcontainer.json
       - name: Update CI image version file
         run: |
           echo "${{ env.VERSION }}" >.github/VERSION
       - name: Commit and push
         uses: planetscale/ghcommit-action@a6b150b81dca5dd027baa898604418eec9e11465 # v0.2.22
         with:
-          commit_message: 'Bump dev container to v${{ env.VERSION }} [skip ci]'
+          commit_message: "Bump dev container to v${{ env.VERSION }} [skip ci]"
           repo: ${{ github.repository }}
           branch: main
-          file_pattern: '.devcontainer.json .github/VERSION'
+          file_pattern: ".devcontainer.json .github/VERSION"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

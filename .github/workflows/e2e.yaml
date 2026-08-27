@@ -24,13 +24,24 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - 'main'
+      - "main"
+      - "release/*"
     paths:
-      - 'app/src/main/kotlin/com/h3nc4/hypergesture/service/**'
-      - 'app/src/main/kotlin/com/h3nc4/hypergesture/gesture/**'
-      - 'app/src/main/AndroidManifest.xml'
-      - 'scripts/e2e-gestures.sh'
-      - '.github/workflows/e2e.yaml'
+      - "app/src/main/kotlin/com/h3nc4/hypergesture/service/**"
+      - "app/src/main/kotlin/com/h3nc4/hypergesture/gesture/**"
+      - "app/src/main/AndroidManifest.xml"
+      - "scripts/e2e-gestures.sh"
+      - ".github/workflows/e2e.yaml"
+  pull_request:
+    branches:
+      - "main"
+      - "release/*"
+    paths:
+      - "app/src/main/kotlin/com/h3nc4/hypergesture/service/**"
+      - "app/src/main/kotlin/com/h3nc4/hypergesture/gesture/**"
+      - "app/src/main/AndroidManifest.xml"
+      - "scripts/e2e-gestures.sh"
+      - ".github/workflows/e2e.yaml"
 
 jobs:
   prepare:
@@ -65,7 +76,8 @@ jobs:
         with:
           path: |
             ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
+          key:
+            ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
             'gradle/libs.versions.toml', 'gradle.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
@@ -85,7 +97,7 @@ jobs:
             -v "${HOME}/.gradle:/gradle-home" \
             -e GRADLE_USER_HOME=/gradle-home -e HOME=/tmp \
             -w /workspaces/hypergesture \
-            h3nc4/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }} \
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }} \
             -c 'gradle --no-daemon assembleDebug'
 
       - name: Run the gesture E2E suite
@@ -95,7 +107,7 @@ jobs:
             -v "${PWD}:/workspaces/hypergesture" \
             -e HOME=/tmp \
             -w /workspaces/hypergesture \
-            h3nc4/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }} \
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }} \
             -c './scripts/e2e-gestures.sh'
 
       - name: Upload emulator log on failure
