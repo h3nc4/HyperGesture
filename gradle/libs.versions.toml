@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# A known-good set, not newest-of-each: AGP 8.7.x pairs with the committed Gradle 8.11.1.
 [versions]
 agp = "9.3.2"
 kotlin = "2.4.10"

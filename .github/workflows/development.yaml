@@ -60,8 +60,6 @@ jobs:
             ${{ runner.os }}-gradle-
       - name: Lint shell scripts
         run: shellcheck -o all scripts/*.sh scripts/hooks/*
-      - name: Lint prose
-        run: ./scripts/lint-docs.sh
       - name: Android lint
         run: gradle --no-daemon lint
 

@@ -75,9 +75,6 @@ git config core.hooksPath scripts/hooks || :
 
 # No Gradle build here: it would add minutes to every container start.
 
-# Fetch the Vale styles once, so lint-docs.sh and the git hooks need no network later.
-vale sync >/dev/null 2>&1 || :
-
 ./scripts/sonar.sh -i
 
 doas mandb >/dev/null 2>&1

@@ -49,7 +49,6 @@
         "vscjava.vscode-gradle",
         "timonwong.shellcheck",
         "DavidAnson.vscode-markdownlint",
-        "ChrisChinchilla.vale-vscode",
         "ms-vscode-remote.vscode-remote-extensionpack",
         "ms-azuretools.vscode-docker",
         "donjayamanne.githistory",
@@ -70,8 +69,6 @@
           "editor.tabSize": 4
         },
         "shellcheck.customArgs": ["-o", "all"],
-        "vale.valeCLI.path": "/usr/local/bin/vale",
-        "vale.valeCLI.config": "${workspaceFolder}/.vale.ini",
         "sonarlint.connectedMode.project": {
           "connectionId": "http-localhost-9000-",
           "projectKey": "hypergesture"

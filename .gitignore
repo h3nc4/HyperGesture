@@ -37,8 +37,5 @@ local.properties
 !.idea/runConfigurations
 *.iml
 
-# Vale styles are fetched by `vale sync`, not committed
-.vale/styles/
-
 # Scratch
 _tmp/
