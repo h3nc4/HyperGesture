@@ -18,7 +18,7 @@
 ################################################################################
 # A Dockerfile to build the HyperGesture release APK using the dev image toolchain.
 
-ARG DEV_IMAGE_TAG="1.0.0"
+ARG DEV_IMAGE_TAG="1.0.0@sha256:7356c794012a3a9c55eecfc4604f5c4098427f3f15b6eea455f5c1c8b962f860"
 
 FROM h3nc4/hypergesture-dev:${DEV_IMAGE_TAG} AS builder
 
