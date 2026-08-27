@@ -131,13 +131,13 @@ private fun HyperGestureScreen(
             onOpenAppInfo = { openAppInfo(context) },
         )
 
-        GestureCheatSheet()
-
         NavigationStatusCard(
             available = diagnostics.navigationIntegrationAvailable,
             onRequestEnable = integration::requestEnable,
             onStateChanged = { diagnostics = DiagnosticsCollector.collect(context) },
         )
+
+        GestureCheatSheet()
 
         // Both sections stay collapsed by default: an accidental tap while scrolling
         // must not silently change navigation behaviour.
