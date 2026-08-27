@@ -75,6 +75,11 @@
     <string name="label_haptics">Vibrate when a gesture fires</string>
     <string name="action_reset_defaults">Reset to defaults</string>
 
+    <string name="survive_reboot_title">Keep me running</string>
+    <string name="survive_reboot_body">HyperOS stops the gestures unless both autostart and battery restriction settings are set. Under App info, set Power to No restrictions.</string>
+    <string name="action_open_autostart">Autostart</string>
+    <string name="action_open_app_info">App info</string>
+
     <!-- Diagnostics. Local only, never transmitted. -->
     <string name="action_refresh_diagnostics">Refresh</string>
     <string name="diag_android_version">Android version</string>

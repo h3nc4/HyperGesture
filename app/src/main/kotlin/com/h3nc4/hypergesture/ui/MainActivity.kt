@@ -17,6 +17,9 @@
 
 package com.h3nc4.hypergesture.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
@@ -120,11 +123,13 @@ private fun HyperGestureScreen(
         Header()
 
         AccessibilityStatusCard(enabled = diagnostics.accessibilityServiceEnabled) {
-            context.startActivity(
-                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
+            context.startFirst(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
+
+        SurviveRebootCard(
+            onOpenAutostart = { openAutostart(context) },
+            onOpenAppInfo = { openAppInfo(context) },
+        )
 
         GestureCheatSheet()
 
@@ -311,6 +316,74 @@ private fun StatusBadge(healthy: Boolean, label: String) {
             .padding(horizontal = 10.dp, vertical = 4.dp),
     )
 }
+
+@Composable
+private fun SurviveRebootCard(onOpenAutostart: () -> Unit, onOpenAppInfo: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.survive_reboot_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.survive_reboot_body),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = onOpenAutostart) {
+                    Text(stringResource(R.string.action_open_autostart))
+                }
+                FilledTonalButton(onClick = onOpenAppInfo) {
+                    Text(stringResource(R.string.action_open_app_info))
+                }
+            }
+        }
+    }
+}
+
+/** Autostart decides whether HyperOS restores the service after a reboot. */
+private fun openAutostart(context: Context) = context.startFirst(
+    Intent(MIUI_AUTOSTART_ACTION).addCategory(Intent.CATEGORY_DEFAULT),
+    appDetails(context),
+)
+
+/** Power lives on this page, which is about this app alone rather than a list of them all. */
+private fun openAppInfo(context: Context) = context.startFirst(appDetails(context))
+
+/** Only HyperOS answers the Autostart action, so that button needs somewhere to land. */
+private fun appDetails(context: Context) = Intent(
+    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+    "package:${context.packageName}".toUri(),
+)
+
+/**
+ * NEW_TASK is required from a non-Activity context and wrong from an Activity one, where it
+ * would give the target its own task and stop Back returning here.
+ */
+private fun Context.startFirst(vararg candidates: Intent) {
+    val ownTask = findActivity() == null
+    for (intent in candidates) {
+        if (ownTask) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { startActivity(intent) }.isSuccess) return
+    }
+}
+
+private fun Context.findActivity(): Activity? {
+    var context: Context? = this
+    while (context is ContextWrapper) {
+        if (context is Activity) return context
+        context = context.baseContext
+    }
+    return null
+}
+
+private const val MIUI_AUTOSTART_ACTION = "miui.intent.action.OP_AUTO_START"
 
 @Composable
 private fun GestureCheatSheet() {
@@ -591,12 +664,7 @@ private fun DiagnosticsContent(diagnostics: Diagnostics, onRefresh: () -> Unit) 
         TextButton(
             onClick = {
                 // A device with no browser throws ActivityNotFoundException.
-                runCatching {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, sourceUrl.toUri())
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                }
+                context.startFirst(Intent(Intent.ACTION_VIEW, sourceUrl.toUri()))
             },
         ) {
             Text(stringResource(R.string.action_view_source))
