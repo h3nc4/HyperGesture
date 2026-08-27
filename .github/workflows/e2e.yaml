@@ -1,0 +1,107 @@
+# Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+#
+# This file is part of HyperGesture.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+name: HyperGesture Gesture E2E
+
+# Drives a real emulator, which is the only way to catch integration bugs the JVM tests
+# cannot reach. Needs KVM, so it runs separately from the main CI.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'app/src/main/kotlin/com/h3nc4/hypergesture/service/**'
+      - 'app/src/main/kotlin/com/h3nc4/hypergesture/gesture/**'
+      - 'app/src/main/AndroidManifest.xml'
+      - 'scripts/e2e-gestures.sh'
+      - '.github/workflows/e2e.yaml'
+
+jobs:
+  prepare:
+    name: Prepare environment
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.read_tag.outputs.tag }}
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - id: read_tag
+        run: echo "tag=$(cat .github/VERSION)" >>"${GITHUB_OUTPUT}"
+
+  gestures:
+    name: Gesture end-to-end
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # The runner's /dev/kvm is not usable by the container user without this.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
+            'gradle/libs.versions.toml', 'gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # Not a `container:` job: the emulator needs --device /dev/kvm, which those cannot
+      # request. `bash -c` not `-lc`, or /etc/profile drops the SDK from PATH.
+      #
+      # The mount source has to exist first. On a cache miss it does not, and Docker then
+      # creates it owned by root, leaving GRADLE_USER_HOME unwritable for the mapped user:
+      # Gradle cannot unpack libnative-platform.so and dies before configuring anything.
+      - name: Build the debug APK
+        run: |
+          mkdir -p "${HOME}/.gradle"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" --entrypoint /bin/bash \
+            -v "${PWD}:/workspaces/hypergesture" \
+            -v "${HOME}/.gradle:/gradle-home" \
+            -e GRADLE_USER_HOME=/gradle-home -e HOME=/tmp \
+            -w /workspaces/hypergesture \
+            h3nc4/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }} \
+            -c 'gradle --no-daemon assembleDebug'
+
+      - name: Run the gesture E2E suite
+        run: |
+          docker run --rm --device /dev/kvm \
+            --user "$(id -u):$(id -g)" --entrypoint /bin/bash \
+            -v "${PWD}:/workspaces/hypergesture" \
+            -e HOME=/tmp \
+            -w /workspaces/hypergesture \
+            h3nc4/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }} \
+            -c './scripts/e2e-gestures.sh'
+
+      - name: Upload emulator log on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: emulator-log
+          path: /tmp/hypergesture-e2e/
+          retention-days: 3

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+
+  This file is part of HyperGesture.
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<resources>
+    <string name="app_name">HyperGesture</string>
+    <string name="app_tagline">Edge gestures for HyperOS</string>
+
+    <!-- Shown by the system in the accessibility settings list. -->
+    <string name="accessibility_service_description">Recognises swipes from the screen edges and performs Back, Home and Recents. Used for navigation only: HyperGesture never reads screen content, text or keystrokes, and sends nothing off your device.</string>
+    <string name="accessibility_service_summary">Edge gesture navigation</string>
+
+    <!-- Gesture cheat sheet. -->
+    <string name="gestures_title">Your gestures</string>
+    <string name="gesture_back_name">Back</string>
+    <string name="gesture_back_how">Swipe in from the left or right edge</string>
+    <string name="gesture_home_name">Home</string>
+    <string name="gesture_home_how">Swipe up from the bottom edge</string>
+    <string name="gesture_recents_name">Recent apps</string>
+    <string name="gesture_recents_how">Swipe up from the bottom and hold</string>
+
+    <!-- Capability 1: the accessibility gesture service. -->
+    <string name="status_accessibility_title">Gesture service</string>
+    <string name="status_active">Active</string>
+    <string name="status_inactive">Not running</string>
+    <string name="status_accessibility_enabled">Your edge gestures are working.</string>
+    <string name="status_accessibility_disabled">Turn HyperGesture on under Accessibility to start using gestures.</string>
+    <string name="status_accessibility_restricted_hint">If the switch does nothing, first allow restricted settings: Apps → HyperGesture → menu → Allow restricted settings.</string>
+    <string name="action_open_accessibility_settings">Open accessibility settings</string>
+
+    <!-- Capability 2: the HyperOS navigation integration. -->
+    <string name="status_navigation_title">Navigation bar</string>
+    <string name="status_navigation_available">Available</string>
+    <string name="status_navigation_unavailable">Unavailable</string>
+    <string name="status_navigation_available_body">You can hide the navigation bar to reclaim screen space. Your gestures keep working either way.</string>
+    <string name="status_navigation_unavailable_body">This device offers no way for an app to change the navigation bar. Your gestures work regardless.</string>
+    <string name="action_open_navigation_settings">Open navigation settings</string>
+    <string name="outcome_launched">Opened navigation settings — choose gesture navigation to hide the bar.</string>
+    <string name="outcome_unsupported">Not supported on this device. This is a platform restriction, not a HyperGesture problem.</string>
+    <string name="outcome_failed">Could not open the screen: %1$s</string>
+
+    <!-- Collapsed sections. -->
+    <string name="section_gestures">Gesture settings</string>
+    <string name="section_gestures_summary">Edge width, swipe distance, hold time</string>
+    <string name="section_diagnostics">Diagnostics</string>
+    <string name="section_diagnostics_summary">Device and service details</string>
+    <string name="action_expand">Expand</string>
+    <string name="action_collapse">Collapse</string>
+
+    <!-- Gesture configuration. -->
+    <string name="label_edge_width">Edge activation width</string>
+    <string name="label_side_distance">Side swipe distance</string>
+    <string name="label_bottom_distance">Bottom swipe distance</string>
+    <string name="label_recents_hold">Hold for Recent apps</string>
+    <string name="label_maximum_duration">Time allowed to start a swipe</string>
+    <string name="value_dp">%1$d dp</string>
+    <string name="value_ms">%1$d ms</string>
+    <string name="label_left_edge_back">Left edge swipe = Back</string>
+    <string name="label_right_edge_back">Right edge swipe = Back</string>
+    <string name="label_haptics">Vibrate when a gesture fires</string>
+    <string name="action_reset_defaults">Reset to defaults</string>
+
+    <!-- Diagnostics. Local only, never transmitted. -->
+    <string name="action_refresh_diagnostics">Refresh</string>
+    <string name="diag_android_version">Android version</string>
+    <string name="diag_device">Device</string>
+    <string name="diag_hyperos">HyperOS / MIUI build</string>
+    <string name="diag_navigation_mode">Navigation mode</string>
+    <string name="diag_service_enabled">Service enabled</string>
+    <string name="diag_service_running">Service running</string>
+    <string name="diag_integration">Navigation integration</string>
+    <string name="diag_last_failure">Last failure</string>
+    <string name="diag_app_version">App version</string>
+    <string name="diag_license">License</string>
+    <string name="value_license" translatable="false">GPL-3.0-or-later</string>
+    <string name="diag_none">None</string>
+    <string name="diag_recorded_failure">Recorded failure</string>
+    <string name="diag_local_only">Everything here stays on your device.</string>
+    <string name="action_view_source">View source</string>
+    <string name="url_source" translatable="false">https://github.com/h3nc4/HyperGesture</string>
+</resources>

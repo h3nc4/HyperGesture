@@ -1,0 +1,45 @@
+# Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+#
+# This file is part of HyperGesture.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+name: Dev Container Image Development
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - 'release/*'
+    paths:
+      - 'docker/dev.Dockerfile'
+      - 'scripts/entrypoint.sh'
+      - 'scripts/switch-user.sh'
+      - '.github/workflows/image-development.yaml'
+
+jobs:
+  check-image:
+    name: Validate Dev Container Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Run docker/setup-buildx-action
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+      - name: Build image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: ./docker/dev.Dockerfile
+          push: false

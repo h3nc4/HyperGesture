@@ -1,0 +1,90 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices"
+  ],
+  "reviewers": [
+    "h3nc4"
+  ],
+  "assignAutomerge": true,
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
+  "packageRules": [
+    {
+      "description": "Android Gradle Plugin and Gradle move together",
+      "groupName": "android-gradle",
+      "matchPackageNames": [
+        "com.android.application",
+        "com.android.tools.build:gradle",
+        "gradle"
+      ]
+    },
+    {
+      "description": "Kotlin and its Compose compiler plugin must stay on the same version",
+      "groupName": "kotlin",
+      "matchPackageNames": [
+        "org.jetbrains.kotlin.plugin.compose",
+        "/^org.jetbrains.kotlin:/",
+        "/^org.jetbrains.kotlinx:/"
+      ]
+    },
+    {
+      "groupName": "androidx",
+      "matchPackageNames": [
+        "/^androidx\\./"
+      ]
+    },
+    {
+      "description": "Group SonarQube server and scanner updates",
+      "groupName": "sonarqube",
+      "matchPackageNames": [
+        "sonarqube",
+        "sonarsource/sonar-scanner-cli"
+      ]
+    },
+    {
+      "description": "Disable unwanted pinning for SonarQube images",
+      "matchPackageNames": [
+        "sonarqube",
+        "sonarsource/sonar-scanner-cli"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "Auto-merge all minor, patch, pin, and digest updates",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "automerge": true,
+      "platformAutomerge": true
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Update Docker images in the sonar script",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^scripts/sonar\\.sh$/"
+      ],
+      "matchStrings": [
+        "_image=\"(?<depName>.*?):(?<currentValue>.*?)\""
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "Update the Gradle version pinned in the dev container",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^docker/dev\\.Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG GRADLE_VERSION=\"(?<currentValue>.*?)\""
+      ],
+      "datasourceTemplate": "gradle-version",
+      "depNameTemplate": "gradle"
+    }
+  ]
+}

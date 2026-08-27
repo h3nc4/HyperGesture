@@ -1,0 +1,91 @@
+# Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+#
+# This file is part of HyperGesture.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+name: HyperGesture Dev Container Release
+
+on:
+  push:
+    tags:
+      - 'dc-v*.*.*'
+
+jobs:
+  check-tag-branch:
+    name: Check Tag Location
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Verify tag is on main branch
+        run: git merge-base --is-ancestor ${{ github.sha }} origin/main
+
+  release-image:
+    name: Build and Release Dev Container
+    runs-on: ubuntu-latest
+    needs: check-tag-branch
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Find version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#dc-v}" >>"${GITHUB_ENV}"
+      - name: Run docker/setup-buildx-action
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+      - name: Run docker/login-action
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run docker/build-push-action
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: ./docker/dev.Dockerfile
+          push: true
+          tags: |
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:${{ env.VERSION }}
+            ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:latest
+
+  update-references:
+    name: Update Image Version References
+    runs-on: ubuntu-latest
+    needs: release-image
+    permissions:
+      contents: write
+    steps:
+      - name: Find version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#dc-v}" >>"${GITHUB_ENV}"
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update .devcontainer.json
+        run: |
+          sed -i 's|\("image": "h3nc4/${{ vars.IMAGE_NAME }}-dev\):.*"|\1:${{ env.VERSION }}"|' .devcontainer.json
+      - name: Update CI image version file
+        run: |
+          echo "${{ env.VERSION }}" >.github/VERSION
+      - name: Commit and push
+        uses: planetscale/ghcommit-action@a6b150b81dca5dd027baa898604418eec9e11465 # v0.2.22
+        with:
+          commit_message: 'Bump dev container to v${{ env.VERSION }} [skip ci]'
+          repo: ${{ github.repository }}
+          branch: main
+          file_pattern: '.devcontainer.json .github/VERSION'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

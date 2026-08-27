@@ -1,0 +1,134 @@
+# Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+#
+# This file is part of HyperGesture.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+name: HyperGesture Development CI
+
+on:
+  push:
+    branches:
+      - "main"
+      - "release/*"
+  pull_request:
+    branches:
+      - "main"
+      - "release/*"
+
+jobs:
+  prepare:
+    name: Prepare environment
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.read_tag.outputs.tag }}
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - id: read_tag
+        run: echo "tag=$(cat .github/VERSION)" >>"${GITHUB_OUTPUT}"
+
+  validate:
+    name: Validate Codebase
+    runs-on: ubuntu-latest
+    needs: prepare
+    # The dev image already provides JDK 21, the Android SDK and shellcheck.
+    container:
+      image: h3nc4/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }}
+      options: --user root
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
+            'gradle/libs.versions.toml', 'gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Lint shell scripts
+        run: shellcheck -o all scripts/*.sh scripts/hooks/*
+      - name: Lint prose
+        run: ./scripts/lint-docs.sh
+      - name: Android lint
+        run: gradle --no-daemon lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: prepare
+    container:
+      image: h3nc4/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }}
+      options: --user root
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
+            'gradle/libs.versions.toml', 'gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Run unit tests
+        run: gradle --no-daemon test
+      - name: Generate coverage report
+        run: gradle --no-daemon jacocoTestReport
+      - name: Run actions/upload-artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage
+          path: |
+            app/build/reports/jacoco/
+            app/build/reports/tests/
+          retention-days: 1
+
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+    needs: [prepare, test]
+    container:
+      image: h3nc4/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }}
+      options: --user root
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
+            'gradle/libs.versions.toml', 'gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Assemble debug APK
+        run: gradle --no-daemon assembleDebug
+
+  sonarqube:
+    name: SonarQube Scan
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # Fetch history for SonarQube
+      - name: Run actions/download-artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: coverage
+          path: app/build/reports
+      - name: Fail if the coverage report did not land
+        run: test -s app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
+      - name: Run SonarQube analysis
+        run: ./scripts/sonar.sh

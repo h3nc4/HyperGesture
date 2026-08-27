@@ -1,0 +1,82 @@
+// Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+//
+// This file is part of HyperGesture.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+{
+  "name": "HyperGesture",
+  "image": "h3nc4/hypergesture-dev:1.0.0",
+  "runArgs": [
+    "--name=hypergesture-devcontainer",
+    "--network=host",
+    "--privileged"
+  ],
+  "remoteUser": "hypergesture",
+  "workspaceFolder": "/workspaces/hypergesture",
+  "overrideCommand": false,
+  "mounts": [
+    "source=${env:HOME},target=/home/hypergesture,type=bind",
+    "source=/etc/localtime,target=/etc/localtime,type=bind,readonly",
+    "source=/etc/profile,target=/etc/profile,type=bind,readonly",
+    "source=/etc/bash.bashrc,target=/etc/bash.bashrc,type=bind,readonly",
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "containerEnv": {
+    "DEVCONTAINER": "1",
+    "TERM": "${env:TERM}",
+    "TMUX": "${env:TMUX}",
+    "HYPERGESTURE_HOST_ROOT": "${localWorkspaceFolder}"
+  },
+  "userEnvProbe": "interactiveShell",
+  // /dev/kvm and the render node are needed for a hardware-accelerated emulator.
+  "postStartCommand": "./scripts/devcontainer-poststart.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "fwcd.kotlin",
+        "vscjava.vscode-gradle",
+        "timonwong.shellcheck",
+        "DavidAnson.vscode-markdownlint",
+        "ChrisChinchilla.vale-vscode",
+        "ms-vscode-remote.vscode-remote-extensionpack",
+        "ms-azuretools.vscode-docker",
+        "donjayamanne.githistory",
+        "eamodio.gitlens",
+        "foxundermoon.shell-format",
+        "github.vscode-github-actions",
+        "SonarSource.sonarlint-vscode"
+      ],
+      "settings": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false,
+        "editor.formatOnSave": true,
+        "files.insertFinalNewline": true,
+        "files.trimFinalNewlines": true,
+        // Kotlin convention is 4 spaces; everything else in this repo uses 2.
+        "[kotlin]": {
+          "editor.tabSize": 4
+        },
+        "shellcheck.customArgs": ["-o", "all"],
+        "vale.valeCLI.path": "/usr/local/bin/vale",
+        "vale.valeCLI.config": "${workspaceFolder}/.vale.ini",
+        "sonarlint.connectedMode.project": {
+          "connectionId": "http-localhost-9000-",
+          "projectKey": "hypergesture"
+        }
+      }
+    }
+  }
+}
