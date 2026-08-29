@@ -53,7 +53,7 @@ gradle assembleDebug   # build
 gradle test            # unit tests (GestureTracker decision logic)
 gradle lint            # Android lint
 gradle jacocoTestReport
-shellcheck -o all scripts/*.sh scripts/hooks/* .github/actions/*/*.sh
+shellcheck -o all scripts/*.sh scripts/hooks/*
 ./scripts/e2e-gestures.sh # gesture tests against a headless emulator
 ./scripts/emulator-vnc.sh # emulator on a browser-viewable display, installs the APK
 ./scripts/build-apk.sh    # signed release APK via docker/apk.Dockerfile

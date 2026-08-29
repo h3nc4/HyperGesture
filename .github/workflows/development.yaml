@@ -42,12 +42,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0 # dev-image diffs against the base to spot image changes
-      - name: Run actions/dev-image
-        uses: ./.github/actions/dev-image
+      - name: Run h3nc4/dev-image-action
+        uses: h3nc4/dev-image-action@896daea2e2bdda063d6992243c634f156ce057ac # v1
         with:
           published-repo: ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev
           docker-args: ${{ env.DEV_DOCKER_ARGS }}
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      - name: Run actions/cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             .gradle-ci/caches
@@ -57,7 +58,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
       - name: Lint shell scripts
-        run: $DEV_RUN -c 'shellcheck -o all scripts/*.sh scripts/hooks/* .github/actions/*/*.sh'
+        run: $DEV_RUN -c 'shellcheck -o all scripts/*.sh scripts/hooks/*'
       - name: Android lint, unit tests, coverage and debug APK
         run: $DEV_RUN -c 'gradle --no-daemon lint test jacocoTestReport assembleDebug'
       - name: Run actions/upload-artifact
