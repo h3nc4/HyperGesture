@@ -69,7 +69,7 @@ done
 pkg="com.h3nc4.hypergesture"
 service="${pkg}/${pkg}.service.HyperGestureAccessibilityService"
 apk="${apk_override:-app/build/outputs/apk/debug/app-debug.apk}"
-log_dir="${TMPDIR:-/tmp}/hypergesture-e2e"
+log_dir="build/e2e-logs"
 mkdir -p "${log_dir}"
 
 passed=0

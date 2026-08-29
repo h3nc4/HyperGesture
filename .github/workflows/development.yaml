@@ -27,65 +27,41 @@ on:
       - "main"
       - "release/*"
 
-jobs:
-  prepare:
-    name: Prepare environment
-    runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.read_tag.outputs.tag }}
-    steps:
-      - name: Run actions/checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - id: read_tag
-        run: echo "tag=$(cat .github/VERSION)" >>"${GITHUB_OUTPUT}"
+env:
+  DEV_DOCKER_ARGS: -e GRADLE_USER_HOME=/workspace/.gradle-ci
 
-  validate:
-    name: Validate Codebase
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, test and build
     runs-on: ubuntu-latest
-    needs: prepare
-    # The dev image already provides JDK 21, the Android SDK and shellcheck.
-    container:
-      image: ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }}
-      options: --user root
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # dev-image diffs against the base to spot image changes
+      - name: Run actions/dev-image
+        uses: ./.github/actions/dev-image
+        with:
+          published-repo: ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev
+          docker-args: ${{ env.DEV_DOCKER_ARGS }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
-            ~/.gradle/caches
+            .gradle-ci/caches
           key:
             ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
             'gradle/libs.versions.toml', 'gradle.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
       - name: Lint shell scripts
-        run: shellcheck -o all scripts/*.sh scripts/hooks/*
-      - name: Android lint
-        run: gradle --no-daemon lint
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: prepare
-    container:
-      image: ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }}
-      options: --user root
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: |
-            ~/.gradle/caches
-          key:
-            ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
-            'gradle/libs.versions.toml', 'gradle.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-      - name: Run unit tests
-        run: gradle --no-daemon test
-      - name: Generate coverage report
-        run: gradle --no-daemon jacocoTestReport
+        run: $DEV_RUN -c 'shellcheck -o all scripts/*.sh scripts/hooks/* .github/actions/*/*.sh'
+      - name: Android lint, unit tests, coverage and debug APK
+        run: $DEV_RUN -c 'gradle --no-daemon lint test jacocoTestReport assembleDebug'
       - name: Run actions/upload-artifact
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage
@@ -94,30 +70,9 @@ jobs:
             app/build/reports/tests/
           retention-days: 1
 
-  build:
-    name: Build Debug APK
-    runs-on: ubuntu-latest
-    needs: [prepare, test]
-    container:
-      image: ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:${{ needs.prepare.outputs.tag }}
-      options: --user root
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: |
-            ~/.gradle/caches
-          key:
-            ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
-            'gradle/libs.versions.toml', 'gradle.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-      - name: Assemble debug APK
-        run: gradle --no-daemon assembleDebug
-
   sonarqube:
     name: SonarQube Scan
-    needs: [test]
+    needs: [checks]
     runs-on: ubuntu-latest
     steps:
       - name: Run actions/checkout

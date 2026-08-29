@@ -22,6 +22,9 @@ on:
     tags:
       - "v*.*.*"
 
+concurrency:
+  group: ${{ github.workflow }}
+
 jobs:
   check-tag-branch:
     name: Check Tag Location
@@ -58,7 +61,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Run docker/setup-buildx-action
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
-      # Authenticated pulls of the dev image, which anonymous rate limits can refuse.
       - name: Run docker/login-action
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -66,8 +68,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Restore keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode >android.keystore
-      # assembleRelease falls back to an unsigned APK when either piece is missing, so
-      # absent signing material has to fail here rather than ship an uninstallable build.
       - name: Verify signing material is present
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}

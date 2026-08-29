@@ -60,7 +60,7 @@ cleanup() {
 }
 
 vnc_port=$((5900 + display_num))
-log_dir="${TMPDIR:-/tmp}/hypergesture-emulator-vnc"
+log_dir="build/emulator-vnc-logs"
 mkdir -p "${log_dir}"
 
 cleanup

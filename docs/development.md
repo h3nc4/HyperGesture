@@ -36,7 +36,11 @@ docs/             This file and the platform investigations
 
 The host doesn't need a JDK or an Android SDK. The container has the whole toolchain, and Android Studio is never required.
 
-Build the image once by hand with `docker build -f docker/dev.Dockerfile -t h3nc4/hypergesture-dev:"$(cat .github/VERSION)" .`; CI publishes it on a `dc-v*.*.*` tag thereafter, and the same tag job rewrites the pin in `.devcontainer.json` and `.github/VERSION`. The entrypoint activates the git hooks (`git config core.hooksPath scripts/hooks`).
+Build the image once by hand with `docker build -f docker/dev.Dockerfile -t h3nc4/hypergesture-dev:"$(cat .github/VERSION)" .`. After that the merge is the release.
+
+The image is versioned by a build id rather than semver: `.github/VERSION` holds a whole number that only CI writes. A change to the Dockerfile or the scripts it copies is tested against a candidate image built from the pull request. Once it reaches main, CI publishes the next id and moves `:latest`. It then rewrites the pin in `.devcontainer.json` and `.github/VERSION`, and tags the source commit `dc-v<id>` as the record.
+
+There is nothing to decide, which is the point. Semver would promise a kind of compatibility that no box of build tools can honour, and nobody stays on an older one. The number only has to be ordered and unique. Renovate can bump a base image digest or a pinned tool with no human in the loop, and the release follows on merge. Publishing happens before the pin moves, so the pin never names an image that Docker Hub does not have yet.
 
 Note `bash -c`, not `-lc`, when running commands in the container: a login shell sources `/etc/profile`, which replaces `PATH` and drops the SDK directories.
 
@@ -49,7 +53,7 @@ gradle assembleDebug   # build
 gradle test            # unit tests (GestureTracker decision logic)
 gradle lint            # Android lint
 gradle jacocoTestReport
-shellcheck -o all scripts/*.sh scripts/hooks/*
+shellcheck -o all scripts/*.sh scripts/hooks/* .github/actions/*/*.sh
 ./scripts/e2e-gestures.sh # gesture tests against a headless emulator
 ./scripts/emulator-vnc.sh # emulator on a browser-viewable display, installs the APK
 ./scripts/build-apk.sh    # signed release APK via docker/apk.Dockerfile
@@ -72,7 +76,7 @@ It then asserts on two independent signals: logcat (did *our* service decide cor
 ```sh
 docker run --rm --device /dev/kvm \
   -v "$HYPERGESTURE_HOST_ROOT:/workspaces/hypergesture" -w /workspaces/hypergesture \
-  --entrypoint /bin/bash h3nc4/hypergesture-dev:1.0.0 \
+  --entrypoint /bin/bash h3nc4/hypergesture-dev:"$(cat .github/VERSION)" \
   -c './scripts/e2e-gestures.sh'
 ```
 

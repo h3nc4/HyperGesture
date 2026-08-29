@@ -19,30 +19,41 @@ name: HyperGesture Dev Container Release
 
 on:
   push:
-    tags:
-      - "dc-v*.*.*"
+    branches:
+      - "main"
+    paths:
+      - "docker/dev.Dockerfile"
+      - "scripts/entrypoint.sh"
+      - "scripts/switch-user.sh"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
 
 jobs:
-  check-tag-branch:
-    name: Check Tag Location
+  release-image:
+    name: Build and Release Dev Container
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write # bumps the pin, creates the dc-v tag
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          fetch-depth: 0
-      - name: Verify tag is on main branch
-        run: git merge-base --is-ancestor ${{ github.sha }} origin/main
-
-  release-image:
-    name: Build and Release Dev Container
-    runs-on: ubuntu-latest
-    needs: check-tag-branch
-    steps:
-      - name: Run actions/checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Find version from tag
-        run: echo "VERSION=${GITHUB_REF_NAME#dc-v}" >>"${GITHUB_ENV}"
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Record the current version
+        run: echo "CURRENT_ID=$(cat .github/VERSION)" >>"${GITHUB_ENV}"
+      - name: Validate the current version
+        run: |
+          case "${CURRENT_ID}" in # Leading zeroes are not allowed
+            "" | *[!0-9]* | 0?*) echo "::error::bad image id '${CURRENT_ID}'"; exit 1 ;;
+          esac
+      - name: Bump the dev container version
+        run: echo "VERSION=$(( CURRENT_ID + 1 ))" >>"${GITHUB_ENV}"
+      - name: Record the commit being built
+        run: echo "SOURCE_SHA=$(git rev-parse HEAD)" >>"${GITHUB_ENV}"
       - name: Run docker/setup-buildx-action
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
       - name: Run docker/login-action
@@ -59,34 +70,30 @@ jobs:
           tags: |
             ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:${{ env.VERSION }}
             ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev:latest
-
-  update-references:
-    name: Update Image Version References
-    runs-on: ubuntu-latest
-    needs: release-image
-    permissions:
-      contents: write
-    steps:
-      - name: Find version from tag
-        run: echo "VERSION=${GITHUB_REF_NAME#dc-v}" >>"${GITHUB_ENV}"
-      - name: Run actions/checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Update .devcontainer.json
         run: |
-          sed -i "s|-dev:[^\"]*\"|-dev:${{ env.VERSION }}\"|" .devcontainer.json
-          grep -q -- "-dev:${{ env.VERSION }}\"" .devcontainer.json
+          sed -i "s|-dev:[^\"]*\"|-dev:${VERSION}\"|" .devcontainer.json
+          grep -q -- "-dev:${VERSION}\"" .devcontainer.json
       - name: Update CI image version file
-        run: |
-          echo "${{ env.VERSION }}" >.github/VERSION
+        run: echo "${VERSION}" >.github/VERSION
       - name: Commit and push
         uses: planetscale/ghcommit-action@a6b150b81dca5dd027baa898604418eec9e11465 # v0.2.22
         with:
-          commit_message: "Bump dev container to v${{ env.VERSION }} [skip ci]"
+          commit_message: "Bump dev container to ${{ env.VERSION }} [skip ci]"
           repo: ${{ github.repository }}
           branch: main
           file_pattern: ".devcontainer.json .github/VERSION"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag the source that produced the image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: dc-v${{ env.VERSION }}
+        run: |
+          if gh api "repos/${{ github.repository }}/git/ref/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::notice::${TAG} already exists, leaving it alone"
+            exit 0
+          fi
+          gh api --method POST "repos/${{ github.repository }}/git/refs" \
+            -f "ref=refs/tags/${TAG}" -f "sha=${SOURCE_SHA}" >/dev/null
+          echo "::notice::tagged ${SOURCE_SHA} as ${TAG}"

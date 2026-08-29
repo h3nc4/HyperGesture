@@ -37,11 +37,6 @@ ARG ANDROID_EMULATOR_API="36"
 ARG GRADLE_VERSION="9.7.1"
 ARG GRADLE_SHA256="acd53f1edaf02f1a8ff99879f8a34b302661a057d9b063ae9e35b552f804d20a"
 
-########################################
-# Prose linting
-ARG VALE_VERSION="3.19.0"
-ARG VALE_SHA256="c8f9d6c8055442bc7e9c121b2498e6f0e3fb670f4665e6ee577f1897f7665cf6"
-
 ################################################################################
 # Android SDK stage
 FROM debian:trixie@sha256:f324c7ff54321e8d9c588493a20244965938ce0aa50bbd1022d38010e9ffc4b1 AS android-sdk
@@ -156,16 +151,6 @@ RUN echo "${GRADLE_SHA256}  /tmp/gradle.zip" | sha256sum -c - \
   && ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle \
   && rm /tmp/gradle.zip \
   && gradle --version
-
-# Vale lints the project's Markdown, including for AI writing tells.
-ARG VALE_VERSION
-ARG VALE_SHA256
-ADD "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" /tmp/vale.tar.gz
-RUN echo "${VALE_SHA256}  /tmp/vale.tar.gz" | sha256sum -c - \
-  && tar -xzf /tmp/vale.tar.gz -C /usr/local/bin vale \
-  && chmod 0755 /usr/local/bin/vale \
-  && rm /tmp/vale.tar.gz \
-  && vale --version
 
 ########################################
 # Create a non-root developing user and configure doas

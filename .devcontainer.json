@@ -17,7 +17,7 @@
 
 {
   "name": "HyperGesture",
-  "image": "h3nc4/hypergesture-dev:1.0.0",
+  "image": "h3nc4/hypergesture-dev:1",
   "runArgs": [
     "--name=hypergesture-devcontainer",
     "--network=host",

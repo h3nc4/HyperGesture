@@ -18,6 +18,7 @@
 # Gradle / Android build output
 build/
 .gradle/
+.gradle-ci/
 .cxx/
 captures/
 local.properties
