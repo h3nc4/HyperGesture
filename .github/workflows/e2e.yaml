@@ -32,7 +32,7 @@ on:
       - "release/*"
 
 env:
-  DEV_DOCKER_ARGS: -e GRADLE_USER_HOME=/workspace/.gradle-ci --device /dev/kvm
+  DEV_DOCKER_ARGS: -v ${HOME:?}/ci-cache/gradle:/cache/gradle -e GRADLE_USER_HOME=/cache/gradle --device /dev/kvm
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -64,12 +64,14 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
-            .gradle-ci/caches
+            ~/ci-cache
           key:
             ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
             'gradle/libs.versions.toml', 'gradle.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
+      - name: Create the cache directories
+        run: mkdir -p ~/ci-cache/gradle
       - name: Build the debug APK
         run: $DEV_RUN -c 'gradle --no-daemon assembleDebug'
       - name: Run the gesture E2E suite
