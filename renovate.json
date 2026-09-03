@@ -58,6 +58,7 @@
         "pin",
         "digest"
       ],
+      "addLabels": ["automerge"],
       "automerge": true,
       "platformAutomerge": true
     }

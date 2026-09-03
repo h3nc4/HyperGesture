@@ -132,16 +132,34 @@ fi
 # an enabled overlay, so writing the secure setting alone does nothing: SystemUI recomputes
 # it from the RRO. Left in gestural mode the bottom strip sits under the gesture bar and
 # SystemUI claims every touch that starts there, so this must not fail quietly.
-"${ADB_BIN}" shell cmd overlay enable \
-  com.android.internal.systemui.navbar.threebutton >/dev/null 2>&1 || true
+
+force_three_button() {
+  for mode in gestural twobutton threebutton; do
+    "${ADB_BIN}" shell cmd overlay disable \
+      "com.android.internal.systemui.navbar.${mode}" >/dev/null 2>&1 || true
+  done
+  sleep 1
+  "${ADB_BIN}" shell cmd overlay enable \
+    com.android.internal.systemui.navbar.threebutton >/dev/null 2>&1 || true
+}
+
 nav_mode=""
 attempt=1
-while [ "${attempt}" -le 15 ]; do
-  nav_mode="$("${ADB_BIN}" shell settings get secure navigation_mode 2>/dev/null | tr -d '\r')"
+while [ "${attempt}" -le 6 ]; do
+  force_three_button
+  waited=1
+  while [ "${waited}" -le 10 ]; do
+    nav_mode="$("${ADB_BIN}" shell settings get secure navigation_mode 2>/dev/null | tr -d '\r')"
+    if [ "${nav_mode}" = "0" ]; then
+      break
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
   if [ "${nav_mode}" = "0" ]; then
     break
   fi
-  sleep 1
+  echo "   navigation_mode=${nav_mode}, retrying the overlay switch (attempt ${attempt} of 6)" >&2
   attempt=$((attempt + 1))
 done
 if [ "${nav_mode}" != "0" ]; then

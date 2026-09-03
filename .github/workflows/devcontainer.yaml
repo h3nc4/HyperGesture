@@ -34,7 +34,6 @@ jobs:
   release-image:
     name: Build and Release Dev Container
     runs-on: ubuntu-latest
-    timeout-minutes: 45
     permissions:
       contents: write # bumps the pin, creates the dc-v tag
     steps:

@@ -16,8 +16,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ################################################################################
-# Development container for HyperGesture. The only place the toolchain is installed:
-# the host needs no JDK, no Android SDK and no Android Studio.
+# Development container for HyperGesture. The only place the toolchain is installed, so
+# the JDK, the Android SDK and Android Studio all stay off the host.
 
 ########################################
 # Runtime user configuration
@@ -130,7 +130,7 @@ RUN apt-get install --no-install-recommends -y -qq \
   docker-cli \
   docker-buildx
 
-# Headless emulator viewing; mesa gives the emulator a GL surface in a container.
+# Headless emulator viewing. mesa gives the emulator a GL surface in a container.
 RUN apt-get install --no-install-recommends -y -qq \
   libgl1-mesa-dri \
   libglx-mesa0 \
@@ -141,7 +141,7 @@ RUN apt-get install --no-install-recommends -y -qq \
   tigervnc-common \
   tigervnc-standalone-server
 
-# Gradle. There is no committed wrapper; this is where the build tool comes from.
+# Gradle. There is no committed wrapper, so the build tool comes from here.
 ARG GRADLE_VERSION
 ARG GRADLE_SHA256
 ADD "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" /tmp/gradle.zip
@@ -180,7 +180,7 @@ ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/emulator:${AN
 COPY --from=android-sdk --chown=${UID}:${GID} --chmod=0777 /opt/android-sdk /opt/android-sdk
 COPY --from=android-avd --chown=${UID}:${GID} --chmod=0777 /opt/android-avd /opt/android-avd
 
-# Only the top dirs need 0777 set; COPY already set the files inside them.
+# Only the top dirs need 0777 set. COPY already set the files inside them.
 RUN chmod 0777 "${ANDROID_HOME}" "${ANDROID_AVD_HOME}"
 
 ########################################

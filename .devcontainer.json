@@ -64,7 +64,7 @@
         "editor.formatOnSave": true,
         "files.insertFinalNewline": true,
         "files.trimFinalNewlines": true,
-        // Kotlin convention is 4 spaces; everything else in this repo uses 2.
+        // Kotlin convention is 4 spaces.
         "[kotlin]": {
           "editor.tabSize": 4
         },
