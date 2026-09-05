@@ -49,7 +49,7 @@ jobs:
         with:
           fetch-depth: 0 # dev-image diffs against the base to spot image changes
       - name: Run h3nc4/dev-image-action
-        uses: h3nc4/dev-image-action@v2
+        uses: h3nc4/dev-image-action@1e296b26a16b3e20db153e32b963d953a41ef1a1 # v2
         with:
           docker-args: ${{ env.DEV_DOCKER_ARGS }}
       - name: Enable KVM
