@@ -32,7 +32,7 @@ if [ -z "${version}" ]; then
   version="1.0.0"
 fi
 
-dev_image_tag="$(cat .github/VERSION)"
+dev_image_tag="$(./scripts/devcontainer-image.sh -t)"
 
 # shellcheck disable=SC2154 # KEYSTORE_PASSWORD comes from .env or CI, and is optional
 docker build \

@@ -18,6 +18,7 @@
 {
   "name": "HyperGesture",
   "image": "h3nc4/hypergesture-dev:3",
+  "initializeCommand": "${localWorkspaceFolder}/scripts/devcontainer-init.sh",
   "runArgs": [
     "--name=hypergesture-devcontainer",
     "--network=host",

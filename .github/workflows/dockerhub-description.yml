@@ -31,11 +31,14 @@ jobs:
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Name the published dev image
+        run: |
+          echo "IMAGE=$(./scripts/devcontainer-image.sh -r)" >>"${GITHUB_ENV}"
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5
         with:
           username: "${{ vars.DOCKERHUB_USERNAME }}"
           password: "${{ secrets.DOCKERHUB_TOKEN }}"
-          repository: "${{ vars.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}-dev"
+          repository: "${{ env.IMAGE }}"
           short-description: "${{ github.event.repository.description }}"
           enable-url-completion: true

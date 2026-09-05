@@ -11,6 +11,11 @@
   "prHourlyLimit": 0,
   "packageRules": [
     {
+      "description": "The dev container pin belongs to CI, not to Renovate.",
+      "matchManagers": ["devcontainer"],
+      "enabled": false
+    },
+    {
       "description": "Android Gradle Plugin and Gradle move together",
       "groupName": "android-gradle",
       "matchPackageNames": [
