@@ -27,7 +27,7 @@ fi
 
 sonar_container_name="sonarqube"
 sonar_image="sonarqube:26.9.0.129388-community"
-sonar_scan_image="sonarsource/sonar-scanner-cli:12.1"
+sonar_scan_image="sonarsource/sonar-scanner-cli:12.2"
 sonar_url="http://localhost:9000"
 
 cfg_sonar() {
