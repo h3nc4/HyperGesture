@@ -39,7 +39,7 @@ ARG GRADLE_SHA256="acd53f1edaf02f1a8ff99879f8a34b302661a057d9b063ae9e35b552f804d
 
 ################################################################################
 # Android SDK stage
-FROM debian:trixie@sha256:f324c7ff54321e8d9c588493a20244965938ce0aa50bbd1022d38010e9ffc4b1 AS android-sdk
+FROM debian:trixie@sha256:181ecf074fdc824a42be4f84a7be2eba33c4ac298ae1ab15a4e69ed052bd9ec0 AS android-sdk
 ARG ANDROID_CMDLINE_TOOLS
 ARG ANDROID_COMPILE_SDK
 ARG ANDROID_BUILD_TOOLS
@@ -84,7 +84,7 @@ RUN mkdir -p "${ANDROID_AVD_HOME}" \
 
 ################################################################################
 # Debian main stage
-FROM debian:trixie@sha256:f324c7ff54321e8d9c588493a20244965938ce0aa50bbd1022d38010e9ffc4b1 AS main
+FROM debian:trixie@sha256:181ecf074fdc824a42be4f84a7be2eba33c4ac298ae1ab15a4e69ed052bd9ec0 AS main
 ARG USER
 ARG UID
 ARG GID
