@@ -107,8 +107,7 @@ docker run --rm \
   --memory="${scanner_memory}" \
   -e SONAR_HOST_URL -e SONAR_TOKEN \
   -e SONAR_SCANNER_JAVA_OPTS="${scanner_java_opts}" \
-  -v "${HYPERGESTURE_HOST_ROOT:-${PWD}}:${PWD}" \
-  -w "${PWD}" \
+  -v "${HOST_ROOT:-${PWD}}:/usr/src" \
   "${sonar_scan_image}" "$@" || scan_status=$?
 
 # Only a clean scan is cleaned up. A failure keeps its project, so the dashboard
