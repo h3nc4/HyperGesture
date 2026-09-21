@@ -22,4 +22,4 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "${repo_root}"
 
 gradle lintDebug
-shellcheck -o all scripts/*.sh scripts/hooks/*
+shellcheck -o all -x e2e/*.sh scripts/*.sh scripts/hooks/*

@@ -74,7 +74,7 @@ jobs:
       - name: Build the debug APK
         run: $DEV_RUN -c 'gradle --no-daemon assembleDebug'
       - name: Run the gesture E2E suite
-        run: $DEV_RUN -c './scripts/e2e-gestures.sh'
+        run: $DEV_RUN -c './e2e/run.sh'
       - name: Upload emulator log on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

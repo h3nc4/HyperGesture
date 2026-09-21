@@ -62,7 +62,7 @@ jobs:
       - name: Create the cache directories
         run: mkdir -p ~/ci-cache/gradle
       - name: Lint shell scripts
-        run: $DEV_RUN -c 'shellcheck -o all scripts/*.sh scripts/hooks/*'
+        run: $DEV_RUN -c 'shellcheck -o all -x e2e/*.sh scripts/*.sh scripts/hooks/*'
       - name: Android lint, unit tests, coverage and debug APK
         run: $DEV_RUN -c 'gradle --no-daemon lint test jacocoTestReport assembleDebug'
       - name: Run actions/upload-artifact

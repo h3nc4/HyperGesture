@@ -54,7 +54,7 @@ gradle test            # unit tests (GestureTracker decision logic)
 gradle lint            # Android lint
 gradle jacocoTestReport
 shellcheck -o all scripts/*.sh scripts/hooks/*
-./scripts/e2e-gestures.sh # gesture tests against a headless emulator
+./e2e/run.sh              # gesture tests against a headless emulator
 ./scripts/emulator-vnc.sh # emulator on a browser-viewable display, installs the APK
 ./scripts/build-apk.sh    # signed release APK via docker/apk.Dockerfile
 ```
@@ -65,7 +65,7 @@ Two layers, because they catch different things.
 
 **Unit tests** (`gradle test`) cover `GestureTracker`, the pure decision logic. They do not need a device or Robolectric, because `GestureTracker` has no `android.*` imports at all. The hold timer is driven by calling `onHoldElapsed()` directly, so no clock is involved.
 
-**End-to-end** (`./scripts/e2e-gestures.sh`) drives a headless emulator through the whole path:
+**End-to-end** (`./e2e/run.sh`) drives a headless emulator through the whole path:
 
 - boots the emulator and installs the APK
 - enables the accessibility service
@@ -77,7 +77,7 @@ It then asserts on two independent signals: logcat (did *our* service decide cor
 docker run --rm --device /dev/kvm \
   -v "$HOST_ROOT:/workspaces/hypergesture" -w /workspaces/hypergesture \
   --entrypoint /bin/bash h3nc4/hypergesture-dev:"$(cat .github/VERSION)" \
-  -c './scripts/e2e-gestures.sh'
+  -c './e2e/run.sh'
 ```
 
 `-k` leaves the emulator running for interactive poking. `-p hypergesture.apk` runs the suite against a release build, worth doing before every release, because R8 obfuscation and shrinking can break things no JVM test sees. It has already caught one such bug: log and diagnostics strings built from `::class.simpleName` came out as `a`/`b`/`c` once minified, so `GestureAction` carries an explicit `id`.
