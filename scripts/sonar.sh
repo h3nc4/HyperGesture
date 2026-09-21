@@ -16,82 +16,95 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+#
+# Analyses against the shared SonarQube, one project per developer because
+# Community Edition tracks a single branch per project.
+#
+#   ./scripts/sonar.sh      analyse as hypergesture-dev-<your SonarQube login>
+#   ./scripts/sonar.sh -d   analyse, then delete the project
 set -e
 
 cd "$(dirname "$0")/../"
 
-if [ "$1" = "-i" ]; then
-  skip_scan="1"
+delete_after=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -d) delete_after="1" ;;
+    *)
+      echo "usage: $0 [-d]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+# Defaulted so a workstation needs nothing but a token.
+SONAR_HOST_URL="${SONAR_HOST_URL:-https://sonar.h3nc4.com}"
+export SONAR_HOST_URL
+
+if [ -z "${SONAR_TOKEN:-}" ]; then
+  echo "SONAR_TOKEN is not set." >&2
+  echo "Create one under My Account, Security at ${SONAR_HOST_URL} and export" >&2
+  echo "it from your shell profile. The scanner reads it from the environment." >&2
+  exit 1
 fi
 
-sonar_container_name="sonarqube"
-sonar_image="sonarqube:26.9.0.129388-community"
-sonar_scan_image="sonarsource/sonar-scanner-cli:12.2"
-sonar_url="http://localhost:9000"
+sonar_scan_image="sonarsource/sonar-scanner-cli:12.1"
 
-cfg_sonar() {
-  curl --fail -su admin:admin -X POST "${sonar_url}/api/$1" >/dev/null
+# Swap is left alone on purpose: pinning it to the cap shuts the container out
+# of swap, which makes the scanner thrash the page cache instead.
+scanner_java_opts="${SONAR_SCANNER_JAVA_OPTS:--Xmx1g}"
+scanner_memory="${SONAR_SCANNER_MEMORY:-4g}"
+
+# curl from inside the scanner image, keeping the token out of argv.
+sonar_api() {
+  docker run --rm \
+    -e SONAR_HOST_URL -e SONAR_TOKEN \
+    --entrypoint sh "${sonar_scan_image}" -c "$1"
 }
 
-# Pull scanner image in background
-if [ -z "${skip_scan}" ]; then
-  docker pull "${sonar_scan_image}" >/dev/null 2>&1 &
-  pull_pid=$!
-fi
+project_key="${SONAR_PROJECT_KEY:-}"
 
-is_running="$(docker ps -q -f "name=${sonar_container_name}")"
-if [ -z "${is_running}" ]; then
-  is_exited="$(docker ps -aq -f status=exited -f "name=${sonar_container_name}")"
-  if [ -n "${is_exited}" ]; then
-    docker start "${sonar_container_name}" >/dev/null
-  else
-    docker run -d \
-      --name "${sonar_container_name}" \
-      -p 0.0.0.0:9000:9000 \
-      -v sonarqube_data:/opt/sonarqube/data \
-      -v sonarqube_extensions:/opt/sonarqube/extensions \
-      -v sonarqube_logs:/opt/sonarqube/logs \
-      -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true \
-      "${sonar_image}" >/dev/null
-    unconfigured="1"
+if [ -z "${project_key}" ] && [ -z "${CI:-}" ]; then
+  # Single quoted so the container's shell expands it. api/users/current is
+  # internal, hence the fallback.
+  # shellcheck disable=SC2016
+  sonar_login="$(sonar_api \
+    'curl -s -u "${SONAR_TOKEN}:" "${SONAR_HOST_URL}/api/users/current"' 2>/dev/null |
+    sed -n 's/.*"login" *: *"\([^"]*\)".*/\1/p' | head -n 1)"
+  if [ -z "${sonar_login}" ]; then
+    sonar_login="$(id -un)"
+    echo "Could not read your SonarQube login, falling back to ${sonar_login}" >&2
   fi
-
-  echo "Waiting for SonarQube to start..."
-  while ! wget -qO- "${sonar_url}/api/system/status" 2>/dev/null | grep -q 'UP'; do
-    sleep 1
-  done
-
-  if [ -n "${unconfigured}" ]; then
-    echo "Configuring SonarQube..."
-
-    # Configure SonarQube to allow anonymous access
-    cfg_sonar "settings/set?key=sonar.forceAuthentication&value=false"
-    cfg_sonar "permissions/add_group?permission=provisioning&groupName=anyone"
-    cfg_sonar "permissions/add_group?permission=scan&groupName=anyone"
-
-    # Create quality gate
-    cfg_sonar "qualitygates/create?name=HyperGestureGate"
-    cfg_sonar "qualitygates/create_condition?gateName=HyperGestureGate&metric=violations&op=GT&error=0"
-    cfg_sonar "qualitygates/create_condition?gateName=HyperGestureGate&metric=security_hotspots_reviewed&op=LT&error=100"
-    cfg_sonar "qualitygates/create_condition?gateName=HyperGestureGate&metric=duplicated_lines_density&op=GT&error=0"
-    cfg_sonar "qualitygates/set_as_default?name=HyperGestureGate"
-  fi
+  project_key="hypergesture-dev-${sonar_login}"
 fi
 
-echo "SonarQube is running at ${sonar_url}"
-if [ -n "${skip_scan}" ]; then
-  exit 0
+echo "Analysing against ${SONAR_HOST_URL}${project_key:+ as ${project_key}}"
+
+set -- -Dsonar.qualitygate.wait=true
+if [ -n "${project_key}" ]; then
+  set -- "$@" -Dsonar.projectKey="${project_key}"
 fi
 
-echo "Running SonarQube analysis..."
-
-wait "${pull_pid}"
-docker run \
-  --rm \
-  --network="host" \
+scan_status=0
+docker run --rm \
+  --memory="${scanner_memory}" \
+  -e SONAR_HOST_URL -e SONAR_TOKEN \
+  -e SONAR_SCANNER_JAVA_OPTS="${scanner_java_opts}" \
   -v "${HYPERGESTURE_HOST_ROOT:-${PWD}}:${PWD}" \
   -w "${PWD}" \
-  "${sonar_scan_image}" \
-  -Dsonar.host.url="${sonar_url}" \
-  -Dsonar.qualitygate.wait=true
+  "${sonar_scan_image}" "$@" || scan_status=$?
+
+# Whatever the gate said: a failed analysis leaves a project behind too.
+if [ -n "${delete_after}" ] && [ -n "${project_key}" ]; then
+  code="$(sonar_api \
+    "curl -s -o /dev/null -w '%{http_code}' -u \"\${SONAR_TOKEN}:\" \
+       -X POST \"\${SONAR_HOST_URL}/api/projects/delete\" \
+       --data-urlencode project=${project_key}")"
+  case "${code}" in
+    204) echo "Deleted project ${project_key}" ;;
+    *) echo "Warning: deleting ${project_key} returned ${code}" >&2 ;;
+  esac
+fi
+
+exit "${scan_status}"

@@ -75,8 +75,6 @@ git config core.hooksPath scripts/hooks || :
 
 # No Gradle build here: it would add minutes to every container start.
 
-./scripts/sonar.sh -i
-
 doas mandb >/dev/null 2>&1
 
 echo "Container initialized successfully."

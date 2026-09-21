@@ -26,6 +26,9 @@ on:
     branches:
       - "main"
       - "release/*"
+  schedule:
+    - cron: "30 6 * * *" # Daily at 06:30 UTC
+  workflow_dispatch:
 
 env:
   DEV_DOCKER_ARGS: -v ${HOME:?}/ci-cache/gradle:/cache/gradle -e GRADLE_USER_HOME=/cache/gradle
@@ -89,4 +92,19 @@ jobs:
       - name: Fail if the coverage report did not land
         run: test -s app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
       - name: Run SonarQube analysis
-        run: ./scripts/sonar.sh
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Only main writes the official project. Everything else gets a throwaway.
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            SONAR_PROJECT_KEY="hypergesture-pr-${PR_NUMBER:?}" ./scripts/sonar.sh -d
+          elif [ "${REF_NAME}" = "main" ]; then
+            ./scripts/sonar.sh
+          else
+            key="hypergesture-ref-$(printf '%s' "${REF_NAME:?}" | tr -c 'A-Za-z0-9._-' '-')"
+            SONAR_PROJECT_KEY="${key}" ./scripts/sonar.sh -d
+          fi
