@@ -95,8 +95,9 @@ docker run --rm \
   -w "${PWD}" \
   "${sonar_scan_image}" "$@" || scan_status=$?
 
-# Whatever the gate said: a failed analysis leaves a project behind too.
-if [ -n "${delete_after}" ] && [ -n "${project_key}" ]; then
+# Only a clean scan is cleaned up. A failure keeps its project, so the dashboard
+# the scanner just named is still there to read.
+if [ -n "${delete_after}" ] && [ -n "${project_key}" ] && [ "${scan_status}" -eq 0 ]; then
   code="$(sonar_api \
     "curl -s -o /dev/null -w '%{http_code}' -u \"\${SONAR_TOKEN}:\" \
        -X POST \"\${SONAR_HOST_URL}/api/projects/delete\" \
