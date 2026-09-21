@@ -38,7 +38,7 @@
     "DEVCONTAINER": "1",
     "TERM": "${env:TERM}",
     "TMUX": "${env:TMUX}",
-    "HYPERGESTURE_HOST_ROOT": "${localWorkspaceFolder}"
+    "HOST_ROOT": "${localWorkspaceFolder}"
   },
   "userEnvProbe": "interactiveShell",
   // /dev/kvm and the render node are needed for a hardware-accelerated emulator.

@@ -75,7 +75,7 @@ It then asserts on two independent signals: logcat (did *our* service decide cor
 
 ```sh
 docker run --rm --device /dev/kvm \
-  -v "$HYPERGESTURE_HOST_ROOT:/workspaces/hypergesture" -w /workspaces/hypergesture \
+  -v "$HOST_ROOT:/workspaces/hypergesture" -w /workspaces/hypergesture \
   --entrypoint /bin/bash h3nc4/hypergesture-dev:"$(cat .github/VERSION)" \
   -c './scripts/e2e-gestures.sh'
 ```
