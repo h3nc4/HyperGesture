@@ -19,9 +19,6 @@
 #
 # Analyses against the shared SonarQube, one project per developer because
 # Community Edition tracks a single branch per project.
-#
-#   ./scripts/sonar.sh      analyse as hypergesture-dev-<your SonarQube login>
-#   ./scripts/sonar.sh -d   analyse, then delete the project
 set -e
 
 cd "$(dirname "$0")/../"
@@ -66,8 +63,7 @@ sonar_api() {
 project_key="${SONAR_PROJECT_KEY:-}"
 
 if [ -z "${project_key}" ] && [ -z "${CI:-}" ]; then
-  # Single quoted so the container's shell expands it. api/users/current is
-  # internal, hence the fallback.
+  # Single quoted so the container's shell expands it, and api/users/current is internal.
   # shellcheck disable=SC2016
   sonar_login="$(sonar_api \
     'curl -s -u "${SONAR_TOKEN}:" "${SONAR_HOST_URL}/api/users/current"' 2>/dev/null |
