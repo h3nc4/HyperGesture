@@ -318,4 +318,77 @@ class GestureTrackerTest {
             t.onUp(sample(1078f, 1200f, 60L)),
         )
     }
+
+    @Test
+    fun `a move with no preceding down is ignored`() {
+        val t = tracker(ScreenEdge.LEFT)
+        assertEquals(TrackerAction.None, t.onMove(sample(105f, 1200f, 60L)))
+    }
+
+    @Test
+    fun `a release with no preceding down reports no movement`() {
+        val t = tracker(ScreenEdge.LEFT)
+        assertEquals(
+            TrackerAction.Unused(RejectionReason.NO_MOVEMENT),
+            t.onUp(sample(105f, 1200f, 60L)),
+        )
+    }
+
+    @Test
+    fun `a hold that elapses before arming does nothing`() {
+        val t = tracker(ScreenEdge.BOTTOM)
+        t.onDown(sample(540f, 2395f, 0L))
+        assertEquals(TrackerAction.None, t.onHoldElapsed())
+    }
+
+    @Test
+    fun `moving after Recents has fired does not restart the hold timer`() {
+        val t = tracker(ScreenEdge.BOTTOM)
+        t.onDown(sample(540f, 2395f, 0L))
+        t.onMove(sample(540f, 2295f, 50L))
+        assertTrue(t.onHoldElapsed() is TrackerAction.Fire)
+        assertEquals(TrackerAction.None, t.onMove(sample(540f, 2100f, 200L)))
+    }
+
+    @Test
+    fun `moving after arming on a side edge restarts no hold it does not have`() {
+        val t = tracker(ScreenEdge.LEFT)
+        t.onDown(sample(5f, 1200f, 0L))
+        assertTrue(t.onMove(sample(105f, 1200f, 60L)) is TrackerAction.Armed)
+        assertEquals(TrackerAction.None, t.onMove(sample(205f, 1200f, 90L)))
+    }
+
+    @Test
+    fun `sliding along the bottom edge while holding restarts the hold timer`() {
+        val t = tracker(ScreenEdge.BOTTOM)
+        t.onDown(sample(540f, 2395f, 0L))
+        t.onMove(sample(540f, 2295f, 50L))
+        // 80px sideways is past the 33px stillness allowance, with y unchanged.
+        assertEquals(TrackerAction.RearmHold(100L), t.onMove(sample(620f, 2295f, 90L)))
+    }
+
+    @Test
+    fun `a release that only moved along the edge is unused as too short`() {
+        val t = tracker(ScreenEdge.LEFT)
+        t.onDown(sample(5f, 1200f, 0L))
+        assertEquals(
+            TrackerAction.Unused(RejectionReason.INSUFFICIENT_MOVEMENT),
+            t.onUp(sample(5f, 1300f, 60L)),
+        )
+    }
+
+    @Test
+    fun `a second release after the gesture already ended is unused`() {
+        val t = tracker(ScreenEdge.LEFT)
+        t.onDown(sample(5f, 1200f, 0L))
+        assertTrue(t.onMove(sample(105f, 1200f, 60L)) is TrackerAction.Armed)
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Back, ScreenEdge.LEFT),
+            t.onUp(sample(105f, 1200f, 80L)),
+        )
+        assertEquals(
+            TrackerAction.Unused(RejectionReason.INSUFFICIENT_MOVEMENT),
+            t.onUp(sample(105f, 1200f, 90L)),
+        )
+    }
 }
