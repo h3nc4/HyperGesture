@@ -91,20 +91,8 @@ jobs:
           path: app/build/reports
       - name: Fail if the coverage report did not land
         run: test -s app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
-      - name: Run SonarQube analysis
-        env:
-          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          EVENT_NAME: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Only main writes the official project. Everything else gets a throwaway.
-          if [ "${EVENT_NAME}" = "pull_request" ]; then
-            SONAR_PROJECT_KEY="hypergesture-pr-${PR_NUMBER:?}" ./scripts/sonar.sh -d
-          elif [ "${REF_NAME}" = "main" ]; then
-            ./scripts/sonar.sh
-          else
-            key="hypergesture-ref-$(printf '%s' "${REF_NAME:?}" | tr -c 'A-Za-z0-9._-' '-')"
-            SONAR_PROJECT_KEY="${key}" ./scripts/sonar.sh -d
-          fi
+      - name: Run h3nc4/sonar-action
+        uses: h3nc4/sonar-action@f16ceef53c5a806b98ac93fc631ce62875e929fd # v1
+        with:
+          host-url: ${{ vars.SONAR_HOST_URL }}
+          token: ${{ secrets.SONAR_TOKEN }}
