@@ -18,10 +18,12 @@
 package com.h3nc4.hypergesture.ui
 
 import android.app.Activity
+import android.app.AppOpsManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Bundle
+import android.os.Process
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -136,6 +138,12 @@ private fun HyperGestureScreen(
             onRequestEnable = integration::requestEnable,
             onStateChanged = { diagnostics = DiagnosticsCollector.collect(context) },
         )
+
+        // Never collapsed: this is the one gesture that needs a permission before it works,
+        // and hiding the toggle behind a tap is how it goes unnoticed.
+        AppSwitchCard(configuration) { update ->
+            scope.launch { settings.update(update) }
+        }
 
         GestureCheatSheet()
 
@@ -403,6 +411,8 @@ private fun GestureCheatSheet() {
                 R.string.gesture_back_name to R.string.gesture_back_how,
                 R.string.gesture_home_name to R.string.gesture_home_how,
                 R.string.gesture_recents_name to R.string.gesture_recents_how,
+                R.string.gesture_previous_app_name to R.string.gesture_previous_app_how,
+                R.string.gesture_next_app_name to R.string.gesture_next_app_how,
             ).forEach { (name, how) ->
                 Column {
                     Text(
@@ -581,6 +591,84 @@ private fun ThresholdSlider(
     }
 }
 
+/**
+ * Re-checked on tap, since returning from Settings does not recompose on its own.
+ */
+@Composable
+private fun AppSwitchCard(
+    configuration: GestureConfiguration,
+    onUpdate: ((GestureConfiguration) -> GestureConfiguration) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.section_app_switch),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.section_app_switch_body),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            ToggleRow(
+                label = stringResource(R.string.label_app_switch),
+                checked = configuration.appSwitchEnabled,
+            ) { updated -> onUpdate { it.copy(appSwitchEnabled = updated) } }
+
+            if (configuration.appSwitchEnabled) UsageAccessRow()
+        }
+    }
+}
+
+@Composable
+private fun UsageAccessRow() {
+    val context = LocalContext.current
+    var granted by remember { mutableStateOf(hasUsageAccess(context)) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { granted = hasUsageAccess(context) }
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(
+                if (granted) R.string.label_usage_access_granted
+                else R.string.label_usage_access_missing,
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(end = 12.dp),
+        )
+        if (!granted) {
+            TextButton(onClick = {
+                context.startFirst(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+            }) {
+                Text(stringResource(R.string.action_grant_usage_access))
+            }
+        }
+    }
+}
+
+// The app op, not the permission: PACKAGE_USAGE_STATS reads as denied through
+// checkSelfPermission even once the user has allowed it in Settings.
+private fun hasUsageAccess(context: Context): Boolean {
+    val ops = context.getSystemService(AppOpsManager::class.java) ?: return false
+    val mode = runCatching {
+        ops.unsafeCheckOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS,
+            Process.myUid(),
+            context.packageName,
+        )
+    }.getOrNull()
+    return mode == AppOpsManager.MODE_ALLOWED
+}
+
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
@@ -617,6 +705,8 @@ private fun DiagnosticsContent(diagnostics: Diagnostics, onRefresh: () -> Unit) 
         stringResource(R.string.diag_integration) to diagnostics.navigationIntegrationId,
         stringResource(R.string.diag_last_failure) to
             (diagnostics.lastGlobalActionFailure ?: none),
+        stringResource(R.string.label_last_app_switch_failure) to
+            (diagnostics.lastAppSwitchFailure ?: none),
         stringResource(R.string.diag_app_version) to diagnostics.appVersionName,
         stringResource(R.string.diag_license) to stringResource(R.string.value_license),
     )

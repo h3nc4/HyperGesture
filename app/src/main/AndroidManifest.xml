@@ -17,7 +17,8 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
       No network, storage or overlay permissions. SYSTEM_ALERT_WINDOW is not needed:
@@ -25,6 +26,26 @@
       subsystem only - Android rebinds the accessibility service itself after boot.
     -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!--
+      App switching reads which app was in front before this one. The user grants it under
+      Special app access, Usage access, and the gesture reports a failure without it.
+    -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!--
+      Package visibility, not a permission: since Android 11 getLaunchIntentForPackage returns
+      null for an app we have not declared an interest in, which silently reduced the app
+      switch order to the handful of system packages that are visible by default.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"

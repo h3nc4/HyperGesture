@@ -44,6 +44,10 @@ class GestureTracker(
     private var armed = false
     private var holdFired = false
 
+    // Set when the armed gesture was a sideways one, which fires instead of [shortAction]
+    // and schedules no hold.
+    private var armedSideways: GestureAction? = null
+
     private val shortAction: GestureAction =
         if (edge == ScreenEdge.BOTTOM) GestureAction.Home else GestureAction.Back
 
@@ -64,6 +68,7 @@ class GestureTracker(
         tracking = true
         armed = false
         holdFired = false
+        armedSideways = null
         return TrackerAction.None
     }
 
@@ -76,6 +81,14 @@ class GestureTracker(
                 tracking = false
                 return TrackerAction.Unused(RejectionReason.TOO_SLOW_TO_ARM)
             }
+
+            val sideways = sidewaysAction(origin, sample)
+            if (sideways != null) {
+                armed = true
+                armedSideways = sideways
+                anchor = sample
+                return TrackerAction.Armed(scheduleHoldMs = null)
+            }
             if (!hasArmed(origin, sample)) return TrackerAction.None
 
             armed = true
@@ -85,7 +98,18 @@ class GestureTracker(
             )
         }
 
-        if (holdFired || holdAction == null) return TrackerAction.None
+        // An upward drift can arm Home before the sideways travel accumulates, so a gesture
+        // may still become a sideways one until the hold fires.
+        if (!holdFired && armedSideways == null) {
+            val late = sidewaysAction(origin, sample)
+            if (late != null) {
+                armedSideways = late
+                anchor = sample
+                return TrackerAction.Armed(scheduleHoldMs = null)
+            }
+        }
+
+        if (holdFired || holdAction == null || armedSideways != null) return TrackerAction.None
 
         // The hold may come anywhere along the swipe, so movement re-anchors, not cancels.
         val reference = anchor ?: return TrackerAction.None
@@ -99,7 +123,7 @@ class GestureTracker(
 
     fun onHoldElapsed(): TrackerAction {
         val action = holdAction ?: return TrackerAction.None
-        if (!tracking || !armed || holdFired) return TrackerAction.None
+        if (!tracking || !armed || holdFired || armedSideways != null) return TrackerAction.None
         holdFired = true
         return TrackerAction.Fire(action, edge)
     }
@@ -109,19 +133,21 @@ class GestureTracker(
         val wasTracking = tracking
         val wasArmed = armed
         val alreadyFired = holdFired
+        val sideways = armedSideways
         tracking = false
 
         if (alreadyFired) return TrackerAction.None
-        if (wasTracking && wasArmed) return TrackerAction.Fire(shortAction, edge)
+        if (wasTracking && wasArmed) return TrackerAction.Fire(sideways ?: shortAction, edge)
 
         // A stream can arrive as DOWN then UP with no MOVE between - event batching under
         // load does this, and a slow emulator does it reliably. The release is still a
         // swipe if it clears the threshold on its own, so judge it by the same rule.
         if (wasTracking && origin != null &&
-            sample.timestampMs - origin.timestampMs <= configuration.maximumArmDurationMs &&
-            hasArmed(origin, sample)
+            sample.timestampMs - origin.timestampMs <= configuration.maximumArmDurationMs
         ) {
-            return TrackerAction.Fire(shortAction, edge)
+            val late = sidewaysAction(origin, sample)
+            if (late != null) return TrackerAction.Fire(late, edge)
+            if (hasArmed(origin, sample)) return TrackerAction.Fire(shortAction, edge)
         }
         return TrackerAction.Unused(rejectionFor(origin, sample))
     }
@@ -130,8 +156,22 @@ class GestureTracker(
         tracking = false
         armed = false
         holdFired = false
+        armedSideways = null
         start = null
         anchor = null
+    }
+
+    // A swipe along the bottom edge rather than up from it. Only the bottom edge offers this:
+    // on a side edge the sideways axis is the one that already means Back.
+    private fun sidewaysAction(origin: TouchSample, sample: TouchSample): GestureAction? {
+        if (edge != ScreenEdge.BOTTOM || !configuration.appSwitchEnabled) return null
+        val sideways = sample.xPx - origin.xPx
+        if (abs(sideways) < minimumDistancePx) return null
+        // Held to the same cone as every other gesture, measured the other way round.
+        if (abs(sample.yPx - origin.yPx) > abs(sideways) * configuration.offAxisToleranceRatio) {
+            return null
+        }
+        return if (sideways > 0f) GestureAction.PreviousApp else GestureAction.NextApp
     }
 
     private fun hasArmed(origin: TouchSample, sample: TouchSample): Boolean {

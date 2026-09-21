@@ -28,11 +28,16 @@ import com.h3nc4.hypergesture.gesture.GestureAction
  */
 class GestureActionPerformer(private val service: AccessibilityService) {
 
+    private val switcher = AppSwitcher(service)
+
     fun perform(action: GestureAction): Boolean {
         val globalAction = when (action) {
             GestureAction.Back -> AccessibilityService.GLOBAL_ACTION_BACK
             GestureAction.Home -> AccessibilityService.GLOBAL_ACTION_HOME
             GestureAction.Recents -> AccessibilityService.GLOBAL_ACTION_RECENTS
+            // Android exposes no global action for these, so they launch instead.
+            GestureAction.PreviousApp -> return switcher.step(toPrevious = true)
+            GestureAction.NextApp -> return switcher.step(toPrevious = false)
         }
 
         // performGlobalAction throws instead of returning false once the service has been

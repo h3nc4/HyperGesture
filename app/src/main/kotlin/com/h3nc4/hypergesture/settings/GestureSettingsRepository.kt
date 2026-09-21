@@ -53,6 +53,7 @@ class GestureSettingsRepository(private val context: Context) {
             preferences[RECENTS_HOLD_MS] = updated.recentsHoldMs
             preferences[HOLD_STILLNESS_DP] = updated.holdStillnessDp
             preferences[OFF_AXIS_TOLERANCE] = updated.offAxisToleranceRatio
+            preferences[APP_SWITCH] = updated.appSwitchEnabled
             preferences[LEFT_EDGE_BACK] = updated.leftEdgeBackEnabled
             preferences[RIGHT_EDGE_BACK] = updated.rightEdgeBackEnabled
             preferences[HAPTIC_FEEDBACK] = updated.hapticFeedbackEnabled
@@ -74,10 +75,21 @@ class GestureSettingsRepository(private val context: Context) {
             holdStillnessDp = preferences[HOLD_STILLNESS_DP] ?: defaults.holdStillnessDp,
             offAxisToleranceRatio =
                 preferences[OFF_AXIS_TOLERANCE] ?: defaults.offAxisToleranceRatio,
+            appSwitchEnabled = debugAppSwitchEnabled() ?: (preferences[APP_SWITCH] ?: defaults.appSwitchEnabled),
             leftEdgeBackEnabled = preferences[LEFT_EDGE_BACK] ?: defaults.leftEdgeBackEnabled,
             rightEdgeBackEnabled = preferences[RIGHT_EDGE_BACK] ?: defaults.rightEdgeBackEnabled,
             hapticFeedbackEnabled = preferences[HAPTIC_FEEDBACK] ?: defaults.hapticFeedbackEnabled,
         )
+    }
+
+    /** Test seam for the emulator suite, which cannot tap a Compose switch. Debug only. */
+    private fun debugAppSwitchEnabled(): Boolean? {
+        if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return null
+        return runCatching {
+            Settings.Global.getString(context.contentResolver, APP_SWITCH_OVERRIDE)?.let {
+                it == "1" || it.equals("true", ignoreCase = true)
+            }
+        }.getOrNull()
     }
 
     /**
@@ -94,6 +106,7 @@ class GestureSettingsRepository(private val context: Context) {
 
     private companion object {
         const val RECENTS_HOLD_OVERRIDE = "hypergesture_recents_hold_ms"
+        const val APP_SWITCH_OVERRIDE = "hypergesture_app_switch"
 
         val EDGE_WIDTH_DP = floatPreferencesKey("edge_width_dp")
         val SIDE_MIN_DISTANCE_DP = floatPreferencesKey("side_minimum_swipe_distance_dp")
@@ -102,6 +115,7 @@ class GestureSettingsRepository(private val context: Context) {
         val RECENTS_HOLD_MS = longPreferencesKey("recents_hold_ms")
         val HOLD_STILLNESS_DP = floatPreferencesKey("hold_stillness_dp")
         val OFF_AXIS_TOLERANCE = floatPreferencesKey("off_axis_tolerance_ratio")
+        val APP_SWITCH = booleanPreferencesKey("app_switch_enabled")
         val LEFT_EDGE_BACK = booleanPreferencesKey("left_edge_back_enabled")
         val RIGHT_EDGE_BACK = booleanPreferencesKey("right_edge_back_enabled")
         val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback_enabled")
