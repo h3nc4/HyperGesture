@@ -46,7 +46,7 @@ if [ -z "${SONAR_TOKEN:-}" ]; then
   exit 1
 fi
 
-sonar_scan_image="sonarsource/sonar-scanner-cli:12.1"
+sonar_scan_image="sonarsource/sonar-scanner-cli:12.2"
 
 # Swap is left alone on purpose: pinning it to the cap shuts the container out
 # of swap, which makes the scanner thrash the page cache instead.
