@@ -33,6 +33,10 @@
     <string name="gesture_home_how">Swipe up from the bottom edge</string>
     <string name="gesture_recents_name">Recent apps</string>
     <string name="gesture_recents_how">Swipe up from the bottom and hold</string>
+    <string name="gesture_previous_app_name">Previous app</string>
+    <string name="gesture_previous_app_how">Swipe right along the bottom edge</string>
+    <string name="gesture_next_app_name">Next app</string>
+    <string name="gesture_next_app_how">Swipe left along the bottom edge</string>
 
     <!-- Capability 1: the accessibility gesture service. -->
     <string name="status_accessibility_title">Gesture service</string>
@@ -72,6 +76,13 @@
     <string name="value_ms">%1$d ms</string>
     <string name="label_left_edge_back">Left edge swipe = Back</string>
     <string name="label_right_edge_back">Right edge swipe = Back</string>
+    <string name="section_app_switch">App switching</string>
+    <string name="section_app_switch_body">Swipe sideways along the bottom edge to move between the apps you came from. Right goes back, left comes forward.</string>
+    <string name="label_app_switch">Bottom edge sideways swipe = switch apps</string>
+    <string name="label_usage_access_granted">Usage access granted</string>
+    <string name="label_usage_access_missing">Usage access needed to switch apps</string>
+    <string name="action_grant_usage_access">Grant</string>
+    <string name="label_last_app_switch_failure">Last app switch problem</string>
     <string name="label_haptics">Vibrate when a gesture fires</string>
     <string name="action_reset_defaults">Reset to defaults</string>
 

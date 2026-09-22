@@ -36,6 +36,12 @@ class GestureTrackerTest {
 
     private fun sample(x: Float, y: Float, t: Long) = TouchSample(x, y, t)
 
+    // App switching is off by default, so every sideways case asks for it explicitly.
+    private fun switchingTracker(edge: ScreenEdge = ScreenEdge.BOTTOM) = tracker(
+        edge,
+        configuration = GestureConfiguration(appSwitchEnabled = true),
+    )
+
     @Test
     fun `inward swipe from the left edge fires Back on release`() {
         val t = tracker(ScreenEdge.LEFT)
@@ -316,6 +322,128 @@ class GestureTrackerTest {
         assertEquals(
             TrackerAction.Unused(RejectionReason.WRONG_DIRECTION),
             t.onUp(sample(1078f, 1200f, 60L)),
+        )
+    }
+
+    @Test
+    fun `swiping right along the bottom edge goes to the previous app`() {
+        val t = switchingTracker()
+        t.onDown(sample(300f, 2395f, 0L))
+        // 200px sideways is past the 27.5px bottom threshold, with no upward travel.
+        val armed = t.onMove(sample(500f, 2395f, 60L))
+        assertTrue("expected arming, got $armed", armed is TrackerAction.Armed)
+        assertEquals(null, (armed as TrackerAction.Armed).scheduleHoldMs)
+        assertEquals(
+            TrackerAction.Fire(GestureAction.PreviousApp, ScreenEdge.BOTTOM),
+            t.onUp(sample(500f, 2395f, 80L)),
+        )
+    }
+
+    @Test
+    fun `swiping left along the bottom edge goes to the next app`() {
+        val t = switchingTracker()
+        t.onDown(sample(500f, 2395f, 0L))
+        assertTrue(t.onMove(sample(300f, 2395f, 60L)) is TrackerAction.Armed)
+        assertEquals(
+            TrackerAction.Fire(GestureAction.NextApp, ScreenEdge.BOTTOM),
+            t.onUp(sample(300f, 2395f, 80L)),
+        )
+    }
+
+    @Test
+    fun `a sideways swipe schedules no hold, so Recents cannot fire under it`() {
+        val t = switchingTracker()
+        t.onDown(sample(300f, 2395f, 0L))
+        t.onMove(sample(500f, 2395f, 60L))
+        assertEquals(TrackerAction.None, t.onHoldElapsed())
+    }
+
+    @Test
+    fun `a sideways swipe delivered as down then up still switches`() {
+        val t = switchingTracker()
+        t.onDown(sample(300f, 2395f, 0L))
+        assertEquals(
+            TrackerAction.Fire(GestureAction.PreviousApp, ScreenEdge.BOTTOM),
+            t.onUp(sample(500f, 2395f, 60L)),
+        )
+    }
+
+    @Test
+    fun `a diagonal swipe off the bottom edge is not a switch`() {
+        val t = switchingTracker()
+        t.onDown(sample(300f, 2395f, 0L))
+        // 200px sideways with 300px upward is outside the cone measured sideways, and the
+        // upward reading arms Home instead.
+        val armed = t.onMove(sample(500f, 2095f, 60L))
+        assertTrue(armed is TrackerAction.Armed)
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Home, ScreenEdge.BOTTOM),
+            t.onUp(sample(500f, 2095f, 80L)),
+        )
+    }
+
+    @Test
+    fun `a short sideways nudge on the bottom edge is unused`() {
+        val t = switchingTracker()
+        t.onDown(sample(300f, 2395f, 0L))
+        assertEquals(TrackerAction.None, t.onMove(sample(320f, 2395f, 40L)))
+        assertEquals(
+            TrackerAction.Unused(RejectionReason.INSUFFICIENT_MOVEMENT),
+            t.onUp(sample(320f, 2395f, 60L)),
+        )
+    }
+
+    @Test
+    fun `a sideways swipe on a side edge is still Back, not a switch`() {
+        val t = switchingTracker(ScreenEdge.LEFT)
+        t.onDown(sample(5f, 1200f, 0L))
+        assertTrue(t.onMove(sample(105f, 1200f, 60L)) is TrackerAction.Armed)
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Back, ScreenEdge.LEFT),
+            t.onUp(sample(105f, 1200f, 80L)),
+        )
+    }
+
+    @Test
+    fun `a swipe that drifts up first still becomes a switch once it goes sideways`() {
+        val t = switchingTracker()
+        t.onDown(sample(300f, 2395f, 0L))
+        // 30px up crosses the 27.5px bottom threshold, so this arms Home first.
+        val armedUp = t.onMove(sample(305f, 2365f, 30L))
+        assertTrue("expected arming, got $armedUp", armedUp is TrackerAction.Armed)
+        assertEquals(100L, (armedUp as TrackerAction.Armed).scheduleHoldMs)
+        // Then the finger carries on sideways, which re-arms with no hold.
+        val armedSideways = t.onMove(sample(600f, 2370f, 80L))
+        assertTrue("expected re-arming, got $armedSideways", armedSideways is TrackerAction.Armed)
+        assertEquals(null, (armedSideways as TrackerAction.Armed).scheduleHoldMs)
+        assertEquals(TrackerAction.None, t.onHoldElapsed())
+        assertEquals(
+            TrackerAction.Fire(GestureAction.PreviousApp, ScreenEdge.BOTTOM),
+            t.onUp(sample(600f, 2370f, 100L)),
+        )
+    }
+
+    @Test
+    fun `a swipe that stays upward is never re-read as a switch`() {
+        val t = switchingTracker()
+        t.onDown(sample(540f, 2395f, 0L))
+        assertTrue(t.onMove(sample(540f, 2295f, 50L)) is TrackerAction.Armed)
+        // Drifting 40px sideways while 100px up stays inside the upward cone.
+        assertTrue(t.onMove(sample(580f, 2195f, 90L)) is TrackerAction.RearmHold)
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Recents, ScreenEdge.BOTTOM),
+            t.onHoldElapsed(),
+        )
+    }
+
+    @Test
+    fun `with app switching off a sideways swipe stays unused`() {
+        val t = tracker(ScreenEdge.BOTTOM)
+        t.onDown(sample(300f, 2395f, 0L))
+        assertEquals(TrackerAction.None, t.onMove(sample(500f, 2395f, 60L)))
+        assertEquals(
+            TrackerAction.Unused(RejectionReason.INSUFFICIENT_MOVEMENT),
+            t.onUp(sample(500f, 2395f, 80L)),
         )
     }
 

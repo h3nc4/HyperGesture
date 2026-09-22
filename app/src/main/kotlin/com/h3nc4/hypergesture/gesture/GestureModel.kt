@@ -35,6 +35,16 @@ sealed interface GestureAction {
     data object Recents : GestureAction {
         override val id: String = "Recents"
     }
+
+    /** One step back through the apps the user came from. */
+    data object PreviousApp : GestureAction {
+        override val id: String = "PreviousApp"
+    }
+
+    /** One step forward again, undoing a [PreviousApp]. */
+    data object NextApp : GestureAction {
+        override val id: String = "NextApp"
+    }
 }
 
 enum class ScreenEdge { LEFT, RIGHT, BOTTOM }
@@ -58,6 +68,8 @@ data class GestureConfiguration(
     val holdStillnessDp: Float = 12f,
     /** Multiple of the on-axis travel; 1.0 is a 45-degree cone. */
     val offAxisToleranceRatio: Float = 1.0f,
+    /** Off by default: switching apps needs usage access the user grants by hand. */
+    val appSwitchEnabled: Boolean = false,
     val leftEdgeBackEnabled: Boolean = true,
     val rightEdgeBackEnabled: Boolean = true,
     val hapticFeedbackEnabled: Boolean = true,

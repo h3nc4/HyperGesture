@@ -1,0 +1,260 @@
+# Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+#
+# This file is part of HyperGesture.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# shellcheck shell=sh
+
+# Sourced by every script here. A suite decides what to assert, this decides how to say it.
+
+# Find the checkout by locating this file, so a suite runs from anywhere.
+if [ -z "${HG_ROOT:-}" ]; then
+  _start="$(dirname -- "$0")"
+  _d="$(CDPATH='' cd -- "${_start}" 2>/dev/null && pwd)" || _d="${PWD}"
+  while [ "${_d}" != '/' ] && [ ! -f "${_d}/e2e/lib" ]; do
+    _d="$(dirname "${_d}")"
+  done
+  if [ ! -f "${_d}/e2e/lib" ]; then
+    echo "cannot locate the HyperGesture checkout, set HG_ROOT" >&2
+    exit 1
+  fi
+  HG_ROOT="${_d}"
+fi
+cd "${HG_ROOT}" || exit 1
+
+################################################################################
+# Tools and constants
+
+# Resolved from ANDROID_HOME, not PATH: a login shell sources /etc/profile, which drops
+# the SDK directories.
+ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
+ADB_BIN="${ANDROID_HOME}/platform-tools/adb"
+EMULATOR_BIN="${ANDROID_HOME}/emulator/emulator"
+
+AVD="${AVD:-hypergesture}"
+PKG="com.h3nc4.hypergesture"
+SERVICE="${PKG}/${PKG}.service.HyperGestureAccessibilityService"
+LOG_DIR="build/e2e-logs"
+
+# need_tool <path>
+need_tool() {
+  if [ ! -x "$1" ]; then
+    echo "Missing $1. Is ANDROID_HOME correct? (got '${ANDROID_HOME}')" >&2
+    exit 1
+  fi
+}
+
+require_adb() {
+  need_tool "${ADB_BIN}"
+  mkdir -p "${LOG_DIR}"
+}
+
+# Only whoever boots an emulator needs its binary.
+require_emulator() {
+  require_adb
+  need_tool "${EMULATOR_BIN}"
+}
+
+################################################################################
+# Counting
+
+passed=0
+failed=0
+failures=''
+
+fail() {
+  failed=$((failed + 1))
+  failures="${failures}
+  - $1"
+  echo "  FAIL: $1" >&2
+}
+
+pass() {
+  passed=$((passed + 1))
+  echo "  ok: $1" >&2
+}
+
+# report <suite name> - the verdict, and the exit status a suite should carry.
+report() {
+  echo >&2
+  echo "================ $1 ================" >&2
+  echo "passed: ${passed}  failed: ${failed}" >&2
+  if [ "${failed}" -ne 0 ]; then
+    printf '%s\n' "${failures}" >&2
+    return 1
+  fi
+  return 0
+}
+
+################################################################################
+# Assertions
+#
+# logcat says what the service decided, dumpsys what the system did.
+
+# Clears logcat, so each case asserts only on what it caused.
+reset_log() {
+  "${ADB_BIN}" logcat -c >/dev/null 2>&1 || true
+}
+
+# Prints this case's HyperGesture log lines.
+gesture_log() {
+  "${ADB_BIN}" logcat -d -s HyperGesture 2>/dev/null | tr -d '\r'
+}
+
+# assert_log <description> <grep-pattern>
+assert_log() {
+  # shellcheck disable=SC2310 # an empty log is a legitimate result, not a script error
+  captured="$(gesture_log || true)"
+  if printf '%s\n' "${captured}" | grep -q "$2"; then
+    pass "$1"
+  else
+    fail "$1 (no log matching '$2')"
+    printf '%s\n' "${captured}" | sed 's/^/        /' >&2
+  fi
+}
+
+# log_has <grep-pattern> - quiet predicate, for chaining a secondary assertion onto a
+# primary one so a system-performed action cannot be mistaken for one of ours.
+log_has() {
+  # shellcheck disable=SC2310 # an empty log is a legitimate result, not a script error
+  captured="$(gesture_log || true)"
+  printf '%s\n' "${captured}" | grep -q "$1"
+}
+
+# assert_no_log <description> <grep-pattern>
+assert_no_log() {
+  # shellcheck disable=SC2310 # an empty log is a legitimate result, not a script error
+  captured="$(gesture_log || true)"
+  if printf '%s\n' "${captured}" | grep -q "$2"; then
+    fail "$1 (unexpectedly matched '$2')"
+    printf '%s\n' "${captured}" | sed 's/^/        /' >&2
+  else
+    pass "$1"
+  fi
+}
+
+resumed_activity() {
+  "${ADB_BIN}" shell dumpsys activity activities 2>/dev/null |
+    tr -d '\r' | grep -oE 'topResumedActivity.*' | head -1 || true
+}
+
+################################################################################
+# Input
+
+# monkey returns when the intent is sent, not when the app has drawn, and a stream
+# delivered mid-draw arrives too slow to arm. So wait for the window.
+open_test_app() {
+  "${ADB_BIN}" shell monkey -p "${PKG}" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+  focus_try=1
+  while [ "${focus_try}" -le 20 ]; do
+    if "${ADB_BIN}" shell dumpsys window 2>/dev/null | tr -d '\r' |
+      grep -qE "mCurrentFocus.*${PKG}"; then
+      break
+    fi
+    sleep 1
+    focus_try=$((focus_try + 1))
+  done
+  sleep 1
+}
+
+# A quick continuous swipe: never holds still, so it can only ever mean the
+# short action (Back / Home), never the hold action.
+swipe() {
+  "${ADB_BIN}" shell input swipe "$1" "$2" "$3" "$4" "${5:-120}" >/dev/null
+}
+
+# Arms and then genuinely holds still. Separate motionevents make the pause real:
+# `input swipe` interpolates and would keep re-anchoring the hold timer.
+swipe_and_hold() {
+  "${ADB_BIN}" shell input motionevent DOWN "$1" "$2" >/dev/null
+  "${ADB_BIN}" shell input motionevent MOVE "$3" "$4" >/dev/null
+  sleep "${5:-0.6}"
+  "${ADB_BIN}" shell input motionevent UP "$3" "$4" >/dev/null
+}
+
+# The device's first stream arrives stretched past the arm window whatever duration is
+# asked for, so throwaway swipes go first. A fired Back closes the app, hence reopening.
+warm_input() {
+  warm=1
+  while [ "${warm}" -le 6 ]; do
+    open_test_app
+    reset_log
+    swipe 2 "${MID_Y}" 300 "${MID_Y}" 120
+    sleep 2
+    # shellcheck disable=SC2310 # a miss is the retry signal, not an error
+    if gesture_log | grep -q "GESTURE_FIRED LEFT Back"; then
+      echo "   input path warm after ${warm} throwaway swipe(s)" >&2
+      return 0
+    fi
+    warm=$((warm + 1))
+  done
+  echo "   input path never warmed, the cases below report what the device did" >&2
+}
+
+################################################################################
+# Geometry
+#
+# Sets WIDTH, HEIGHT, MID_Y, RIGHT_X and BOTTOM_Y for the suites.
+
+# The strip spans the navigation-bar inset, but SystemUI outranks us there and claims a
+# synthetic touch starting on the bar. So swipes start inside our own strip instead.
+read_strip_height() {
+  "${ADB_BIN}" logcat -d -s HyperGesture 2>/dev/null | tr -d '\r' |
+    sed -n 's/.*strip BOTTOM installed [0-9]*x\([0-9]*\).*/\1/p' | tail -1
+}
+
+# The strip height is logged once, when the service binds, and a suite clears logcat
+# between cases, so the first caller writes it down and the rest read that.
+geometry() {
+  if [ -f "${LOG_DIR}/geometry" ]; then
+    read -r WIDTH HEIGHT strip_h <"${LOG_DIR}/geometry"
+    MID_Y=$((HEIGHT / 2))
+    RIGHT_X=$((WIDTH - 3))
+    BOTTOM_Y=$((HEIGHT - strip_h + 8))
+    return 0
+  fi
+  size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
+  WIDTH="${size%x*}"
+  HEIGHT="${size#*x}"
+  if [ -z "${WIDTH}" ] || [ -z "${HEIGHT}" ]; then
+    echo "Could not read screen size (got '${size}')" >&2
+    exit 1
+  fi
+  MID_Y=$((HEIGHT / 2))
+  RIGHT_X=$((WIDTH - 3))
+
+  # Binding and installing are not the same moment: the strips go up when the settings
+  # collector first emits, which is a DataStore read later. Reading once races that.
+  strip_h=''
+  attempt=1
+  while [ "${attempt}" -le 30 ]; do
+    # shellcheck disable=SC2310 # an empty result is the retry signal, not an error
+    strip_h="$(read_strip_height)"
+    if [ -n "${strip_h}" ]; then
+      break
+    fi
+    sleep 1
+    attempt=$((attempt + 1))
+  done
+  if [ -z "${strip_h}" ]; then
+    echo "The strips were never installed (no 'strip BOTTOM installed' in 30s)." >&2
+    echo "Last HyperGesture log lines:" >&2
+    "${ADB_BIN}" logcat -d -s HyperGesture 2>/dev/null | tr -d '\r' | tail -10 | sed 's/^/    /' >&2
+    exit 1
+  fi
+  BOTTOM_Y=$((HEIGHT - strip_h + 8))
+  printf '%s %s %s\n' "${WIDTH}" "${HEIGHT}" "${strip_h}" >"${LOG_DIR}/geometry"
+  echo "screen ${WIDTH}x${HEIGHT}, bottom strip ${strip_h}px tall, swiping from y=${BOTTOM_Y}" >&2
+}

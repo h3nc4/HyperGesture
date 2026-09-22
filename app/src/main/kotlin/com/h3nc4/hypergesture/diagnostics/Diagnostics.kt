@@ -24,6 +24,7 @@ import android.view.accessibility.AccessibilityManager
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.navigation.NavigationMode
 import com.h3nc4.hypergesture.navigation.NavigationModeReader
+import com.h3nc4.hypergesture.service.AppSwitcher
 import com.h3nc4.hypergesture.service.GestureActionPerformer
 import com.h3nc4.hypergesture.service.HyperGestureAccessibilityService
 
@@ -41,6 +42,8 @@ data class Diagnostics(
     val navigationIntegrationId: String,
     val navigationIntegrationAvailable: Boolean,
     val lastGlobalActionFailure: String?,
+    /** Usually the missing usage access, which no global action failure would explain. */
+    val lastAppSwitchFailure: String?,
     /** Shown in-app because release builds cannot be read with `adb run-as`. */
     val lastRecordedFailure: String?,
     val appVersionName: String,
@@ -64,6 +67,7 @@ object DiagnosticsCollector {
             navigationIntegrationId = status.integrationId,
             navigationIntegrationAvailable = status.available,
             lastGlobalActionFailure = GestureActionPerformer.lastFailure,
+            lastAppSwitchFailure = AppSwitcher.lastFailure,
             lastRecordedFailure = FailureLog.read(context),
             appVersionName = appVersionName(context),
         )
