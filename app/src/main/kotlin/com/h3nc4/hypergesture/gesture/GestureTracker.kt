@@ -38,15 +38,30 @@ class GestureTracker(
     private val density: Float,
 ) {
 
-    private var start: TouchSample? = null
-    private var anchor: TouchSample? = null
-    private var tracking = false
-    private var armed = false
-    private var holdFired = false
+    // What an armed gesture became. Three mutually exclusive things, held as one field: a
+    // boolean beside a nullable could also describe a fired hold that was sideways, which
+    // cannot happen, and the checks guarding against it were unreachable.
+    private sealed interface Arm {
+        /** Armed for [shortAction], carrying the sample the hold's stillness is measured from. */
+        data class Holding(val anchor: TouchSample) : Arm
 
-    // Set when the armed gesture was a sideways one, which fires instead of [shortAction]
-    // and schedules no hold.
-    private var armedSideways: GestureAction? = null
+        /** The hold already fired mid-gesture, so the release does nothing. */
+        data object Fired : Arm
+
+        /** A sideways swipe, which fires on release and schedules no hold. */
+        data class Sideways(val action: GestureAction) : Arm
+    }
+
+    // The DOWN sample, kept after tracking ends so a release can still be explained: the arm
+    // timeout stops the gesture and the UP behind it still reports a rejection reason.
+    private var start: TouchSample? = null
+
+    // The same sample while the gesture is live, and null when nothing is tracked. One field
+    // rather than a boolean next to a nullable, which could disagree with it.
+    private var tracked: TouchSample? = null
+
+    // Null until the gesture arms.
+    private var arm: Arm? = null
 
     private val shortAction: GestureAction =
         if (edge == ScreenEdge.BOTTOM) GestureAction.Home else GestureAction.Back
@@ -64,87 +79,78 @@ class GestureTracker(
 
     fun onDown(sample: TouchSample): TrackerAction {
         start = sample
-        anchor = sample
-        tracking = true
-        armed = false
-        holdFired = false
-        armedSideways = null
+        tracked = sample
+        arm = null
         return TrackerAction.None
     }
 
     fun onMove(sample: TouchSample): TrackerAction {
-        val origin = start ?: return TrackerAction.None
-        if (!tracking) return TrackerAction.None
-        return if (armed) whileArmed(origin, sample) else whileArming(origin, sample)
+        val origin = tracked ?: return TrackerAction.None
+        val state = arm
+        return if (state == null) whileArming(origin, sample) else whileArmed(origin, state, sample)
     }
 
     private fun whileArming(origin: TouchSample, sample: TouchSample): TrackerAction {
         if (sample.timestampMs - origin.timestampMs > configuration.maximumArmDurationMs) {
-            tracking = false
+            tracked = null
             return TrackerAction.Unused(RejectionReason.TOO_SLOW_TO_ARM)
         }
-        sidewaysAction(origin, sample)?.let { return armSideways(it, sample) }
+        sidewaysAction(origin, sample)?.let { return armSideways(it) }
         if (!hasArmed(origin, sample)) return TrackerAction.None
 
-        armed = true
-        anchor = sample
+        arm = Arm.Holding(sample)
         return TrackerAction.Armed(
             scheduleHoldMs = if (holdAction != null) configuration.recentsHoldMs else null,
         )
     }
 
-    private fun whileArmed(origin: TouchSample, sample: TouchSample): TrackerAction {
+    private fun whileArmed(origin: TouchSample, state: Arm, sample: TouchSample): TrackerAction {
+        // A fired hold owns the release, and a sideways arm is already decided.
+        if (state !is Arm.Holding) return TrackerAction.None
         // An upward drift can arm Home before the sideways travel accumulates, so a gesture
         // may still become a sideways one until the hold fires.
-        if (!holdFired && armedSideways == null) {
-            sidewaysAction(origin, sample)?.let { return armSideways(it, sample) }
-        }
-        if (holdFired || holdAction == null || armedSideways != null) return TrackerAction.None
-        return reanchorHold(sample)
+        sidewaysAction(origin, sample)?.let { return armSideways(it) }
+        if (holdAction == null) return TrackerAction.None
+        return reanchorHold(state.anchor, sample)
     }
 
-    private fun armSideways(action: GestureAction, sample: TouchSample): TrackerAction {
-        armed = true
-        armedSideways = action
-        anchor = sample
+    private fun armSideways(action: GestureAction): TrackerAction {
+        arm = Arm.Sideways(action)
         return TrackerAction.Armed(scheduleHoldMs = null)
     }
 
     // The hold may come anywhere along the swipe, so movement re-anchors, not cancels.
-    private fun reanchorHold(sample: TouchSample): TrackerAction {
-        val reference = anchor ?: return TrackerAction.None
+    private fun reanchorHold(reference: TouchSample, sample: TouchSample): TrackerAction {
         val moved = abs(sample.xPx - reference.xPx) > stillnessPx ||
             abs(sample.yPx - reference.yPx) > stillnessPx
         if (!moved) return TrackerAction.None
 
-        anchor = sample
+        arm = Arm.Holding(sample)
         return TrackerAction.RearmHold(configuration.recentsHoldMs)
     }
 
     fun onHoldElapsed(): TrackerAction {
         val action = holdAction ?: return TrackerAction.None
-        if (!tracking || !armed || holdFired || armedSideways != null) return TrackerAction.None
-        holdFired = true
+        if (tracked == null || arm !is Arm.Holding) return TrackerAction.None
+        arm = Arm.Fired
         return TrackerAction.Fire(action, edge)
     }
 
     fun onUp(sample: TouchSample): TrackerAction {
-        val origin = start
-        val wasTracking = tracking
-        val wasArmed = armed
-        val alreadyFired = holdFired
-        val sideways = armedSideways
-        tracking = false
+        val origin = tracked
+        val state = arm
+        tracked = null
 
-        if (alreadyFired) return TrackerAction.None
-        if (wasTracking && wasArmed) return TrackerAction.Fire(sideways ?: shortAction, edge)
+        if (state is Arm.Fired) return TrackerAction.None
+        if (origin == null) return TrackerAction.Unused(rejectionFor(start, sample))
+        if (state != null) {
+            return TrackerAction.Fire((state as? Arm.Sideways)?.action ?: shortAction, edge)
+        }
 
         // A stream can arrive as DOWN then UP with no MOVE between - event batching under
         // load does this, and a slow emulator does it reliably. The release is still a
         // swipe if it clears the threshold on its own, so judge it by the same rule.
-        if (wasTracking && origin != null &&
-            sample.timestampMs - origin.timestampMs <= configuration.maximumArmDurationMs
-        ) {
+        if (sample.timestampMs - origin.timestampMs <= configuration.maximumArmDurationMs) {
             val late = sidewaysAction(origin, sample)
             if (late != null) return TrackerAction.Fire(late, edge)
             if (hasArmed(origin, sample)) return TrackerAction.Fire(shortAction, edge)
@@ -153,12 +159,9 @@ class GestureTracker(
     }
 
     fun onCancel() {
-        tracking = false
-        armed = false
-        holdFired = false
-        armedSideways = null
         start = null
-        anchor = null
+        tracked = null
+        arm = null
     }
 
     // A swipe along the bottom edge rather than up from it. Only the bottom edge offers this:
