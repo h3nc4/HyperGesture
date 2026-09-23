@@ -38,9 +38,8 @@ class GestureTracker(
     private val density: Float,
 ) {
 
-    // What an armed gesture became. Three mutually exclusive things, held as one field: a
-    // boolean beside a nullable could also describe a fired hold that was sideways, which
-    // cannot happen, and the checks guarding against it were unreachable.
+    // What an armed gesture became, as one field. A boolean beside a nullable also described a
+    // fired hold that was sideways, and the checks against that state were unreachable.
     private sealed interface Arm {
         /** Armed for [shortAction], carrying the sample the hold's stillness is measured from. */
         data class Holding(val anchor: TouchSample) : Arm
