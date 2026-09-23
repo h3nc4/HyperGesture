@@ -77,9 +77,11 @@ fi
 
 echo "Analysing against ${SONAR_HOST_URL}${project_key:+ as ${project_key}}"
 
-# This repository is held to h3nc4-no-coverage, not the server default. Two dead
-# defensive branches in GestureTracker put 100 percent out of reach.
-sonar_gate="${SONAR_GATE:-h3nc4-no-coverage}"
+# Held to h3nc4, which is the gate every other repository here answers to. It used to be
+# h3nc4-no-coverage, because two defensive branches in GestureTracker could not be reached
+# and so put 100 percent out of reach. Folding the tracker's state removed them, and the
+# measured scope now reports 119 of 119 lines and 89 of 89 branches.
+sonar_gate="${SONAR_GATE:-h3nc4}"
 
 # The gate is chosen per project, so the project has to exist first. Left to the
 # scan it would be created under the default gate instead.
