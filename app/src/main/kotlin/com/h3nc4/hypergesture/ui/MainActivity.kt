@@ -71,6 +71,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.diagnostics.Diagnostics
 import com.h3nc4.hypergesture.diagnostics.DiagnosticsCollector
@@ -629,6 +630,11 @@ private fun AppSwitchCard(
 private fun UsageAccessRow() {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(hasUsageAccess(context)) }
+    // Settings grants the op in another activity, so the row reads it again on the way back.
+    LifecycleResumeEffect(Unit) {
+        granted = hasUsageAccess(context)
+        onPauseOrDispose {}
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
