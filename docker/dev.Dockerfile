@@ -21,7 +21,9 @@
 
 ########################################
 # Runtime user configuration
-ARG USER="hypergesture"
+# dev, because dev-base bakes the user it creates and every repository
+# shares that image.
+ARG USER="dev"
 ARG UID="1000"
 ARG GID="1000"
 
@@ -84,63 +86,35 @@ RUN mkdir -p "${ANDROID_AVD_HOME}" \
 
 ################################################################################
 # Debian main stage
-FROM debian:trixie@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c AS main
-ARG USER
-ARG UID
-ARG GID
+FROM h3nc4/dev-base:debian-13@sha256:7e16158a6bc18e5dc393f373a00521a0109d0b1ce0150ad6f949e416ce1a051f AS main
 
+# dev-base ends as the dev user, and the steps below need root.
+USER root
+
+# Not inherited: dev-base sets it while building, and its squashed image does not
+# carry it into the runtime environment.
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update -qq
-
-# Gen locale
-RUN apt-get install --no-install-recommends -y -qq locales && \
-  echo "en_US.UTF-8 UTF-8" >/etc/locale.gen && \
-  locale-gen en_US.UTF-8 && \
-  update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
-
-# shellcheck is the shell linter used by the hooks and CI.
-RUN apt-get install --no-install-recommends -y -qq \
-  bash-completion \
-  ca-certificates \
-  curl \
-  file \
-  git \
-  gnupg \
-  gosu \
-  iproute2 \
-  iputils-ping \
-  jq \
-  less \
-  man-db \
-  nano \
-  openjdk-21-jdk-headless \
-  openssh-client \
-  opendoas \
-  procps \
-  psmisc \
-  shellcheck \
-  tini \
-  tree \
-  unzip \
-  wget
-
-# Docker outside of Docker, used by scripts/sonar.sh and scripts/build-apk.sh
-RUN apt-get install --no-install-recommends -y -qq \
-  docker-cli \
-  docker-buildx
+# The Android copies below chown onto the user dev-base created.
+ARG UID="1000"
+ARG GID="1000"
 
 # Headless emulator viewing. mesa gives the emulator a GL surface in a container.
-RUN apt-get install --no-install-recommends -y -qq \
+# dev-base clears the apt lists, so this fetches them again.
+RUN apt-get update -qq && apt-get install --no-install-recommends -y -qq \
   libgl1-mesa-dri \
   libglx-mesa0 \
   mesa-utils \
   novnc \
   openbox \
+  openjdk-21-jdk-headless \
+  psmisc \
   python3-websockify \
   tigervnc-common \
-  tigervnc-standalone-server
+  tigervnc-standalone-server \
+  unzip
 
+########################################
 # Gradle. There is no committed wrapper, so the build tool comes from here.
 ARG GRADLE_VERSION
 ARG GRADLE_SHA256
@@ -151,23 +125,6 @@ RUN echo "${GRADLE_SHA256}  /tmp/gradle.zip" | sha256sum -c - \
   && ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle \
   && rm /tmp/gradle.zip \
   && gradle --version
-
-########################################
-# Create a non-root developing user and configure doas
-RUN addgroup --gid "${GID}" "${USER}"
-RUN adduser --uid "${UID}" --gid "${GID}" \
-  --shell "/bin/bash" --disabled-password "${USER}"
-
-RUN addgroup --gid 110 docker && usermod -aG docker "${USER}"
-
-RUN printf "permit nopass nolog keepenv %s as root\n" "${USER}" >/etc/doas.conf && \
-  chmod 400 /etc/doas.conf && \
-  printf "%s\nset -e\n%s\n" "#!/bin/sh" "doas \"\$@\"" >/usr/local/bin/sudo && \
-  chmod a+rx /usr/local/bin/sudo
-
-COPY scripts/switch-user.sh /usr/local/bin/switch-user.sh
-COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/switch-user.sh /usr/local/bin/entrypoint.sh
 
 ########################################
 # Android SDK + AVD
