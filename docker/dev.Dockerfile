@@ -39,6 +39,11 @@ ARG ANDROID_EMULATOR_API="36"
 ARG GRADLE_VERSION="9.8.0"
 ARG GRADLE_SHA256="bafd5ce9cfaea0fbccfdc8439a1ac42fbd4cd9c89dc9a988228d8a2639a58e6c"
 
+# A caching mirror on the network this is built on, so a package is fetched from
+# the internet once rather than once per build. Empty by default, which is what
+# CI uses: its runners have no route to a LAN mirror and go straight to Debian.
+ARG APT_MIRROR=""
+
 ################################################################################
 # Android SDK stage
 FROM debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a AS android-sdk
@@ -51,6 +56,12 @@ ENV ANDROID_HOME="/opt/android-sdk"
 ENV ANDROID_SDK_ROOT="${ANDROID_HOME}"
 ENV JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
 ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${PATH}"
+
+ARG APT_MIRROR
+RUN if [ -n "${APT_MIRROR}" ]; then \
+    sed -i "s|http://deb.debian.org|${APT_MIRROR}|g" \
+      /etc/apt/sources.list.d/debian.sources; \
+  fi
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
@@ -101,6 +112,12 @@ ARG GID="1000"
 
 # Headless emulator viewing. mesa gives the emulator a GL surface in a container.
 # dev-base clears the apt lists, so this fetches them again.
+ARG APT_MIRROR
+RUN if [ -n "${APT_MIRROR}" ]; then \
+    sed -i "s|http://deb.debian.org|${APT_MIRROR}|g" \
+      /etc/apt/sources.list.d/debian.sources; \
+  fi
+
 RUN apt-get update -qq && apt-get install --no-install-recommends -y -qq \
   libgl1-mesa-dri \
   libglx-mesa0 \
@@ -142,7 +159,11 @@ RUN chmod 0777 "${ANDROID_HOME}" "${ANDROID_AVD_HOME}"
 
 ########################################
 # Clean cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* && \
+  if [ -n "${APT_MIRROR}" ]; then \
+    sed -i "s|${APT_MIRROR}|http://deb.debian.org|g" \
+      /etc/apt/sources.list.d/debian.sources; \
+  fi
 RUN rm -rf /var/cache/* /var/log/* /tmp/*
 
 ################################################################################
