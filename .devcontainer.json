@@ -17,14 +17,14 @@
 
 {
   "name": "HyperGesture",
-  "image": "h3nc4/hypergesture-dev:5",
+  "image": "h3nc4/hypergesture-dev:6",
   "initializeCommand": "${localWorkspaceFolder}/scripts/devcontainer-init.sh",
   "runArgs": [
     "--name=hypergesture-devcontainer",
     "--network=host",
     "--privileged"
   ],
-  "remoteUser": "hypergesture",
+  "remoteUser": "dev",
   "workspaceFolder": "/workspaces/hypergesture",
   "overrideCommand": false,
   "mounts": [

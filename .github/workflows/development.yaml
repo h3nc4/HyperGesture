@@ -91,8 +91,18 @@ jobs:
           path: app/build/reports
       - name: Fail if the coverage report did not land
         run: test -s app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
+      - name: Name the image the scan comes from
+        run: |
+          image="$(sed -n 's|^FROM \(h3nc4/dev-base:[^ ]*\) AS main|\1|p' docker/dev.Dockerfile)"
+          case "${image}" in
+            h3nc4/dev-base:*@sha256:*) ;;
+            *) echo "::error::docker/dev.Dockerfile names no pinned dev-base to take the scan from"; exit 1 ;;
+          esac
+          echo "SCAN_IMAGE=${image}" >>"${GITHUB_ENV}"
       - name: Run h3nc4/sonar-action
-        uses: h3nc4/sonar-action@f16ceef53c5a806b98ac93fc631ce62875e929fd # v1
+        uses: h3nc4/sonar-action@e799384ff5832f1bc2205946e6f342029c3b388c # v1
         with:
           host-url: ${{ vars.SONAR_HOST_URL }}
           token: ${{ secrets.SONAR_TOKEN }}
+          image: ${{ env.SCAN_IMAGE }}
+          script: /usr/local/bin/sonar

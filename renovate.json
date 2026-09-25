@@ -73,17 +73,6 @@
   ],
   "customManagers": [
     {
-      "description": "Update Docker images in the sonar script",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^scripts/sonar\\.sh$/"
-      ],
-      "matchStrings": [
-        "_image=\"(?<depName>.*?):(?<currentValue>.*?)\""
-      ],
-      "datasourceTemplate": "docker"
-    },
-    {
       "description": "Update the Gradle version pinned in the dev container",
       "customType": "regex",
       "managerFilePatterns": [

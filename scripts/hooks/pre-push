@@ -22,4 +22,4 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "${repo_root}"
 
 gradle lint test
-./scripts/sonar.sh
+sonar
