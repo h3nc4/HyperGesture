@@ -35,7 +35,9 @@ env:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  # A pull request run is superseded by the pin push that lands seconds into it, so only one
+  # full run is paid for. A push to the default branch still queues, since it deploys.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   checks:
