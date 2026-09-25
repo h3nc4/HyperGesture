@@ -36,7 +36,7 @@ ARG ANDROID_EMULATOR_API="36"
 
 ########################################
 # Gradle
-ARG GRADLE_VERSION="9.7.1"
+ARG GRADLE_VERSION="9.8.0"
 ARG GRADLE_SHA256="acd53f1edaf02f1a8ff99879f8a34b302661a057d9b063ae9e35b552f804d20a"
 
 ################################################################################
