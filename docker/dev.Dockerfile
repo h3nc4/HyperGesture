@@ -41,7 +41,7 @@ ARG GRADLE_SHA256="bafd5ce9cfaea0fbccfdc8439a1ac42fbd4cd9c89dc9a988228d8a2639a58
 
 ################################################################################
 # Android SDK stage
-FROM debian:trixie@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c AS android-sdk
+FROM debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a AS android-sdk
 ARG ANDROID_CMDLINE_TOOLS
 ARG ANDROID_COMPILE_SDK
 ARG ANDROID_BUILD_TOOLS
