@@ -97,7 +97,7 @@ RUN mkdir -p "${ANDROID_AVD_HOME}" \
 
 ################################################################################
 # Debian main stage
-FROM h3nc4/dev-base:debian-13@sha256:1d854408035d42667be8b3b46e166f30b0ca41dff1583c1f04234f9d39e2ebaa AS main
+FROM h3nc4/dev-base:debian-13@sha256:a55541d9624826f29d9161d1205a31b1bee6591381be524febbd6e21e0deeb4a AS main
 
 # dev-base ends as the dev user, and the steps below need root.
 USER root
