@@ -39,10 +39,9 @@ ARG ANDROID_EMULATOR_API="36"
 ARG GRADLE_VERSION="9.8.0"
 ARG GRADLE_SHA256="bafd5ce9cfaea0fbccfdc8439a1ac42fbd4cd9c89dc9a988228d8a2639a58e6c"
 
-# A caching mirror on the network this is built on, so a package is fetched from
-# the internet once rather than once per build. Empty by default, which is what
-# CI uses: its runners have no route to a LAN mirror and go straight to Debian.
-ARG APT_MIRROR=""
+# The package mirror to build through. It answers on one network only, so
+# resolving the name is the test for reaching it.
+ARG APT_MIRROR="http://debian.lan.h3nc4.com"
 
 ################################################################################
 # Android SDK stage
@@ -58,8 +57,9 @@ ENV JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
 ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${PATH}"
 
 ARG APT_MIRROR
-RUN if [ -n "${APT_MIRROR}" ]; then \
-    sed -i "s|http://deb.debian.org|${APT_MIRROR}|g" \
+RUN host="${APT_MIRROR#http://}"; \
+  if [ -n "${host}" ] && getent hosts "${host}" >/dev/null 2>&1; then \
+    sed -i "s|^URIs: http://deb.debian.org/\(.*\)$|URIs: ${APT_MIRROR}/\1 http://deb.debian.org/\1|" \
       /etc/apt/sources.list.d/debian.sources; \
   fi
 
@@ -97,7 +97,7 @@ RUN mkdir -p "${ANDROID_AVD_HOME}" \
 
 ################################################################################
 # Debian main stage
-FROM h3nc4/dev-base:debian-13@sha256:882dbbaafb92a2b366b54dbed2aca6b2531f01fb89095b5b7889cd930ad68ec2 AS main
+FROM h3nc4/dev-base:debian-13@sha256:1d854408035d42667be8b3b46e166f30b0ca41dff1583c1f04234f9d39e2ebaa AS main
 
 # dev-base ends as the dev user, and the steps below need root.
 USER root
@@ -113,8 +113,9 @@ ARG GID="1000"
 # Headless emulator viewing. mesa gives the emulator a GL surface in a container.
 # dev-base clears the apt lists, so this fetches them again.
 ARG APT_MIRROR
-RUN if [ -n "${APT_MIRROR}" ]; then \
-    sed -i "s|http://deb.debian.org|${APT_MIRROR}|g" \
+RUN host="${APT_MIRROR#http://}"; \
+  if [ -n "${host}" ] && getent hosts "${host}" >/dev/null 2>&1; then \
+    sed -i "s|^URIs: http://deb.debian.org/\(.*\)$|URIs: ${APT_MIRROR}/\1 http://deb.debian.org/\1|" \
       /etc/apt/sources.list.d/debian.sources; \
   fi
 
@@ -161,7 +162,7 @@ RUN chmod 0777 "${ANDROID_HOME}" "${ANDROID_AVD_HOME}"
 # Clean cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* && \
   if [ -n "${APT_MIRROR}" ]; then \
-    sed -i "s|${APT_MIRROR}|http://deb.debian.org|g" \
+    sed -i "s|${APT_MIRROR}/[^ ]* ||" \
       /etc/apt/sources.list.d/debian.sources; \
   fi
 RUN rm -rf /var/cache/* /var/log/* /tmp/*
