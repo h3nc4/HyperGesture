@@ -59,7 +59,7 @@ ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${PATH}"
 ARG APT_MIRROR
 RUN host="${APT_MIRROR#http://}"; \
   if [ -n "${host}" ] && getent hosts "${host}" >/dev/null 2>&1; then \
-    sed -i "s|^URIs: http://deb.debian.org/\(.*\)$|URIs: ${APT_MIRROR}/\1 http://deb.debian.org/\1|" \
+    sed -i "s|^URIs: http://deb.debian.org/|URIs: ${APT_MIRROR}/|" \
       /etc/apt/sources.list.d/debian.sources; \
   fi
 
@@ -115,7 +115,7 @@ ARG GID="1000"
 ARG APT_MIRROR
 RUN host="${APT_MIRROR#http://}"; \
   if [ -n "${host}" ] && getent hosts "${host}" >/dev/null 2>&1; then \
-    sed -i "s|^URIs: http://deb.debian.org/\(.*\)$|URIs: ${APT_MIRROR}/\1 http://deb.debian.org/\1|" \
+    sed -i "s|^URIs: http://deb.debian.org/|URIs: ${APT_MIRROR}/|" \
       /etc/apt/sources.list.d/debian.sources; \
   fi
 
@@ -162,7 +162,7 @@ RUN chmod 0777 "${ANDROID_HOME}" "${ANDROID_AVD_HOME}"
 # Clean cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* && \
   if [ -n "${APT_MIRROR}" ]; then \
-    sed -i "s|${APT_MIRROR}/[^ ]* ||" \
+    sed -i "s|^URIs: ${APT_MIRROR}/|URIs: http://deb.debian.org/|" \
       /etc/apt/sources.list.d/debian.sources; \
   fi
 RUN rm -rf /var/cache/* /var/log/* /tmp/*
