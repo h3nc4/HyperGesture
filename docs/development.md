@@ -36,11 +36,11 @@ docs/             This file and the platform investigations
 
 The host doesn't need a JDK or an Android SDK. The container has the whole toolchain, and Android Studio is never required.
 
-Build the image once by hand with `docker build -f docker/dev.Dockerfile -t h3nc4/hypergesture-dev:"$(cat .github/VERSION)" .`. After that the merge is the release.
+Build the image once by hand with `docker build -f docker/dev.Dockerfile -t "$(scripts/devcontainer-image.sh)" .`. After that the merge is the release.
 
-The image is versioned by a build id rather than semver: `.github/VERSION` holds a whole number that only CI writes. A change to the Dockerfile or the scripts it copies is tested against a candidate image built from the pull request. Once it reaches main, CI publishes the next id and moves `:latest`. It then rewrites the pin in `.devcontainer.json` and `.github/VERSION`, and tags the source commit `dc-v<id>` as the record.
+The image is versioned by a build id rather than semver. The tag in the image key of `.devcontainer.json` is a whole number that only CI writes. A pull request that changes the Dockerfile gets that pin moved to the next id in a commit of its own, and its checks run in a candidate image built from the branch. Once it reaches main, CI publishes the pinned id and moves `:latest`. Docker Hub is the only record of a release.
 
-There is nothing to decide, which is the point. Semver would promise a kind of compatibility that no box of build tools can honour, and nobody stays on an older one. The number only has to be ordered and unique. Renovate can bump a base image digest or a pinned tool with no human in the loop, and the release follows on merge. Publishing happens before the pin moves, so the pin never names an image that Docker Hub does not have yet.
+There is nothing to decide, by design. Semver would promise a kind of compatibility that no box of build tools can honour, and nobody stays on an older one. The number only has to be ordered and unique. Renovate can bump a base image digest or a pinned tool with no human in the loop, and the release follows on merge. The pin and the change behind it merge together, so main only pins an image built from its own tree.
 
 Note `bash -c`, not `-lc`, when running commands in the container: a login shell sources `/etc/profile`, which replaces `PATH` and drops the SDK directories.
 
