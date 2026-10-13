@@ -61,6 +61,8 @@ internal class EdgeTouchOverlay(
 
     private val strips = mutableMapOf<ScreenEdge, View>()
 
+    private val bellies = mutableMapOf<ScreenEdge, BackBellyOverlay>()
+
     private var streamHeld = false
 
     fun install(configuration: GestureConfiguration, geometry: ScreenGeometry) {
@@ -73,6 +75,11 @@ internal class EdgeTouchOverlay(
         }
 
         for (edge in edges) {
+            if (edge != ScreenEdge.BOTTOM) {
+                bellies[edge] = BackBellyOverlay(context, windowManager, edge, geometry).also {
+                    it.install()
+                }
+            }
             addStrip(edge, configuration, geometry)
         }
         applyInteractivity()
@@ -83,6 +90,8 @@ internal class EdgeTouchOverlay(
             runCatching { windowManager.removeView(view) }
         }
         strips.clear()
+        bellies.values.forEach(BackBellyOverlay::remove)
+        bellies.clear()
         // Detaching kills any in-flight stream, so its UP never arrives to release the
         // hold; without this reset, freshly installed strips start out inert.
         streamHeld = false
@@ -98,6 +107,7 @@ internal class EdgeTouchOverlay(
             edge = edge,
             tracker = GestureTracker(edge, configuration, geometry.density),
             hapticsEnabled = configuration.hapticFeedbackEnabled,
+            belly = bellies[edge],
             onStreamStart = ::onStreamStart,
             onFire = { action -> onFire(action, edge) },
             onUnused = ::onUnused,
@@ -161,6 +171,7 @@ internal class EdgeTouchOverlay(
     }
 
     private fun onStreamStart() {
+        bellies.values.forEach(BackBellyOverlay::hide)
         streamHeld = true
         applyInteractivity()
     }
@@ -205,6 +216,7 @@ internal class EdgeTouchOverlay(
         private val edge: ScreenEdge,
         private val tracker: GestureTracker,
         private val hapticsEnabled: Boolean,
+        private val belly: BackBellyOverlay?,
         private val onStreamStart: () -> Unit,
         private val onFire: (GestureAction) -> Unit,
         private val onUnused: (List<TouchSample>) -> Unit,
@@ -213,6 +225,7 @@ internal class EdgeTouchOverlay(
 
         private val samples = ArrayList<TouchSample>(MAX_SAMPLES)
         private var abandoned = false
+        private var bellyShown = false
 
         private val holdRunnable = Runnable { handle(tracker.onHoldElapsed(), replayable = false) }
 
@@ -229,6 +242,7 @@ internal class EdgeTouchOverlay(
                 MotionEvent.ACTION_DOWN -> {
                     samples.clear()
                     abandoned = false
+                    bellyShown = false
                     samples += sample
                     Log.d(TAG, "$edge DOWN at ${sample.xPx.toInt()},${sample.yPx.toInt()}")
                     onStreamStart()
@@ -238,6 +252,7 @@ internal class EdgeTouchOverlay(
                 MotionEvent.ACTION_MOVE -> {
                     if (samples.size < MAX_SAMPLES) samples += sample
                     handle(tracker.onMove(sample), replayable = false)
+                    if (bellyShown) belly?.drag(inwardPx(sample))
                     true
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> {
@@ -245,6 +260,7 @@ internal class EdgeTouchOverlay(
                     // worse than dropping it.
                     Log.d(TAG, "$edge ABANDONED second pointer went down")
                     abandoned = true
+                    collapseBelly()
                     cancelHold()
                     tracker.onCancel()
                     true
@@ -267,6 +283,7 @@ internal class EdgeTouchOverlay(
                     // Commonly SystemUI when the touch began on the navigation bar, which
                     // sits above us in Z order.
                     Log.d(TAG, "$edge CANCELLED stream taken over by another window")
+                    collapseBelly()
                     cancelHold()
                     tracker.onCancel()
                     samples.clear()
@@ -289,6 +306,7 @@ internal class EdgeTouchOverlay(
                     // The bottom edge ticks on fire instead of on arming, so a plain
                     // upward swipe does not buzz on the way up.
                     action.scheduleHoldMs?.let { postDelayed(holdRunnable, it) } ?: tick()
+                    showBelly()
                 }
                 is TrackerAction.RearmHold -> {
                     removeCallbacks(holdRunnable)
@@ -296,6 +314,7 @@ internal class EdgeTouchOverlay(
                 }
                 is TrackerAction.Fire -> {
                     cancelHold()
+                    collapseBelly()
                     tick()
                     // action.id, not ::class.simpleName - R8 obfuscates class names.
                     Log.i(TAG, "GESTURE_FIRED $edge ${action.action.id}")
@@ -303,6 +322,8 @@ internal class EdgeTouchOverlay(
                 }
                 is TrackerAction.Unused -> {
                     cancelHold()
+                    if (bellyShown) belly?.hide()
+                    bellyShown = false
                     Log.d(TAG, "$edge unused (${action.reason})")
                     if (replayable && samples.isNotEmpty()) {
                         onUnused(samples.toList())
@@ -314,6 +335,23 @@ internal class EdgeTouchOverlay(
         }
 
         private fun cancelHold() = removeCallbacks(holdRunnable)
+
+        private fun showBelly() {
+            val down = samples.firstOrNull() ?: return
+            val belly = belly ?: return
+            belly.show(down.yPx, inwardPx(samples.last()))
+            bellyShown = true
+        }
+
+        private fun collapseBelly() {
+            if (bellyShown) belly?.collapse()
+            bellyShown = false
+        }
+
+        private fun inwardPx(sample: TouchSample): Float {
+            val down = samples.firstOrNull() ?: return 0f
+            return if (edge == ScreenEdge.RIGHT) down.xPx - sample.xPx else sample.xPx - down.xPx
+        }
 
         /** View haptics rather than the Vibrator API: no VIBRATE permission needed. */
         private fun tick() {
