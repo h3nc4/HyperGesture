@@ -36,7 +36,7 @@ ARG ANDROID_EMULATOR_API="36"
 
 ########################################
 # Gradle
-ARG GRADLE_VERSION="9.8.0"
+ARG GRADLE_VERSION="9.8.1"
 ARG GRADLE_SHA256="bafd5ce9cfaea0fbccfdc8439a1ac42fbd4cd9c89dc9a988228d8a2639a58e6c"
 
 # The package mirror to build through. It answers on one network only, so
