@@ -49,6 +49,9 @@ class GestureTracker(
 
         /** A sideways swipe, which fires on release and schedules no hold. */
         data class Sideways(val action: GestureAction) : Arm
+
+        /** A side swipe pulled back inside the trigger, which re-arms if pushed out again. */
+        data object Retracted : Arm
     }
 
     // The DOWN sample, kept after tracking ends so a release can still be explained: the arm
@@ -104,13 +107,29 @@ class GestureTracker(
     }
 
     private fun whileArmed(origin: TouchSample, state: Arm, sample: TouchSample): TrackerAction {
+        if (holdAction == null) return followSide(origin, state, sample)
         // A fired hold owns the release, and a sideways arm is already decided.
         if (state !is Arm.Holding) return TrackerAction.None
         // An upward drift can arm Home before the sideways travel accumulates, so a gesture
         // may still become a sideways one until the hold fires.
         sidewaysAction(origin, sample)?.let { return armSideways(it) }
-        if (holdAction == null) return TrackerAction.None
         return reanchorHold(state.anchor, sample)
+    }
+
+    // A back swipe is judged by where the finger is, against the same distance that armed it,
+    // so pulling back inside the trigger disarms it and pushing out again re-arms it.
+    private fun followSide(origin: TouchSample, state: Arm, sample: TouchSample): TrackerAction {
+        val retracted = state is Arm.Retracted
+        val past = isPastTrigger(origin, sample)
+        if (retracted && past) {
+            arm = Arm.Holding(sample)
+            return TrackerAction.Armed(scheduleHoldMs = null)
+        }
+        if (!retracted && !past) {
+            arm = Arm.Retracted
+            return TrackerAction.Disarmed
+        }
+        return TrackerAction.None
     }
 
     private fun armSideways(action: GestureAction): TrackerAction {
@@ -143,6 +162,9 @@ class GestureTracker(
         if (state is Arm.Fired) return TrackerAction.None
         if (origin == null) return TrackerAction.Unused(rejectionFor(start, sample))
         if (state != null) {
+            // The release point decides, so a swipe brought back to the edge in one batched
+            // event reverts as surely as one that disarmed on the way.
+            if (holdAction == null && !isPastTrigger(origin, sample)) return TrackerAction.Reverted
             return TrackerAction.Fire((state as? Arm.Sideways)?.action ?: shortAction, edge)
         }
 
@@ -182,6 +204,9 @@ class GestureTracker(
         val offAxisPx = offAxisFrom(origin, sample)
         return abs(offAxisPx) <= travelPx * configuration.offAxisToleranceRatio
     }
+
+    private fun isPastTrigger(origin: TouchSample, sample: TouchSample): Boolean =
+        travelFrom(origin, sample) >= minimumDistancePx
 
     /** Positive inward, negative outward. */
     private fun travelFrom(origin: TouchSample, sample: TouchSample): Float = when (edge) {
