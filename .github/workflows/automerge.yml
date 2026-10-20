@@ -26,3 +26,20 @@ jobs:
         uses: h3nc4/renovate-automerge-action@28ca9fc5ed283d07f1836f2d01457971648c04b7 # v1
         with:
           private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+
+  versioncode-bump:
+    name: Merge versionCode bump if CI passed
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      startsWith(github.event.workflow_run.head_branch, 'bump-versioncode-after-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Run h3nc4/renovate-automerge-action
+        uses: h3nc4/renovate-automerge-action@28ca9fc5ed283d07f1836f2d01457971648c04b7 # v1
+        with:
+          private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          bot-login: h3nc4-automerge[bot]
