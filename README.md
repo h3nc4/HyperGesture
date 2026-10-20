@@ -95,7 +95,7 @@ The app follows your system light/dark setting.
 
 HyperGesture holds `RECEIVE_BOOT_COMPLETED` and `PACKAGE_USAGE_STATS`, and the second does nothing until Usage access is granted by hand. It also declares that it looks up installed apps with a launcher icon, which Android 11 and newer require before one app can find how to start another. It lacks internet, storage and location access.
 
-Gesture navigation needs an accessibility service, which is a powerful thing to grant. To be concrete about this one: it watches for touches in thin strips along the screen edges and turns a swipe into Back, Home, Recents or a switch to another app. Its configuration withholds window content from it, and it ignores every accessibility event Android sends it, so it never reads screen contents, typed text or keystrokes.
+Gesture navigation needs an accessibility service, which is a powerful thing to grant. To be concrete about this one: it watches for touches in thin strips along the screen edges and turns a swipe into Back, Home, Recents or a switch to another app. Its configuration withholds both window content and accessibility events from it, so it never reads screen contents, typed text or keystrokes.
 
 With app switching on, the app reads which apps came to the front in the last six hours, to know where Previous app leads. That list stays in memory on the phone, like everything in Diagnostics, because the app lacks network access.
 

@@ -260,7 +260,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
                 false
             }
             if (dispatched) {
-                Log.d(TAG, "REPLAY_DISPATCHED ${samples.size} samples over ${durationMs}ms")
+                Log.i(TAG, "REPLAY_DISPATCHED ${samples.size} samples over ${durationMs}ms")
             } else {
                 Log.w(TAG, "REPLAY_REFUSED dispatchGesture rejected the replay")
                 handler.removeCallbacks(finish)

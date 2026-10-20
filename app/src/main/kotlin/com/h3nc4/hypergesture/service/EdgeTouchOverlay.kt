@@ -117,7 +117,7 @@ internal class EdgeTouchOverlay(
         runCatching {
             windowManager.addView(view, params)
             strips[edge] = view
-            Log.d(TAG, "strip $edge installed ${params.width}x${params.height} geometry=$geometry")
+            Log.i(TAG, "strip $edge installed ${params.width}x${params.height} geometry=$geometry")
             // Keep the platform's own back gesture off these pixels.
             view.post {
                 if (view.width > 0 && view.height > 0) {
