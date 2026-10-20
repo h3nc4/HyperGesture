@@ -6,7 +6,7 @@ Everything a contributor needs. For what the app is and how to use it, see the [
 
 - **Language.** Kotlin, JDK 21
 - **Build.** Gradle with the Android Gradle Plugin, both provided by the Dev Container and pinned there to one version
-- **Gestures.** `AccessibilityService` plus `TYPE_ACCESSIBILITY_OVERLAY` edge strips, which need no "draw over other apps" permission
+- **Gestures.** `AccessibilityService` plus `TYPE_ACCESSIBILITY_OVERLAY` edge strips, which don't need the "draw over other apps" permission
 - **UI.** Jetpack Compose, Material 3
 - **Persistence.** DataStore Preferences, no database
 - **Quality.** JUnit over a device-free recognizer, Android lint, shellcheck, SonarQube, and an emulator-driven gesture suite
@@ -71,18 +71,18 @@ Two layers, because they catch different things.
 - enables the accessibility service
 - injects real swipes with `adb shell input`
 
-It then asserts on two independent signals: logcat (did *our* service decide correctly) and `dumpsys` (did the system state actually change). It needs `/dev/kvm`:
+It then asserts on two independent signals: logcat (did *our* service decide correctly) and `dumpsys` (did the system state actually change). It needs `/dev/kvm` and the debug APK from `gradle assembleDebug`:
 
 ```sh
-docker run --rm --device /dev/kvm \
-  -v "$HOST_ROOT:/workspaces/hypergesture" -w /workspaces/hypergesture \
-  --entrypoint /bin/bash h3nc4/hypergesture-dev:"$(cat .github/VERSION)" \
+docker run --rm --device /dev/kvm -u "$(id -u):$(id -g)" -e HOME=/tmp \
+  -v "${HOST_ROOT:-$PWD}:/workspaces/hypergesture" -w /workspaces/hypergesture \
+  --entrypoint /bin/bash "$(scripts/devcontainer-image.sh)" \
   -c './e2e/run.sh'
 ```
 
-`-k` leaves the emulator running for interactive poking. `-p hypergesture.apk` runs the suite against a release build, worth doing before every release, because R8 obfuscation and shrinking can break things no JVM test sees. It has already caught one such bug: log and diagnostics strings built from `::class.simpleName` came out as `a`/`b`/`c` once minified, so `GestureAction` carries an explicit `id`. R8 also strips every `Log.d` and `Log.v` call from a release build, so a line the suite greps for logs at info or above.
+`-k` leaves the emulator running for interactive poking. `-p hypergesture.apk` runs the suite against a release build. Run it before every release, because R8 obfuscation and shrinking can break things no JVM test sees. It has already caught one such bug: log and diagnostics strings built from `::class.simpleName` came out as `a`/`b`/`c` once minified, so `GestureAction` has an explicit `id`. R8 also strips every `Log.d` and `Log.v` call from a release build, so a line the suite greps for logs at info or above.
 
-Every bug that ever reached a real device was in the Android integration, not the recognizer:
+Every bug found on a real device so far was in the Android integration, not the recognizer:
 
 - overlay windows not receiving touches
 - strips left permanently inert after a gesture fired
@@ -101,7 +101,7 @@ Signing material lives outside git:
 ./scripts/build-apk.sh 1.0.0   # produces ./hypergesture.apk
 ```
 
-The password reaches the build as a Docker build arg, and the final image stage is `FROM scratch` carrying only the APK, so a publishable layer contains neither the key nor the password. With either piece missing, the release build degrades to unsigned rather than failing, so CI can still verify that `assembleRelease` compiles.
+The build receives the password as a Docker build arg. The final image stage is `FROM scratch` with only the APK in it, and no publishable layer holds the key or the password. With either piece missing, the release build degrades to unsigned rather than failing, so CI can still verify that `assembleRelease` compiles.
 
 **Back up the keystore somewhere off this machine.** Android identifies an app by its signing certificate, so an update signed with a different key is refused by every device that already has HyperGesture on it, and the only recovery is a new package name. `android.keystore` and `.env` are gitignored and must never be committed, which also means git is not a backup: keep the key and its password in a password manager, `base64` the keystore if the manager only takes text.
 
