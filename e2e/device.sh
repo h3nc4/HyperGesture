@@ -53,7 +53,16 @@ if [ ! -f "${apk}" ]; then
 fi
 
 echo "== installing ${apk} ==" >&2
-"${ADB_BIN}" install -r -g "${apk}" >/dev/null
+# A release and a debug build carry different keys, and Android refuses one over the other.
+if ! "${ADB_BIN}" install -r -g "${apk}" >/dev/null 2>"${LOG_DIR}/install.err"; then
+  if ! grep -q INSTALL_FAILED_UPDATE_INCOMPATIBLE "${LOG_DIR}/install.err"; then
+    cat "${LOG_DIR}/install.err" >&2
+    exit 1
+  fi
+  echo "   signed with another key, uninstalling it first" >&2
+  "${ADB_BIN}" uninstall "${PKG}" >/dev/null
+  "${ADB_BIN}" install -g "${apk}" >/dev/null
+fi
 
 # override <setting> <value> <why it matters>. Read in debuggable builds alone, and only
 # before the service binds, or the first configuration emission misses it.
@@ -68,15 +77,89 @@ override() {
   echo "   $1=$2" >&2
 }
 
-# This emulator stalls input mid-swipe for longer than the 100ms default, so a continuous
-# swipe reads as a deliberate hold and becomes Recents.
-override hypergesture_recents_hold_ms 400 \
-  "Bottom-swipe cases would read a stalled swipe as a hold."
+dump_nodes() {
+  "${ADB_BIN}" shell uiautomator dump /sdcard/hg-ui.xml >/dev/null 2>&1 || true
+  "${ADB_BIN}" exec-out cat /sdcard/hg-ui.xml 2>/dev/null | sed 's/<node /\
+<node /g'
+}
 
-# App switching ships off, since it needs usage access the user grants by hand, so the
-# app-switch cases would never reach the gesture.
-override hypergesture_app_switch 1 \
-  "The app-switch cases cannot reach the gesture while the feature is off."
+# tap_node <node line> - taps the centre of its bounds.
+tap_node() {
+  b="$(printf '%s\n' "$1" | sed -n 's/.*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]".*/\1 \2 \3 \4/p')"
+  [ -n "${b}" ] || return 0
+  # shellcheck disable=SC2086 # the four bounds are meant to split
+  set -- ${b}
+  "${ADB_BIN}" shell input tap $((($1 + $3) / 2)) $((($2 + $4) / 2)) >/dev/null
+}
+
+# A loaded emulator raises "System UI isn't responding" over the app, so wait it out.
+ui_nodes() {
+  nodes="$(dump_nodes)"
+  if printf '%s\n' "${nodes}" | grep -q "isn't responding"; then
+    tap_node "$(printf '%s\n' "${nodes}" | grep -m1 'text="Wait"' || true)"
+    sleep 2
+    nodes="$(dump_nodes)"
+  fi
+  printf '%s\n' "${nodes}"
+}
+
+# The switch is the first checkable node after its label, which Compose keeps a sibling.
+app_switch_node() {
+  screen="$(ui_nodes)"
+  printf '%s\n' "${screen}" | sed -n "/text=\"${switch_label}\"/,\$p" |
+    grep -m1 'checkable="true"' || true
+}
+
+# Flips the user-facing toggle, so a release build is tested through the path a user takes.
+enable_app_switch() {
+  switch_label="$(sed -n 's/.*name="label_app_switch">\(.*\)<\/string>.*/\1/p' \
+    app/src/main/res/values/strings.xml)"
+  size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
+  w="${size%x*}"
+  h="${size#*x}"
+  open_test_app
+  tapped=''
+  tries=1
+  while [ "${tries}" -le 10 ]; do
+    node="$(app_switch_node)"
+    case "${node}" in
+      *'checked="true"'*)
+        echo "   app switching on through its toggle" >&2
+        return 0
+        ;;
+      # Tapped once, since a loaded emulator redraws late and a second tap would undo it.
+      *'checked="false"'*)
+        if [ -z "${tapped}" ]; then
+          tap_node "${node}"
+          tapped='1'
+        fi
+        ;;
+      *) "${ADB_BIN}" shell input swipe $((w / 2)) $((h * 2 / 3)) $((w / 2)) $((h / 3)) 300 >/dev/null ;;
+    esac
+    sleep 2
+    tries=$((tries + 1))
+  done
+  echo "Could not turn the app switching toggle on ('${switch_label}', tapped: ${tapped:-no})." >&2
+  echo "The app-switch cases cannot reach the gesture while the feature is off. On screen:" >&2
+  ui_nodes | grep -o 'text="[^"]\{1,\}"' | sed 's/^/    /' >&2
+  exit 1
+}
+
+# Only a debuggable build reads the overrides. A release APK takes the toggle instead.
+if "${ADB_BIN}" shell dumpsys package "${PKG}" 2>/dev/null | grep -q 'pkgFlags=.*DEBUGGABLE'; then
+  # This emulator stalls input mid-swipe for longer than the 100ms default, so a continuous
+  # swipe reads as a deliberate hold and becomes Recents.
+  override hypergesture_recents_hold_ms 400 \
+    "Bottom-swipe cases would read a stalled swipe as a hold."
+
+  # App switching starts off because it needs usage access the user grants by hand.
+  # Without it a sideways swipe in the app-switch cases fires Home or replays as a tap.
+  override hypergesture_app_switch 1 \
+    "The app-switch cases cannot reach the gesture while the feature is off."
+else
+  echo "   release build, so no debug override and the Recents hold keeps its default" >&2
+  enable_app_switch
+fi
 
 service_bound() {
   "${ADB_BIN}" shell dumpsys accessibility 2>/dev/null | tr -d '\r' |

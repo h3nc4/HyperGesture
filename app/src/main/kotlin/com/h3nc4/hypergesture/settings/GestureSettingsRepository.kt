@@ -82,7 +82,7 @@ class GestureSettingsRepository(private val context: Context) {
         )
     }
 
-    /** Test seam for the emulator suite, which cannot tap a Compose switch. Debug only. */
+    /** Test seam that spares the debug emulator run a tap on the toggle. Debug only. */
     private fun debugAppSwitchEnabled(): Boolean? {
         if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return null
         return runCatching {
