@@ -57,5 +57,5 @@ if [ "${refs}" -gt 0 ] && [ "${suite}" -eq 0 ]; then
   exit 0
 fi
 
-gradle lint test
+gradle lint test jacocoTestReport
 sonar
