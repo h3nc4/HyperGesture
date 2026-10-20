@@ -16,10 +16,46 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-set -e
+
+# A push touching only configuration or prose skips the suite and the scan, and any range it cannot resolve runs them.
+set -eu
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "${repo_root}"
+
+suite=0
+refs=0
+while read -r _ local_sha _ remote_sha; do
+  refs=$((refs + 1))
+  case "${local_sha}" in
+  *[!0]*) ;;
+  *)
+    suite=1
+    break
+    ;;
+  esac
+  case "${remote_sha}" in
+  *[!0]*) base="${remote_sha}" ;;
+  *) base="$(git merge-base refs/remotes/origin/HEAD "${local_sha}" 2>/dev/null </dev/null)" || base="" ;;
+  esac
+  if [ -z "${base}" ] || ! paths="$(git diff --no-renames --name-only "${base}" "${local_sha}" 2>/dev/null </dev/null)"; then
+    suite=1
+    break
+  fi
+  while IFS= read -r path; do
+    case "${path}" in
+    "" | *.md | LICENSE | renovate.json | .gitignore | .github/* | .forgejo/*) ;;
+    *) suite=1 ;;
+    esac
+  done <<PATHS
+${paths}
+PATHS
+done
+
+if [ "${refs}" -gt 0 ] && [ "${suite}" -eq 0 ]; then
+  echo "pre-push: only configuration or prose changed, so the suite and the scan are skipped"
+  exit 0
+fi
 
 gradle lint test
 sonar
