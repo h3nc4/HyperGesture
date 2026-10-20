@@ -82,6 +82,8 @@ docker run --rm --device /dev/kvm -u "$(id -u):$(id -g)" -e HOME=/tmp \
 
 `-k` leaves the emulator running for interactive poking. `-p hypergesture.apk` runs the suite against a release build. Run it before every release, because R8 obfuscation and shrinking can break things no JVM test sees. It has already caught one such bug: log and diagnostics strings built from `::class.simpleName` came out as `a`/`b`/`c` once minified, so `GestureAction` has an explicit `id`. R8 also strips every `Log.d` and `Log.v` call from a release build, so a line the suite greps for logs at info or above.
 
+A release build ignores the debug overrides that `e2e/device.sh` writes, so for a release APK the script turns app switching on through the app's own toggle, the way a user would, and the app-switch suite runs in full. That keeps an R8 break in the toggle, its DataStore write or the recognizer visible as a failing case, where a skip would hide all three. The cost is a dependency on the screen. The script reads the `label_app_switch` string, finds that label with `uiautomator` and taps the first switch after it, so a layout that moves the switch away from its label fails the run before any gesture is tried. The Recents hold also keeps its 100 ms default, since its override is debug-only as well. Installing over a build signed with another key uninstalls it first, so the release and debug runs can share one emulator, and on a phone that wipes the installed copy and its settings.
+
 Every bug found on a real device so far was in the Android integration, not the recognizer:
 
 - overlay windows not receiving touches
