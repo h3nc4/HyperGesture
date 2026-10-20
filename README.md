@@ -22,6 +22,8 @@ The gestures work on any phone running Android 11 or newer. HyperOS adds two sho
 
 A side swipe draws a dark bulge with a back arrow beside the finger, the way HyperOS's own Back gesture does. It grows as the finger moves inward and shrinks away on release.
 
+A back swipe can be taken back before lifting the finger. Pulling it back inside the side swipe distance drops the arrow and shrinks the bulge, and releasing there does nothing, neither Back nor a tap on the app underneath. Pushing out past that distance again re-arms it.
+
 Recent apps opens once the finger has rested for the hold time, before it lifts. A swipe has to stay within 45 degrees of its own direction to count. A touch near an edge that never becomes a gesture is replayed to the app underneath as an ordinary tap, long press or drag.
 
 App switching walks the apps used in the last six hours, newest first. Swipes within five seconds of each other keep walking the same order, and after a longer pause the next swipe starts again from the most recent app. It needs usage access, granted in step 5 of [Installing](#installing).
