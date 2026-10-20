@@ -80,7 +80,7 @@ docker run --rm --device /dev/kvm \
   -c './e2e/run.sh'
 ```
 
-`-k` leaves the emulator running for interactive poking. `-p hypergesture.apk` runs the suite against a release build, worth doing before every release, because R8 obfuscation and shrinking can break things no JVM test sees. It has already caught one such bug: log and diagnostics strings built from `::class.simpleName` came out as `a`/`b`/`c` once minified, so `GestureAction` carries an explicit `id`.
+`-k` leaves the emulator running for interactive poking. `-p hypergesture.apk` runs the suite against a release build, worth doing before every release, because R8 obfuscation and shrinking can break things no JVM test sees. It has already caught one such bug: log and diagnostics strings built from `::class.simpleName` came out as `a`/`b`/`c` once minified, so `GestureAction` carries an explicit `id`. R8 also strips every `Log.d` and `Log.v` call from a release build, so a line the suite greps for logs at info or above.
 
 Every bug that ever reached a real device was in the Android integration, not the recognizer:
 
