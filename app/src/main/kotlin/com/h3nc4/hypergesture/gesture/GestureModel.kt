@@ -92,5 +92,11 @@ sealed interface TrackerAction {
 
     data class Fire(val action: GestureAction, val edge: ScreenEdge) : TrackerAction
 
+    /** An armed side swipe pulled back inside its trigger distance, with the finger still down. */
+    data object Disarmed : TrackerAction
+
+    /** A side swipe released inside its trigger distance after arming, so nothing fires or replays. */
+    data object Reverted : TrackerAction
+
     data class Unused(val reason: RejectionReason) : TrackerAction
 }

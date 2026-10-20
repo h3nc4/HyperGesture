@@ -519,4 +519,88 @@ class GestureTrackerTest {
             t.onUp(sample(105f, 1200f, 90L)),
         )
     }
+
+    @Test
+    fun `a side swipe pulled back inside the trigger disarms`() {
+        val t = tracker(ScreenEdge.LEFT)
+        t.onDown(sample(5f, 1200f, 0L))
+        assertTrue(t.onMove(sample(205f, 1200f, 60L)) is TrackerAction.Armed)
+        // 50px of inward travel is 18dp, back inside the 24dp trigger.
+        assertEquals(TrackerAction.Disarmed, t.onMove(sample(55f, 1200f, 120L)))
+        assertEquals(TrackerAction.None, t.onMove(sample(10f, 1200f, 160L)))
+    }
+
+    @Test
+    fun `a side swipe brought back to the edge does nothing on release`() {
+        val t = tracker(ScreenEdge.LEFT)
+        t.onDown(sample(5f, 1200f, 0L))
+        t.onMove(sample(205f, 1200f, 60L))
+        t.onMove(sample(5f, 1200f, 160L))
+        assertEquals(TrackerAction.Reverted, t.onUp(sample(5f, 1200f, 180L)))
+    }
+
+    @Test
+    fun `a right-edge swipe brought back to the edge does nothing on release`() {
+        val t = tracker(ScreenEdge.RIGHT)
+        t.onDown(sample(1075f, 1200f, 0L))
+        t.onMove(sample(875f, 1200f, 60L))
+        assertEquals(TrackerAction.Disarmed, t.onMove(sample(1070f, 1200f, 160L)))
+        assertEquals(TrackerAction.Reverted, t.onUp(sample(1070f, 1200f, 180L)))
+    }
+
+    @Test
+    fun `a release batched back at the edge reverts with no move to disarm it`() {
+        val t = tracker(ScreenEdge.LEFT)
+        t.onDown(sample(5f, 1200f, 0L))
+        t.onMove(sample(205f, 1200f, 60L))
+        assertEquals(TrackerAction.Reverted, t.onUp(sample(5f, 1200f, 160L)))
+    }
+
+    @Test
+    fun `a reverted swipe pushed back out re-arms and fires Back`() {
+        val t = tracker(ScreenEdge.LEFT)
+        t.onDown(sample(5f, 1200f, 0L))
+        t.onMove(sample(205f, 1200f, 60L))
+        assertEquals(TrackerAction.Disarmed, t.onMove(sample(20f, 1200f, 160L)))
+        assertEquals(TrackerAction.Armed(scheduleHoldMs = null), t.onMove(sample(205f, 1200f, 260L)))
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Back, ScreenEdge.LEFT),
+            t.onUp(sample(205f, 1200f, 280L)),
+        )
+    }
+
+    @Test
+    fun `a small wobble toward the edge before release still fires Back`() {
+        val t = tracker(ScreenEdge.LEFT)
+        t.onDown(sample(5f, 1200f, 0L))
+        t.onMove(sample(205f, 1200f, 60L))
+        // 30px back still leaves 170px, well past the 66px trigger.
+        assertEquals(TrackerAction.None, t.onMove(sample(175f, 1200f, 90L)))
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Back, ScreenEdge.LEFT),
+            t.onUp(sample(175f, 1200f, 100L)),
+        )
+    }
+
+    @Test
+    fun `a revert is measured against the configured trigger distance`() {
+        val configuration = GestureConfiguration(sideMinimumSwipeDistanceDp = 60f)
+        val t = tracker(ScreenEdge.LEFT, configuration = configuration)
+        t.onDown(sample(5f, 1200f, 0L))
+        assertTrue(t.onMove(sample(205f, 1200f, 60L)) is TrackerAction.Armed)
+        // 105px is 38dp: past the 24dp default, short of the 60dp asked for.
+        assertEquals(TrackerAction.Reverted, t.onUp(sample(110f, 1200f, 120L)))
+    }
+
+    @Test
+    fun `a Home swipe pulled back down still fires Home`() {
+        val t = tracker(ScreenEdge.BOTTOM)
+        t.onDown(sample(540f, 2395f, 0L))
+        assertTrue(t.onMove(sample(540f, 2295f, 50L)) is TrackerAction.Armed)
+        t.onMove(sample(540f, 2390f, 80L))
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Home, ScreenEdge.BOTTOM),
+            t.onUp(sample(540f, 2390f, 90L)),
+        )
+    }
 }

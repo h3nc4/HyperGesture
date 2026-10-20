@@ -33,11 +33,13 @@ import android.view.View
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import com.h3nc4.hypergesture.gesture.BackBelly
+import com.h3nc4.hypergesture.gesture.BackBellyState
 import com.h3nc4.hypergesture.gesture.ScreenEdge
+import com.h3nc4.hypergesture.gesture.TrackerAction
 import kotlin.math.ceil
 
 // HyperOS's back-gesture belly beside one side strip. Shown only once a back swipe arms, since
-// an armed swipe always fires and so never has a touch replayed underneath this window.
+// an armed swipe fires or reverts and neither replays a touch underneath this window.
 internal class BackBellyOverlay(
     context: Context,
     private val windowManager: WindowManager,
@@ -46,6 +48,8 @@ internal class BackBellyOverlay(
 ) {
 
     private val view = BellyView(context, edge, geometry.density)
+
+    private val state = BackBellyState()
 
     private var attached = false
 
@@ -79,21 +83,35 @@ internal class BackBellyOverlay(
         attached = false
     }
 
-    fun show(fingerY: Float, dragPx: Float) {
+    /** Moves the belly along with one tracker verdict for the touch at [dragPx] inward. */
+    fun follow(action: TrackerAction, fingerY: Float, dragPx: Float) {
+        val wasVisible = state.visible
+        val hadArrow = state.arrowShown
+        state.follow(action, dragPx / geometry.density)
+        when {
+            action is TrackerAction.Unused -> hide()
+            wasVisible && !state.visible -> animateCollapse()
+            !wasVisible && state.visible -> appear(fingerY)
+            hadArrow != state.arrowShown -> if (state.arrowShown) view.fadeArrowIn() else view.fadeArrowOut()
+        }
+        if (state.visible) view.scale = state.scale
+    }
+
+    private fun appear(fingerY: Float) {
         release?.cancel()
         view.centreY = fingerY - BackBelly.ABOVE_FINGER_DP * geometry.density
-        drag(dragPx)
         setWindowVisible(true)
         view.fadeArrowIn()
     }
 
-    fun drag(dragPx: Float) {
-        if (release?.isRunning == true) return
-        view.scale = BackBelly.scale(dragPx / geometry.density)
-    }
-
     /** Xiaomi collapses the belly the same way whether the swipe fired or was cancelled. */
     fun collapse() {
+        if (!state.visible) return
+        state.hide()
+        animateCollapse()
+    }
+
+    private fun animateCollapse() {
         release?.cancel()
         view.fadeArrowOut()
         release = ValueAnimator.ofFloat(view.scale, 0f).apply {
@@ -117,6 +135,7 @@ internal class BackBellyOverlay(
 
     /** Immediate, for a new touch: a replay must never land under a visible window. */
     fun hide() {
+        state.hide()
         release?.cancel()
         release = null
         view.reset()

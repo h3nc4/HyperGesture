@@ -62,3 +62,48 @@ object BackBelly {
 
     private const val HALF = 0.5f
 }
+
+/** Where one swipe's belly is headed, kept off Android so its lifecycle is testable. */
+class BackBellyState {
+    var visible = false
+        private set
+
+    var arrowShown = false
+        private set
+
+    private var dragDp = 0f
+
+    val scale: Float get() = if (visible) BackBelly.scale(dragDp) else 0f
+
+    /** Applies one tracker verdict, so the overlay and the tests share one mapping. */
+    fun follow(action: TrackerAction, dragDp: Float) {
+        when (action) {
+            is TrackerAction.Armed -> arm(dragDp)
+            is TrackerAction.Disarmed -> disarm(dragDp)
+            is TrackerAction.Fire, is TrackerAction.Reverted, is TrackerAction.Unused -> hide()
+            is TrackerAction.None, is TrackerAction.RearmHold -> drag(dragDp)
+        }
+    }
+
+    fun hide() {
+        visible = false
+        arrowShown = false
+        dragDp = 0f
+    }
+
+    private fun arm(dragDp: Float) {
+        visible = true
+        arrowShown = true
+        this.dragDp = dragDp
+    }
+
+    private fun drag(dragDp: Float) {
+        if (visible) this.dragDp = dragDp
+    }
+
+    // Pulled back inside the trigger. The arrow goes and the belly keeps following.
+    private fun disarm(dragDp: Float) {
+        arrowShown = false
+        drag(dragDp)
+    }
+}
