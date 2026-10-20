@@ -119,23 +119,49 @@ jobs:
     runs-on: ubuntu-latest
     needs: [prepare, release]
     permissions:
-      contents: write
+      contents: read
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BRANCH: bump-versioncode-after-v${{ needs.prepare.outputs.version }}
+      TITLE: bump versioncode after v${{ needs.prepare.outputs.version }}
     steps:
+      - name: Mint an app token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: "4811373"
+          private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
       # Android refuses to install an APK whose versionCode went backwards, so the
       # released code is burned and main moves on to the next one.
       - name: Run scripts/bump-version.sh
         run: ./scripts/bump-version.sh
-      - name: Commit and push
+      - name: Create the bump branch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f "ref=refs/heads/${BRANCH}" -f "sha=$(git rev-parse HEAD)"
+      - name: Run planetscale/ghcommit-action
         uses: planetscale/ghcommit-action@a6b150b81dca5dd027baa898604418eec9e11465 # v0.2.22
         with:
-          commit_message: "Bump versionCode after v${{ needs.prepare.outputs.version }} [skip ci]"
+          commit_message: ${{ env.TITLE }}
           repo: ${{ github.repository }}
-          branch: main
+          branch: ${{ env.BRANCH }}
           file_pattern: "app/build.gradle.kts"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+      - name: Open the bump pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          body="Raises versionCode past the one v${VERSION} was built with, so Android installs the next release over it."
+          number="$(gh api "repos/${GITHUB_REPOSITORY}/pulls" \
+            -f "title=${TITLE}" -f "head=${BRANCH}" -f base=main -f "body=${body}" --jq .number)"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${number}/labels" -f "labels[]=automerge"
