@@ -132,7 +132,7 @@ The Docker image that `.devcontainer.json` names holds the whole toolchain. The 
 ```sh
 git clone https://github.com/h3nc4/HyperGesture.git
 cd HyperGesture
-docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp/home -e GRADLE_USER_HOME=/tmp/gradle \
+docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e GRADLE_USER_HOME=/tmp/gradle \
   -v "$PWD:/workspaces/hypergesture" -w /workspaces/hypergesture \
   --entrypoint /bin/bash "$(scripts/devcontainer-image.sh)" \
   -c 'gradle --no-daemon assembleDebug test'
