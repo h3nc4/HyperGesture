@@ -27,6 +27,7 @@ import android.os.Process
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -90,6 +91,9 @@ import kotlin.math.roundToInt
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Android 15 draws edge to edge anyway, and without this the status bar keeps white
+        // icons on the light theme, so the clock and battery vanish.
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val settings = GestureSettingsRepository(applicationContext)
         setContent {
@@ -294,6 +298,9 @@ private fun StatusCard(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 12.dp),
                 )
                 StatusBadge(status.healthy, status.label)
             }
@@ -344,7 +351,9 @@ private fun SurviveRebootCard(onOpenAutostart: () -> Unit, onOpenAppInfo: () -> 
                 text = stringResource(R.string.survive_reboot_body),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Stacked, since a Row squeezes the second button to a letter per line once the
+            // labels grow with a translation or a large font.
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(onClick = onOpenAutostart) {
                     Text(stringResource(R.string.action_open_autostart))
                 }
@@ -454,7 +463,11 @@ private fun ExpandableCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.padding(end = 12.dp)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 12.dp),
+                ) {
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleMedium,
@@ -569,7 +582,13 @@ private fun ThresholdSlider(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(text = label, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 12.dp),
+            )
             Text(
                 text = formatter(local.roundToInt()),
                 style = MaterialTheme.typography.bodyMedium,
@@ -649,7 +668,9 @@ private fun UsageAccessRow() {
                 else R.string.label_usage_access_missing,
             ),
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(end = 12.dp),
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 12.dp),
         )
         if (!granted) {
             TextButton(onClick = {
@@ -684,10 +705,13 @@ private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Weighted so a long label wraps instead of squeezing the switch.
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(end = 12.dp),
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 12.dp),
         )
         Switch(checked = checked, onCheckedChange = onChange)
     }
