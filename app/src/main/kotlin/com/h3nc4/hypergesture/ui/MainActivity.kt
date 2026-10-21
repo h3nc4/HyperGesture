@@ -115,6 +115,11 @@ private fun HyperGestureScreen(
     var diagnostics by remember { mutableStateOf(DiagnosticsCollector.collect(context)) }
     var settingsExpanded by remember { mutableStateOf(false) }
     var diagnosticsExpanded by remember { mutableStateOf(false) }
+    // Settings toggles the service in another activity, so the cards read it again on resume.
+    LifecycleResumeEffect(Unit) {
+        diagnostics = DiagnosticsCollector.collect(context)
+        onPauseOrDispose {}
+    }
 
     Column(
         modifier = modifier
@@ -592,9 +597,6 @@ private fun ThresholdSlider(
     }
 }
 
-/**
- * Re-checked on tap, since returning from Settings does not recompose on its own.
- */
 @Composable
 private fun AppSwitchCard(
     configuration: GestureConfiguration,

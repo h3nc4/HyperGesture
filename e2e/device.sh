@@ -77,32 +77,6 @@ override() {
   echo "   $1=$2" >&2
 }
 
-dump_nodes() {
-  "${ADB_BIN}" shell uiautomator dump /sdcard/hg-ui.xml >/dev/null 2>&1 || true
-  "${ADB_BIN}" exec-out cat /sdcard/hg-ui.xml 2>/dev/null | sed 's/<node /\
-<node /g'
-}
-
-# tap_node <node line> - taps the centre of its bounds.
-tap_node() {
-  b="$(printf '%s\n' "$1" | sed -n 's/.*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]".*/\1 \2 \3 \4/p')"
-  [ -n "${b}" ] || return 0
-  # shellcheck disable=SC2086 # the four bounds are meant to split
-  set -- ${b}
-  "${ADB_BIN}" shell input tap $((($1 + $3) / 2)) $((($2 + $4) / 2)) >/dev/null
-}
-
-# A loaded emulator raises "System UI isn't responding" over the app, so wait it out.
-ui_nodes() {
-  nodes="$(dump_nodes)"
-  if printf '%s\n' "${nodes}" | grep -q "isn't responding"; then
-    tap_node "$(printf '%s\n' "${nodes}" | grep -m1 'text="Wait"' || true)"
-    sleep 2
-    nodes="$(dump_nodes)"
-  fi
-  printf '%s\n' "${nodes}"
-}
-
 # The switch is the first checkable node after its label, which Compose keeps a sibling.
 app_switch_node() {
   screen="$(ui_nodes)"
@@ -112,8 +86,7 @@ app_switch_node() {
 
 # Flips the user-facing toggle, so a release build is tested through the path a user takes.
 enable_app_switch() {
-  switch_label="$(sed -n 's/.*name="label_app_switch">\(.*\)<\/string>.*/\1/p' \
-    app/src/main/res/values/strings.xml)"
+  switch_label="$(string_res label_app_switch)"
   size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
   w="${size%x*}"
   h="${size#*x}"

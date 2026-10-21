@@ -258,3 +258,65 @@ geometry() {
   printf '%s %s %s\n' "${WIDTH}" "${HEIGHT}" "${strip_h}" >"${LOG_DIR}/geometry"
   echo "screen ${WIDTH}x${HEIGHT}, bottom strip ${strip_h}px tall, swiping from y=${BOTTOM_Y}" >&2
 }
+
+################################################################################
+# Screen
+#
+# What the app shows, read through uiautomator.
+
+dump_nodes() {
+  "${ADB_BIN}" shell uiautomator dump /sdcard/hg-ui.xml >/dev/null 2>&1 || true
+  "${ADB_BIN}" exec-out cat /sdcard/hg-ui.xml 2>/dev/null | sed 's/<node /\
+<node /g'
+}
+
+# tap_node <node line> - taps the centre of its bounds.
+tap_node() {
+  b="$(printf '%s\n' "$1" | sed -n 's/.*bounds="\[\([0-9]*\),\([0-9]*\)\]\[\([0-9]*\),\([0-9]*\)\]".*/\1 \2 \3 \4/p')"
+  [ -n "${b}" ] || return 0
+  # shellcheck disable=SC2086 # the four bounds are meant to split
+  set -- ${b}
+  "${ADB_BIN}" shell input tap $((($1 + $3) / 2)) $((($2 + $4) / 2)) >/dev/null
+}
+
+# A loaded emulator raises "System UI isn't responding" over the app, so wait it out.
+ui_nodes() {
+  nodes="$(dump_nodes)"
+  if printf '%s\n' "${nodes}" | grep -q "isn't responding"; then
+    tap_node "$(printf '%s\n' "${nodes}" | grep -m1 'text="Wait"' || true)"
+    sleep 2
+    nodes="$(dump_nodes)"
+  fi
+  printf '%s\n' "${nodes}"
+}
+
+# string_res <name> - the default-locale text of an app string.
+string_res() {
+  sed -n "s/.*name=\"$1\">\(.*\)<\/string>.*/\1/p" app/src/main/res/values/strings.xml
+}
+
+# seek_text <text>... - scrolls the app until a node shows one of the texts, and prints it.
+# Off-screen rows are missing from a dump, so it pages down and then back up.
+seek_text() {
+  size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
+  sw="${size%x*}"
+  sh="${size#*x}"
+  step=1
+  while [ "${step}" -le 12 ]; do
+    screen="$(ui_nodes)"
+    for want in "$@"; do
+      if printf '%s\n' "${screen}" | grep -qF "text=\"${want}\""; then
+        printf '%s\n' "${want}"
+        return 0
+      fi
+    done
+    if [ "${step}" -le 4 ]; then
+      "${ADB_BIN}" shell input swipe $((sw / 2)) $((sh * 2 / 3)) $((sw / 2)) $((sh / 3)) 300 >/dev/null
+    else
+      "${ADB_BIN}" shell input swipe $((sw / 2)) $((sh / 3)) $((sw / 2)) $((sh * 2 / 3)) 300 >/dev/null
+    fi
+    sleep 1
+    step=$((step + 1))
+  done
+  return 1
+}
