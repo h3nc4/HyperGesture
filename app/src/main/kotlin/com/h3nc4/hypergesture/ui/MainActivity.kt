@@ -28,6 +28,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.provider.Settings
+import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -159,6 +160,11 @@ private fun HyperGestureScreen(
         // Never collapsed: this is the one gesture that needs a permission before it works,
         // and hiding the toggle behind a tap is how it goes unnoticed.
         AppSwitchCard(configuration) { update ->
+            scope.launch { settings.update(update) }
+        }
+
+        // Never collapsed either, since it depends on the default assistant, set outside this app.
+        CircleToSearchCard(configuration) { update ->
             scope.launch { settings.update(update) }
         }
 
@@ -483,6 +489,7 @@ private fun GestureCheatSheet() {
                 R.string.gesture_recents_name to R.string.gesture_recents_how,
                 R.string.gesture_previous_app_name to R.string.gesture_previous_app_how,
                 R.string.gesture_next_app_name to R.string.gesture_next_app_how,
+                R.string.gesture_circle_to_search_name to R.string.gesture_circle_to_search_how,
             ).forEach { (name, how) ->
                 Column {
                     Text(
@@ -703,6 +710,82 @@ private fun AppSwitchCard(
 }
 
 @Composable
+private fun CircleToSearchCard(
+    configuration: GestureConfiguration,
+    onUpdate: ((GestureConfiguration) -> GestureConfiguration) -> Unit,
+) {
+    val context = LocalContext.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.section_circle_to_search),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.section_circle_to_search_body),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            ToggleRow(
+                label = stringResource(R.string.label_circle_to_search),
+                checked = configuration.circleToSearchEnabled,
+            ) { updated -> onUpdate { it.copy(circleToSearchEnabled = updated) } }
+
+            if (configuration.circleToSearchEnabled) {
+                ToggleRow(
+                    label = stringResource(
+                        R.string.label_circle_to_search_system_timing,
+                        ViewConfiguration.getLongPressTimeout(),
+                    ),
+                    checked = configuration.circleToSearchFollowsSystemTiming,
+                ) { updated ->
+                    onUpdate { it.copy(circleToSearchFollowsSystemTiming = updated) }
+                }
+
+                if (!configuration.circleToSearchFollowsSystemTiming) {
+                    ThresholdSlider(
+                        label = stringResource(R.string.label_circle_to_search_hold),
+                        value = configuration.circleToSearchHoldMs.toFloat(),
+                        range = 250f..1500f,
+                        formatter = { stringResource(R.string.value_ms, it) },
+                    ) { updated -> onUpdate { it.copy(circleToSearchHoldMs = updated.toLong()) } }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.label_circle_to_search_assistant),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp),
+                    )
+                    TextButton(onClick = {
+                        // AOSP's assist and voice input screen, where the assistant is chosen.
+                        context.startFirst(
+                            Intent(Settings.ACTION_VOICE_INPUT_SETTINGS),
+                            Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS),
+                            Intent(Settings.ACTION_SETTINGS),
+                        )
+                    }) {
+                        Text(stringResource(R.string.action_open_assistant_settings))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun UsageAccessRow() {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(hasUsageAccess(context)) }
@@ -794,6 +877,8 @@ private fun DiagnosticsContent(diagnostics: Diagnostics, onRefresh: () -> Unit) 
             (diagnostics.lastGlobalActionFailure ?: none),
         stringResource(R.string.label_last_app_switch_failure) to
             (diagnostics.lastAppSwitchFailure ?: none),
+        stringResource(R.string.diag_last_circle_to_search_failure) to
+            (diagnostics.lastCircleToSearchFailure ?: none),
         stringResource(R.string.diag_app_version) to diagnostics.appVersionName,
         stringResource(R.string.diag_license) to stringResource(R.string.value_license),
     )

@@ -81,7 +81,8 @@ class BackBellyState {
             is TrackerAction.Armed -> arm(dragDp)
             is TrackerAction.Disarmed -> disarm(dragDp)
             is TrackerAction.Fire, is TrackerAction.Reverted, is TrackerAction.Unused -> hide()
-            is TrackerAction.None, is TrackerAction.RearmHold -> drag(dragDp)
+            is TrackerAction.None, is TrackerAction.RearmHold, is TrackerAction.ScheduleLongPress ->
+                drag(dragDp)
         }
     }
 

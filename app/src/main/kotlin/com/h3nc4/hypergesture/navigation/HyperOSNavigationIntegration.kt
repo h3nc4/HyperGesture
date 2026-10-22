@@ -35,6 +35,9 @@ class HyperOSNavigationIntegration(private val context: Context) : NavigationInt
 
     override val id: String = ID
 
+    // MiCTS sends the HyperOS launcher's tag, and with it Circle to Search starts without root.
+    override val assistantAttributionTag: String = HYPEROS_HOME_TAG
+
     override fun isSupported(): Boolean = NavigationModeReader.isHyperOsDevice()
 
     override fun status(): NavigationIntegrationStatus {
@@ -77,6 +80,8 @@ class HyperOSNavigationIntegration(private val context: Context) : NavigationInt
 
         /** Vendor-specific action, not a public `Settings.ACTION_*` constant. */
         const val NAVIGATION_MODE_SETTINGS_ACTION = "com.android.settings.NAVIGATION_MODE_SETTINGS"
+
+        const val HYPEROS_HOME_TAG = "hyperOS_home"
 
         private const val TAG = "HyperGesture"
     }
