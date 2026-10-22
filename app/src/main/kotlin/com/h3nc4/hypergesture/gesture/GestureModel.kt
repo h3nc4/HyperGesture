@@ -45,6 +45,11 @@ sealed interface GestureAction {
     data object NextApp : GestureAction {
         override val id: String = "NextApp"
     }
+
+    /** Google's Circle to Search, as a long press on the system gesture handle starts it. */
+    data object CircleToSearch : GestureAction {
+        override val id: String = "CircleToSearch"
+    }
 }
 
 enum class ScreenEdge { LEFT, RIGHT, BOTTOM }
@@ -73,7 +78,39 @@ data class GestureConfiguration(
     val leftEdgeBackEnabled: Boolean = true,
     val rightEdgeBackEnabled: Boolean = true,
     val hapticFeedbackEnabled: Boolean = true,
-)
+    /** Off by default: it takes a still finger on the bottom edge away from the app underneath. */
+    val circleToSearchEnabled: Boolean = false,
+    /** On by default, as the system's own handle waits for the "touch and hold delay". */
+    val circleToSearchFollowsSystemTiming: Boolean = true,
+    /** Used only when [circleToSearchFollowsSystemTiming] is off. */
+    val circleToSearchHoldMs: Long = PlatformDefaults.LONG_PRESS_TIMEOUT_MS,
+    /** Read from the device at runtime and never persisted. */
+    val platform: PlatformDefaults = PlatformDefaults(),
+) {
+    val effectiveCircleToSearchHoldMs: Long
+        get() = if (circleToSearchFollowsSystemTiming) {
+            platform.longPressTimeoutMs
+        } else {
+            circleToSearchHoldMs
+        }
+}
+
+/** Launcher3's numbers for a long press on the navigation handle, at AOSP's defaults. */
+data class PlatformDefaults(
+    /** ViewConfiguration.getLongPressTimeout(), 400 ms on AOSP since Android 12. */
+    val longPressTimeoutMs: Long = LONG_PRESS_TIMEOUT_MS,
+    /** ViewConfiguration.getScaledTouchSlop() in dp. */
+    val touchSlopDp: Float = 8f,
+    /** SystemUI navigation_home_handle_width, the part of the edge a long press counts on. */
+    val handleWidthDp: Float = 108f,
+) {
+    companion object {
+        const val LONG_PRESS_TIMEOUT_MS = 400L
+
+        /** Launcher3 never lets the handle's long-press target shrink below this. */
+        const val MIN_TOUCH_TARGET_DP = 48f
+    }
+}
 
 enum class RejectionReason {
     NO_MOVEMENT,
@@ -89,6 +126,9 @@ sealed interface TrackerAction {
     data class Armed(val scheduleHoldMs: Long?) : TrackerAction
 
     data class RearmHold(val delayMs: Long) : TrackerAction
+
+    /** Starts the long-press timer, whose expiry is reported through `onLongPressElapsed`. */
+    data class ScheduleLongPress(val delayMs: Long) : TrackerAction
 
     data class Fire(val action: GestureAction, val edge: ScreenEdge) : TrackerAction
 

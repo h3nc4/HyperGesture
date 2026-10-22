@@ -44,6 +44,8 @@ data class Diagnostics(
     val lastGlobalActionFailure: String?,
     /** Usually the missing usage access, which no global action failure would explain. */
     val lastAppSwitchFailure: String?,
+    /** Usually Google not being the default assistant. */
+    val lastCircleToSearchFailure: String?,
     /** Shown in-app because release builds cannot be read with `adb run-as`. */
     val lastRecordedFailure: String?,
     val appVersionName: String,
@@ -68,6 +70,7 @@ object DiagnosticsCollector {
             navigationIntegrationAvailable = status.available,
             lastGlobalActionFailure = GestureActionPerformer.lastFailure,
             lastAppSwitchFailure = AppSwitcher.lastFailure,
+            lastCircleToSearchFailure = GestureActionPerformer.lastCircleToSearchFailure,
             lastRecordedFailure = FailureLog.read(context),
             appVersionName = appVersionName(context),
         )

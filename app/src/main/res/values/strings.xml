@@ -37,6 +37,8 @@
     <string name="gesture_previous_app_how">Swipe right along the bottom edge</string>
     <string name="gesture_next_app_name">Next app</string>
     <string name="gesture_next_app_how">Swipe left along the bottom edge</string>
+    <string name="gesture_circle_to_search_name">Circle to Search</string>
+    <string name="gesture_circle_to_search_how">Touch and hold the middle of the bottom edge, where the gesture handle sits, once it is turned on</string>
 
     <!-- Capability 1: the accessibility gesture service. -->
     <string name="status_accessibility_title">Gesture service</string>
@@ -95,6 +97,15 @@
     <string name="action_grant_usage_access">Grant</string>
     <string name="label_last_app_switch_failure">Last app switch problem</string>
     <string name="label_haptics">Vibrate when a gesture fires</string>
+    <string name="section_circle_to_search">Circle to Search</string>
+    <string name="section_circle_to_search_body">Touch and hold the middle of the bottom edge to start Circle to Search, as a long press on the system gesture handle does. It asks the Google app directly, without root or an extra permission.</string>
+    <string name="label_circle_to_search">Bottom edge long press = Circle to Search</string>
+    <string name="label_circle_to_search_system_timing">Use the system touch and hold delay (%1$d ms)</string>
+    <string name="label_circle_to_search_hold">Hold for Circle to Search</string>
+    <string name="label_circle_to_search_assistant">Needs Google as the default digital assistant app.</string>
+    <string name="action_open_assistant_settings">Assistant settings</string>
+    <string name="toast_circle_to_search_failed">Circle to Search did not start. Check that Google is the default digital assistant app.</string>
+    <string name="diag_last_circle_to_search_failure">Last Circle to Search problem</string>
     <string name="action_reset_defaults">Reset to defaults</string>
 
     <string name="survive_reboot_title">Keep me running</string>
