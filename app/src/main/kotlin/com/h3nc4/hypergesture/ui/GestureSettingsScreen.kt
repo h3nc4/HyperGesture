@@ -49,6 +49,12 @@ internal fun GestureSettingsScreen(model: AppModel) {
         label = stringResource(R.string.label_right_edge_back),
         checked = configuration.rightEdgeBackEnabled,
     ) { updated -> model.update { it.copy(rightEdgeBackEnabled = updated) } }
+    ToggleRow(
+        label = stringResource(R.string.label_landscape_confirm),
+        checked = configuration.landscapeConfirmEnabled,
+        supporting = stringResource(R.string.label_landscape_confirm_body),
+        tag = TestTags.SWITCH_LANDSCAPE_CONFIRM,
+    ) { updated -> model.update { it.copy(landscapeConfirmEnabled = updated) } }
 
     SectionHeader(stringResource(R.string.section_distance_and_timing))
     ThresholdSlider(

@@ -45,6 +45,7 @@ import com.h3nc4.hypergesture.setup.SetupFacts
 import com.h3nc4.hypergesture.setup.SetupFlag
 import com.h3nc4.hypergesture.setup.SetupRecord
 import com.h3nc4.hypergesture.setup.SetupStateRepository
+import com.h3nc4.hypergesture.setup.setupState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -142,7 +143,7 @@ internal fun rememberAppModel(): AppModel {
         AppModel(
             context.applicationContext,
             GestureSettingsRepository(context.applicationContext),
-            SetupStateRepository(context.applicationContext),
+            context.applicationContext.setupState,
             scope,
         )
     }

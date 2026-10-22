@@ -101,7 +101,7 @@ internal fun requestTile(context: Context, onOutcome: (TileAddOutcome) -> Unit) 
             PlatformIcon.createWithResource(context, R.drawable.ic_tile),
             context.mainExecutor,
         ) { result -> onOutcome(TileAddOutcome.fromResult(result)) }
-    }.onFailure { onOutcome(TileAddOutcome.Failed(it.message ?: it.javaClass.name)) }
+    }.onFailure { onOutcome(TileAddOutcome.Failed(it)) }
 }
 
 // The app op, not the permission: PACKAGE_USAGE_STATS reads as denied through

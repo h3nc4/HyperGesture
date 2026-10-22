@@ -77,4 +77,20 @@ class TileModelTest {
     fun `an unknown code from a vendor build is a refusal too`() {
         assertEquals(TileAddOutcome.Refused(-7), TileAddOutcome.fromResult(-7))
     }
+
+    @Test
+    fun `the add prompt exists from Android 13`() {
+        assertFalse(TileAddOutcome.promptAvailable(32))
+        assertTrue(TileAddOutcome.promptAvailable(33))
+        assertTrue(TileAddOutcome.promptAvailable(37))
+    }
+
+    @Test
+    fun `a request that throws is reported by its message, else by its type`() {
+        assertEquals(TileAddOutcome.Failed("no binder"), TileAddOutcome.Failed(IllegalStateException("no binder")))
+        assertEquals(
+            TileAddOutcome.Failed("java.lang.SecurityException"),
+            TileAddOutcome.Failed(SecurityException()),
+        )
+    }
 }

@@ -56,7 +56,7 @@ class GestureTileService : TileService() {
     }
 
     private fun recordAdded(added: Boolean) {
-        writes.launch { SetupStateRepository(applicationContext).setTileAdded(added) }
+        writes.launch { applicationContext.setupState.setTileAdded(added) }
     }
 
     override fun onStopListening() {

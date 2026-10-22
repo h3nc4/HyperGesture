@@ -109,6 +109,23 @@ class CircleToSearchGestureTest {
     }
 
     @Test
+    fun `a swipe that arms inside the slop still wins over the long press`() {
+        val t = tracker(
+            configuration = GestureConfiguration(
+                circleToSearchEnabled = true,
+                bottomMinimumSwipeDistanceDp = 4f,
+            ),
+        )
+        t.onDown(sample(540f, 2395f, 0L))
+        assertTrue(t.onMove(sample(540f, 2380f, 50L)) is TrackerAction.Armed)
+        assertEquals(TrackerAction.None, t.onLongPressElapsed())
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Home, ScreenEdge.BOTTOM),
+            t.onUp(sample(540f, 2380f, 70L)),
+        )
+    }
+
+    @Test
     fun `swipe and hold still means Recents, not Circle to Search`() {
         val t = tracker()
         t.onDown(sample(540f, 2395f, 0L))

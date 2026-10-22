@@ -35,6 +35,9 @@ internal data class ScreenGeometry(
     val navBottomPx: Int,
 ) {
 
+    /** From the window bounds, which swap on every rotation the display goes through. */
+    val landscape: Boolean get() = widthPx > heightPx
+
     companion object {
         fun current(context: Context, windowManager: WindowManager): ScreenGeometry {
             val metrics = windowManager.currentWindowMetrics

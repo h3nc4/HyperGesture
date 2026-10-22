@@ -103,6 +103,11 @@ class SetupChecklistTest {
     }
 
     @Test
+    fun `a confirmed battery reads done where the app cannot see the restriction`() {
+        assertEquals(StepState.DONE, state(firstRun.copy(batteryConfirmed = true), SetupStep.BATTERY))
+    }
+
+    @Test
     fun `autostart is left out off HyperOS`() {
         val list = SetupChecklist.evaluate(firstRun.copy(autostartApplies = false))
         assertNull(list[SetupStep.AUTOSTART])

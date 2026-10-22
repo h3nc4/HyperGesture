@@ -78,6 +78,8 @@ data class GestureConfiguration(
     val leftEdgeBackEnabled: Boolean = true,
     val rightEdgeBackEnabled: Boolean = true,
     val hapticFeedbackEnabled: Boolean = true,
+    /** On by default, as HyperOS asks for a second bottom swipe in a landscape app. */
+    val landscapeConfirmEnabled: Boolean = true,
     /** Off by default: it takes a still finger on the bottom edge away from the app underneath. */
     val circleToSearchEnabled: Boolean = false,
     /** On by default, as the system's own handle waits for the "touch and hold delay". */

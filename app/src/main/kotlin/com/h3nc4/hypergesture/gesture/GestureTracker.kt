@@ -188,7 +188,7 @@ class GestureTracker(
     /** Fires only for a touch still down, unarmed and within the slop since DOWN. */
     fun onLongPressElapsed(): TrackerAction {
         val action = longPressAction ?: return TrackerAction.None
-        if (!longPressPending || tracked == null || arm != null) return TrackerAction.None
+        if (!longPressPending || arm != null) return TrackerAction.None
         longPressPending = false
         // Marked fired, so the release is consumed rather than read as Home or replayed.
         arm = Arm.Fired

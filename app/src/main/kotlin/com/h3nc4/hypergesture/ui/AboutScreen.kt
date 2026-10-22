@@ -23,9 +23,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import com.h3nc4.hypergesture.R
+import com.h3nc4.hypergesture.update.UpdateViewModel
 
 @Composable
-internal fun AboutScreen(model: AppModel) {
+internal fun AboutScreen(model: AppModel, updates: UpdateViewModel) {
     val context = LocalContext.current
     val sourceUrl = stringResource(R.string.url_source)
     val licenseUrl = stringResource(R.string.url_license)
@@ -33,6 +34,7 @@ internal fun AboutScreen(model: AppModel) {
         stringResource(R.string.about_version),
         model.diagnostics.appVersionName ?: stringResource(R.string.diag_unknown),
     )
+    UpdateRows(updates)
     // Plain text until the site is live, so there is nothing to open yet.
     ValueRow(stringResource(R.string.about_website), stringResource(R.string.value_website))
     // A device with no browser throws ActivityNotFoundException, which startFirst absorbs.
