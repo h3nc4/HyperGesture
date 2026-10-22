@@ -82,6 +82,7 @@ Then open HyperGesture. The first card should say **Active**. Try a swipe.
 The app shows these cards, top to bottom:
 
 - **Gesture service**: whether your gestures are running, and a shortcut to the Accessibility screen if they aren't.
+- **Control Center tile**: a button that adds the HyperGesture tile to Control Center on Android 13 and newer, and the outcome of that request. Older versions take the tile by editing Control Center by hand. The tile reads Active or Not running, and a tap on it while stopped opens the Accessibility screen.
 - **Keep me running**: the Autostart and App info shortcuts from step 4 above.
 - **Navigation bar**: on HyperOS, an optional shortcut to hide the three-button bar and reclaim that screen space. See [What it can't do](#what-it-cant-do).
 - **App switching**: the switch for Previous app and Next app, and whether usage access is granted. It stays expanded, because this gesture needs a permission before it works.
@@ -116,6 +117,8 @@ The details are in [docs/hyperos-navigation.md](docs/hyperos-navigation.md).
 **Gestures stopped working, or Accessibility says "This service is malfunctioning."** Turn HyperGesture off and on again under Settings -> Accessibility. Android remembers that a service once failed and won't restart it on its own, even after an app update.
 
 **Gestures stop after a while, or after a reboot, on HyperOS.** Autostart or battery restriction is still at its default. Redo step 4 above.
+
+**Gestures stopped and the navigation bar is hidden, so Back and Home are gone.** Swipe down from the top of the screen and tap the HyperGesture tile, which opens the Accessibility screen. Add the tile from the app beforehand.
 
 **The Accessibility switch does nothing.** You missed step 2 above. Allow restricted settings, then try again.
 

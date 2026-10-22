@@ -58,6 +58,17 @@
     <string name="outcome_unsupported">Not supported on this device. This is a platform restriction, not a HyperGesture problem.</string>
     <string name="outcome_failed">Could not open the screen: %1$s</string>
 
+    <!-- Control Center tile. -->
+    <string name="tile_card_title">Control Center tile</string>
+    <string name="tile_card_body">If HyperOS stops the gesture service while the navigation bar is hidden, Back and Home are gone. Control Center still opens from the top of the screen, and this tile shows whether your gestures are running. When they are stopped, a tap on it opens accessibility settings.</string>
+    <string name="action_add_tile">Add to Control Center</string>
+    <string name="tile_add_added">Tile added to Control Center.</string>
+    <string name="tile_add_already">The tile is already in Control Center.</string>
+    <string name="tile_add_dismissed">The tile was left out. Tap the button again, or add it by editing Control Center.</string>
+    <string name="tile_add_refused">This device refused to add the tile (code %1$d). Add it by editing Control Center.</string>
+    <string name="tile_add_failed">Could not ask to add the tile: %1$s. Add it by editing Control Center.</string>
+    <string name="tile_add_unsupported">This Android version cannot offer to add the tile. Add it by editing Control Center.</string>
+
     <!-- Collapsed sections. -->
     <string name="section_gestures">Gesture settings</string>
     <string name="section_gestures_summary">Edge width, swipe distance, hold time</string>

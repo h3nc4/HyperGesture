@@ -45,6 +45,11 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Lets the tile check that HyperGesture's own Accessibility page exists before
+             sending the user there. The full Accessibility list is the fallback. -->
+        <intent>
+            <action android:name="android.settings.ACCESSIBILITY_DETAILS_SETTINGS" />
+        </intent>
     </queries>
 
     <application
@@ -75,6 +80,18 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Control Center tile, the way back to Accessibility when the bar is hidden. -->
+        <service
+            android:name=".setup.GestureTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
         </service>
 
         <receiver
