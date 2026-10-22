@@ -23,7 +23,7 @@ import androidx.compose.ui.res.stringResource
 import com.h3nc4.hypergesture.R
 
 @Composable
-internal fun HomeScreen(model: AppModel, onOpen: (Screen) -> Unit) {
+internal fun HomeScreen(model: AppModel, updateAvailable: Boolean, onOpen: (Screen) -> Unit) {
     StatusBlock(model.status, model.configuration)
     SetupGroup(model) { onOpen(Screen.SETUP) }
 
@@ -57,8 +57,12 @@ internal fun HomeScreen(model: AppModel, onOpen: (Screen) -> Unit) {
     ) { onOpen(Screen.TROUBLESHOOTING) }
     NavigationRow(
         title = stringResource(R.string.section_about),
-        supporting = model.diagnostics.appVersionName?.let {
-            stringResource(R.string.about_version_summary, it)
+        supporting = if (updateAvailable) {
+            stringResource(R.string.about_update_available)
+        } else {
+            model.diagnostics.appVersionName?.let {
+                stringResource(R.string.about_version_summary, it)
+            }
         },
         tag = TestTags.ROW_ABOUT,
     ) { onOpen(Screen.ABOUT) }

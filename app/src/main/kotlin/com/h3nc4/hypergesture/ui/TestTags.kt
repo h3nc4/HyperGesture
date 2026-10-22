@@ -29,6 +29,12 @@ internal object TestTags {
     const val ROW_ABOUT = "row_about"
     const val SWITCH_APP_SWITCH = "switch_app_switch"
     const val SWITCH_CIRCLE_TO_SEARCH = "switch_circle_to_search"
+    const val SWITCH_LANDSCAPE_CONFIRM = "switch_landscape_confirm"
     const val USAGE_ACCESS = "usage_access"
     const val DIAG_CIRCLE_TO_SEARCH_FAILURE = "diag_circle_to_search_failure"
+    const val SWITCH_UPDATE_CHECK = "switch_update_check"
+    const val UPDATE_STATUS = "update_status"
+    const val UPDATE_CHECK_NOW = "update_check_now"
+    const val UPDATE_INSTALL = "update_install"
+    const val UPDATE_ALLOW_INSTALLS = "update_allow_installs"
 }

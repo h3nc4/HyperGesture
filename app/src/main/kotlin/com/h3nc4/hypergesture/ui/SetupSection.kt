@@ -17,6 +17,7 @@
 
 package com.h3nc4.hypergesture.ui
 
+import android.os.Build
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,7 +42,7 @@ internal fun SetupRows(items: List<SetupItem>, model: AppModel) {
     // Outcomes are held rather than their messages, so a locale change re-resolves them.
     var tileOutcome by remember {
         mutableStateOf<TileAddOutcome?>(
-            TileAddOutcome.Unsupported.takeUnless { TileAddOutcome.promptAvailable },
+            TileAddOutcome.Unsupported.takeUnless { TileAddOutcome.promptAvailable(Build.VERSION.SDK_INT) },
         )
     }
     var navigationOutcome by remember { mutableStateOf<EnableRequestOutcome?>(null) }
@@ -92,7 +93,7 @@ internal fun SetupRows(items: List<SetupItem>, model: AppModel) {
                 outcome = tileOutcome?.let { tileOutcomeMessage(it) },
                 open = (R.string.action_add_tile to {
                     requestTile(context) { tileOutcome = it }
-                }).takeIf { TileAddOutcome.promptAvailable },
+                }).takeIf { TileAddOutcome.promptAvailable(Build.VERSION.SDK_INT) },
             )
             SetupStep.NAVIGATION_BAR -> StepRow(
                 item = item,
@@ -160,7 +161,7 @@ private fun StepRow(
             }
             undoable -> {
                 {
-                    TextButton(onClick = { onConfirm?.invoke(false) }) {
+                    TextButton(onClick = { onConfirm(false) }) {
                         Text(stringResource(R.string.action_undo))
                     }
                 }

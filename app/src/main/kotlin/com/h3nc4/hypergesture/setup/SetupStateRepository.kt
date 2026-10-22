@@ -17,17 +17,12 @@
 
 package com.h3nc4.hypergesture.setup
 
-import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-
-private val Context.setupDataStore: DataStore<Preferences> by
-    preferencesDataStore(name = "setup_state")
 
 /** Setup facts the app cannot read back from the system, so it records them as they happen. */
 data class SetupRecord(
@@ -46,9 +41,9 @@ enum class SetupFlag(internal val key: Preferences.Key<Boolean>) {
     AUTOSTART_CONFIRMED(booleanPreferencesKey("autostart_confirmed")),
 }
 
-class SetupStateRepository(private val context: Context) {
+class SetupStateRepository(private val store: DataStore<Preferences>) {
 
-    val record: Flow<SetupRecord> = context.setupDataStore.data.map { preferences ->
+    val record: Flow<SetupRecord> = store.data.map { preferences ->
         fun flag(flag: SetupFlag) = preferences[flag.key] ?: false
         SetupRecord(
             tileAdded = flag(SetupFlag.TILE_ADDED),
@@ -60,7 +55,7 @@ class SetupStateRepository(private val context: Context) {
     }
 
     suspend fun set(flag: SetupFlag, value: Boolean) {
-        context.setupDataStore.edit { it[flag.key] = value }
+        store.edit { it[flag.key] = value }
     }
 
     suspend fun setTileAdded(added: Boolean) = set(SetupFlag.TILE_ADDED, added)

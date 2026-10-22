@@ -15,8 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// This accessibility privilege is used for navigation only: it never reads window
-// content, text or keystrokes, and sends nothing off the device.
+// The service uses this privilege for navigation alone, without reading window content or
+// keystrokes or sending anything. The app goes online only for its opt-in update check.
 
 package com.h3nc4.hypergesture.service
 

@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -52,8 +53,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.ui.theme.HyperGestureTheme
+import com.h3nc4.hypergesture.update.UpdateViewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -88,6 +92,13 @@ private val BackStackSaver = Saver<List<Screen>, ArrayList<String>>(
 @Composable
 private fun HyperGestureApp() {
     val model = rememberAppModel()
+    // Held here rather than in About. The daily check runs on app open and home reads its result.
+    val updates: UpdateViewModel = viewModel()
+    val updateState by updates.state.collectAsState()
+    LifecycleResumeEffect(updates) {
+        updates.onResume()
+        onPauseOrDispose {}
+    }
     var stack by rememberSaveable(stateSaver = BackStackSaver) { mutableStateOf(listOf(Screen.HOME)) }
     val screen = stack.last()
     val back = { stack = stack.dropLast(1) }
@@ -128,13 +139,13 @@ private fun HyperGestureApp() {
                     .padding(bottom = 16.dp),
             ) {
                 when (screen) {
-                    Screen.HOME -> HomeScreen(model) { stack = stack + it }
+                    Screen.HOME -> HomeScreen(model, updateState.offer != null) { stack = stack + it }
                     Screen.SETUP -> SetupScreen(model)
                     Screen.APP_SWITCHING -> AppSwitchingScreen(model)
                     Screen.CIRCLE_TO_SEARCH -> CircleToSearchScreen(model)
                     Screen.GESTURE_SETTINGS -> GestureSettingsScreen(model)
                     Screen.TROUBLESHOOTING -> TroubleshootingScreen(model)
-                    Screen.ABOUT -> AboutScreen(model)
+                    Screen.ABOUT -> AboutScreen(model, updates)
                 }
             }
         }

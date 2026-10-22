@@ -21,7 +21,7 @@
     <string name="app_name">HyperGesture</string>
 
     <!-- Shown by the system in the accessibility settings list. -->
-    <string name="accessibility_service_description">Recognises swipes from the screen edges and performs Back, Home and Recents. Used for navigation only: HyperGesture never reads screen content, text or keystrokes, and sends nothing off your device.</string>
+    <string name="accessibility_service_description">Recognises swipes from the screen edges and performs Back, Home and Recents. The service is for navigation alone, and it doesn\'t read screen content or keystrokes or send anything off your device. The app itself contacts GitHub only if you turn on its update check.</string>
     <string name="accessibility_service_summary">Edge gesture navigation</string>
 
     <!-- Status, the first thing on home. The tile reuses the two short ones. -->
@@ -156,6 +156,8 @@
     <string name="label_edge_width">Edge width</string>
     <string name="label_left_edge_back">Left edge</string>
     <string name="label_right_edge_back">Right edge</string>
+    <string name="label_landscape_confirm">Confirm in landscape</string>
+    <string name="label_landscape_confirm_body">Swipe up twice to leave a landscape app</string>
     <string name="section_distance_and_timing">Distance and timing</string>
     <string name="label_side_distance">Side swipe</string>
     <string name="label_bottom_distance">Bottom swipe</string>
@@ -167,6 +169,39 @@
     <string name="value_ms">%1$d ms</string>
     <string name="action_reset_defaults">Reset to defaults</string>
     <string name="snackbar_reset">Gesture settings reset</string>
+
+    <!-- Update check. Off by default, and the only code that touches the network. -->
+    <string name="update_switch">Check for updates</string>
+    <string name="update_switch_off">Off, asks GitHub only when on</string>
+    <string name="update_switch_on">On, asks GitHub once a day as you open the app</string>
+    <string name="update_status">Latest release</string>
+    <string name="update_not_checked">Not checked yet</string>
+    <string name="update_check_now">Check now</string>
+    <string name="update_download_install">Download and install</string>
+    <string name="update_allow_installs">Allow installs</string>
+    <string name="update_last_checked">Last checked %1$s</string>
+    <string name="update_checking">Asking GitHub for the newest release…</string>
+    <string name="update_up_to_date">Up to date. You have %1$s and the newest release is %2$s.</string>
+    <string name="update_available">%1$s is available. You have %2$s.</string>
+    <string name="update_no_apk">Release %1$s has no APK attached, so there is nothing to install yet.</string>
+    <string name="update_nothing_published">GitHub doesn\'t list a published release yet.</string>
+    <string name="update_unreadable_version">Could not compare versions, because %1$s is not a version number.</string>
+    <string name="update_no_network">Could not reach GitHub (%1$s). Check the connection and try again.</string>
+    <string name="update_rate_limited">GitHub is limiting requests from this network. Try again later.</string>
+    <string name="update_rate_limited_until">GitHub is limiting requests from this network. Try again after %1$s.</string>
+    <string name="update_http_error">GitHub answered with HTTP %1$d. Try again later.</string>
+    <string name="update_bad_response">GitHub sent an answer this app could not read (%1$s).</string>
+    <string name="update_downloading">Downloading %1$s…</string>
+    <string name="update_permission_needed">Android needs your permission before HyperGesture can install an update. Allow it, come back here, and the download starts.</string>
+    <string name="update_confirming">Confirm the update in the system prompt.</string>
+    <string name="update_checksum_mismatch">The download did not match the checksum GitHub published, so it was deleted and nothing was installed.</string>
+    <string name="update_blocked_host">The download was redirected to %1$s, which is not a GitHub host, so it was stopped.</string>
+    <string name="update_download_failed">The download failed (%1$s). Try again.</string>
+    <string name="update_install_failed">The update did not install (%1$s).</string>
+    <string name="update_signature_conflict">Android refused the update, because it is signed with a different key from this copy (%1$s).</string>
+    <string name="update_declined">The update was cancelled in the system prompt, and this copy stays as it was.</string>
+    <string name="update_installed">Update installed.</string>
+
 
     <!-- Troubleshooting. Local only, never transmitted. -->
     <string name="section_troubleshooting">Troubleshooting</string>
@@ -206,6 +241,7 @@
     <string name="section_about">About</string>
     <string name="about_version">Version</string>
     <string name="about_version_summary">Version %1$s</string>
+    <string name="about_update_available">Update available</string>
     <string name="about_website">Website</string>
     <string name="value_website" translatable="false">hypergesture.h3nc4.com</string>
     <string name="about_source">Source code</string>

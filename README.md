@@ -17,6 +17,7 @@ The gestures work on any phone running Android 11 or newer. HyperOS adds two sho
 | Swipe in from the **left or right edge** | Back |
 | Swipe up from the **bottom edge** | Home |
 | Swipe up from the bottom **and hold** | Recent apps |
+| Swipe up from the bottom **twice**, in landscape | Home, as the first swipe only shows a pill |
 | Swipe **right along the bottom edge** | Previous app, once app switching is on |
 | Swipe **left along the bottom edge** | Next app, once app switching is on |
 | Touch and hold the **middle of the bottom edge** | Circle to Search, once it is turned on |
@@ -26,6 +27,8 @@ A side swipe draws a dark bulge with a back arrow beside the finger, the way Hyp
 A back swipe can be taken back before lifting the finger. Pulling it back inside the side swipe distance drops the arrow and shrinks the bulge, and releasing there does nothing, neither Back nor a tap on the app underneath. Pushing out past that distance again re-arms it.
 
 Recent apps opens once the finger has rested for the hold time, before it lifts. A swipe has to stay within 45 degrees of its own direction to count. A touch near an edge that never becomes a gesture is replayed to the app underneath as an ordinary tap, long press or drag.
+
+In landscape a first swipe up from the bottom edge leaves the app alone, the way HyperOS treats a landscape game. A short pill shows at the bottom centre with a light tick. A second bottom swipe within 2 seconds goes Home, or to Recent apps when held. A sideways swipe switches apps the same way, once app switching is on. Once the pill fades, the next swipe starts over. Portrait still goes Home on the first swipe, and turning off **Confirm in landscape** in Gesture settings makes landscape do the same.
 
 Circle to Search starts after the touch and hold delay chosen under Accessibility, and only within the 108 dp where the gesture handle sits. A finger that moves past the touch slop cancels it, and a long press beside the handle is replayed to the app underneath as before. It needs the Google app as the default digital assistant, and a launch that Google refuses shows a toast and the reason in Troubleshooting.
 
@@ -41,6 +44,7 @@ Each threshold is adjustable in Gesture settings:
 | Hold for Recents | 100 ms | 50 to 500 ms |
 | Time to start a swipe, after which the touch goes to the app underneath | 1000 ms | 300 to 3000 ms |
 | Left edge and Right edge, Back from each side | on | on or off |
+| Confirm in landscape, a second bottom swipe before leaving a landscape app | on | on or off |
 | Vibrate when a gesture fires | on | on or off |
 
 Circle to Search has two more settings next to its switch. With **Use system delay** on, the default, it waits for the system's touch and hold delay. With it off, a **Hold time** slider sets the wait from 250 to 1500 ms.
@@ -61,6 +65,8 @@ Permissions, and how each is granted:
 | Accessibility service | by hand, required | every gesture |
 | Usage access | by hand, optional | Previous app and Next app alone |
 | `RECEIVE_BOOT_COMPLETED` | at install | checking the navigation mode after a reboot |
+| `INTERNET` | at install | the update check, which stays off until you turn it on |
+| Install unknown apps | by hand, optional | installing an update the check found |
 
 ## Installing
 
@@ -82,6 +88,8 @@ Then open HyperGesture. The status at the top should say **Gestures are on**. Tr
 
 **5. Optionally, turn on app switching.** Under **App switching**, turn on **Use app switching**, tap **Grant** and allow Usage access for HyperGesture. Back in the app, Usage access reads **Granted**.
 
+**6. Optionally, turn on update checks.** Under **About**, turn on **Check for updates**. Once a day, as you open the app, it asks GitHub for the latest release and shows **Download and install** when that release is newer than yours. The first install asks you to allow installs from HyperGesture, and every update ends at Android's own confirmation. Android installs it over your copy only when the release is signed with the same key, so your settings stay. With the switch off, update by hand from [the latest release](https://github.com/h3nc4/HyperGesture/releases/latest).
+
 ## Using it
 
 The app opens on its home screen. A row with an arrow opens a screen of its own, which has a back arrow in its top bar. Home holds, top to bottom:
@@ -95,7 +103,7 @@ The app opens on its home screen. A row with an arrow opens a screen of its own,
 - **Circle to Search**, a screen of its own: the switch with its timing. Below them it shows whether Google is the assistant, a shortcut to the assistant settings and the last problem.
 - **Gesture settings**, a screen of its own. It starts with the gestures you have and ends with **Reset to defaults**, with every threshold from [Your gestures](#your-gestures) in between. Its row on home shows the three distances.
 - **Troubleshooting**, a screen of its own. It offers the two most common fixes, then device details and the navigation mode. It also shows whether the service is switched on, bound and running, and the last failure of each gesture. Useful when reporting a problem, and it never leaves the phone.
-- **About**, a screen of its own: the version and the links to the source code and license, followed by the credits. Its row on home shows the version.
+- **About**, a screen of its own. The version comes first, with the opt-in **Check for updates** switch below it. With the switch on it shows the last result and a **Check now** button, plus **Download and install** when a newer release exists. A failed check or install says why, such as no connection, GitHub's rate limit, a checksum mismatch or a declined prompt. The links to the source code and license and the credits follow. Its row on home shows the version, or **Update available** once a check finds a newer release.
 
 HyperGesture's page under Settings -> Accessibility links to the app as well.
 
@@ -103,13 +111,15 @@ The app follows your system light/dark setting.
 
 ## Privacy
 
-HyperGesture holds `RECEIVE_BOOT_COMPLETED` and `PACKAGE_USAGE_STATS`, and the second does nothing until Usage access is granted by hand. It also declares that it looks up installed apps with a launcher icon, which Android 11 and newer require before one app can find how to start another. It lacks internet, storage and location access.
+HyperGesture holds `RECEIVE_BOOT_COMPLETED` and `PACKAGE_USAGE_STATS`, and the second does nothing until Usage access is granted by hand. It also declares that it looks up installed apps with a launcher icon, which Android 11 and newer require before one app can find how to start another. It lacks storage and location access.
+
+It also requests `INTERNET` and `REQUEST_INSTALL_PACKAGES`, for the update check alone. That check is off by default, and while it is off the app doesn't connect to anything. Turned on, it sends one request a day to `api.github.com` for the latest HyperGesture release, plus the APK download from GitHub when you tap **Download and install**. Apart from the app's version in the user agent, a request says nothing about you or your phone. Traffic is HTTPS only and goes to GitHub hosts alone, and the download has to match the SHA-256 digest GitHub publishes before Android sees it. Analytics and tracking code are absent from the app.
 
 Gesture navigation needs an accessibility service, which is a powerful thing to grant. To be concrete about this one: it watches for touches in thin strips along the screen edges and turns a swipe into Back, Home, Recents or a switch to another app. Its configuration withholds both window content and accessibility events from it, so it never reads screen contents, typed text or keystrokes.
 
 With Circle to Search on, a long press on the handle has the system open the Google assistant with a screenshot, as the system's own handle does. The system takes that screenshot and hands it to Google, and HyperGesture never sees it.
 
-With app switching on, the app reads which apps came to the front in the last six hours, to know where Previous app leads. That list stays in memory on the phone, like everything in Troubleshooting, because the app lacks network access.
+With app switching on, the app reads which apps came to the front in the last six hours, to know where Previous app leads. That list stays in memory on the phone, like everything in Troubleshooting, and the update check doesn't send it.
 
 ## What it can't do
 

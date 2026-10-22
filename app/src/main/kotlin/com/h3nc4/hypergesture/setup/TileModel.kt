@@ -58,14 +58,15 @@ internal sealed interface TileAddOutcome {
 
     /** One of StatusBarManager's TILE_ADD_REQUEST_ERROR codes. */
     data class Refused(val code: Int) : TileAddOutcome
-    data class Failed(val reason: String) : TileAddOutcome
+    data class Failed(val reason: String) : TileAddOutcome {
+        constructor(error: Throwable) : this(error.message ?: error.javaClass.name)
+    }
 
     /** Android 12 and older have no add prompt, so the tile goes in by editing Control Center. */
     data object Unsupported : TileAddOutcome
 
     companion object {
-        val promptAvailable: Boolean
-            get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        fun promptAvailable(sdkInt: Int): Boolean = sdkInt >= Build.VERSION_CODES.TIRAMISU
 
         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
         fun fromResult(code: Int): TileAddOutcome = when (code) {
