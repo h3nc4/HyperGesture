@@ -86,6 +86,13 @@ val successContainer: Color
 val onSuccessContainer: Color
     @Composable get() = if (isSystemInDarkTheme()) Color(0xFFA8E5BF) else Color(0xFF06331A)
 
+/** Strong enough for a status dot on the plain surface, in either theme. */
+val success: Color
+    @Composable get() = if (isSystemInDarkTheme()) Color(0xFF7BD8A0) else Color(0xFF2F7D4F)
+
+val warning: Color
+    @Composable get() = if (isSystemInDarkTheme()) Color(0xFFFFB951) else Color(0xFFA15C00)
+
 val warningContainer: Color
     @Composable get() = if (isSystemInDarkTheme()) Color(0xFF5C3D00) else Color(0xFFFFE2A8)
 

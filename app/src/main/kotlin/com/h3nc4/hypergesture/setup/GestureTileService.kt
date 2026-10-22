@@ -31,17 +31,32 @@ import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.diagnostics.DiagnosticsCollector
 import com.h3nc4.hypergesture.service.HyperGestureAccessibilityService
 import com.h3nc4.hypergesture.ui.MainActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 
 // The way back when HyperOS stops the service with the bar hidden, as Control Center still opens.
 // Only the user may turn an accessibility service on. A tap on a stopped tile opens Settings.
 class GestureTileService : TileService() {
 
-    override fun onTileAdded() = refresh()
+    override fun onTileAdded() {
+        recordAdded(true)
+        refresh()
+    }
+
+    override fun onTileRemoved() = recordAdded(false)
 
     override fun onStartListening() {
         listening = WeakReference(this)
+        // Only a tile in the panel listens, which also covers one added before this was recorded.
+        recordAdded(true)
         refresh()
+    }
+
+    private fun recordAdded(added: Boolean) {
+        writes.launch { SetupStateRepository(applicationContext).setTileAdded(added) }
     }
 
     override fun onStopListening() {
@@ -90,6 +105,9 @@ class GestureTileService : TileService() {
     companion object {
 
         fun component(context: Context) = ComponentName(context, GestureTileService::class.java)
+
+        // Kept off the service, since the system may destroy it right after onTileRemoved.
+        private val writes = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         // The system ignores requestListeningState for a tile that is already listening.
         @Volatile

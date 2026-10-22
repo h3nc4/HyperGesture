@@ -47,6 +47,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
 
@@ -95,6 +98,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        runningState.value = true
         try {
             setUp()
         } catch (t: Throwable) {
@@ -185,6 +189,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         handler.removeCallbacksAndMessages(null)
         scope.cancel()
         instance = null
+        runningState.value = false
     }
 
     private fun onGestureAction(action: GestureAction, edge: ScreenEdge) {
@@ -311,5 +316,10 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         private var instance: HyperGestureAccessibilityService? = null
 
         fun isRunning(): Boolean = instance != null
+
+        private val runningState = MutableStateFlow(false)
+
+        /** Lets an open screen see the service start or stop without waiting for a resume. */
+        val running: StateFlow<Boolean> = runningState.asStateFlow()
     }
 }

@@ -77,45 +77,14 @@ override() {
   echo "   $1=$2" >&2
 }
 
-# The switch is the first checkable node after its label, which Compose keeps a sibling.
-app_switch_node() {
-  screen="$(ui_nodes)"
-  printf '%s\n' "${screen}" | sed -n "/text=\"${switch_label}\"/,\$p" |
-    grep -m1 'checkable="true"' || true
-}
-
 # Flips the user-facing toggle, so a release build is tested through the path a user takes.
 enable_app_switch() {
-  switch_label="$(string_res label_app_switch)"
-  size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
-  w="${size%x*}"
-  h="${size#*x}"
-  open_test_app
-  tapped=''
-  tries=1
-  while [ "${tries}" -le 10 ]; do
-    node="$(app_switch_node)"
-    case "${node}" in
-      *'checked="true"'*)
-        echo "   app switching on through its toggle" >&2
-        return 0
-        ;;
-      # Tapped once, since a loaded emulator redraws late and a second tap would undo it.
-      *'checked="false"'*)
-        if [ -z "${tapped}" ]; then
-          tap_node "${node}"
-          tapped='1'
-        fi
-        ;;
-      *) "${ADB_BIN}" shell input swipe $((w / 2)) $((h * 2 / 3)) $((w / 2)) $((h / 3)) 300 >/dev/null ;;
-    esac
-    sleep 2
-    tries=$((tries + 1))
-  done
-  echo "Could not turn the app switching toggle on ('${switch_label}', tapped: ${tapped:-no})." >&2
-  echo "The app-switch cases cannot reach the gesture while the feature is off. On screen:" >&2
-  ui_nodes | grep -o 'text="[^"]\{1,\}"' | sed 's/^/    /' >&2
-  exit 1
+  open_home
+  # shellcheck disable=SC2310 # the failure branch reports and exits, which is the point
+  if ! set_toggle_id switch_app_switch true; then
+    echo "The app-switch cases cannot reach the gesture while the feature is off." >&2
+    exit 1
+  fi
 }
 
 # Only a debuggable build reads the overrides. A release APK takes the toggle instead.

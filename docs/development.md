@@ -24,8 +24,8 @@ app/
     settings/     DataStore-backed configuration
     diagnostics/  Local-only device/state snapshot
     boot/         BOOT_COMPLETED observer
-    setup/        Control Center tile
-    ui/           MainActivity, the single Compose screen, theme
+    setup/        Control Center tile and the setup checklist (unit tested)
+    ui/           MainActivity with its back stack, one file per screen, theme
   src/test/kotlin/            Recognizer tests (plain JVM, no device)
 docker/           Dev container and APK build images
 scripts/          Entrypoint, hooks, sonar, version, emulator and E2E helpers
@@ -60,6 +60,10 @@ shellcheck -o all scripts/*.sh scripts/hooks/*
 ./scripts/build-apk.sh    # signed release APK via docker/apk.Dockerfile
 ```
 
+## Screens
+
+Home shows the status and the rows that lead to every other screen, each one level deep under a Material 3 top app bar with a back arrow. The back stack is a list of `Screen` values in `MainActivity`, saved with `rememberSaveable` and popped by `BackHandler`, without a navigation library. Navigation 3 is the upgrade if a screen ever needs a second level or a deep link. `AppModel` holds what the screens show and reads it again on every resume.
+
 ## Testing
 
 Two layers, because they catch different things.
@@ -83,7 +87,7 @@ docker run --rm --device /dev/kvm -u "$(id -u):$(id -g)" -e HOME=/tmp \
 
 `-k` leaves the emulator running for interactive poking. `-p hypergesture.apk` runs the suite against a release build. Run it before every release, because R8 obfuscation and shrinking can break things no JVM test sees. It has already caught one such bug: log and diagnostics strings built from `::class.simpleName` came out as `a`/`b`/`c` once minified, so `GestureAction` has an explicit `id`. R8 also strips every `Log.d` and `Log.v` call from a release build, so a line the suite greps for logs at info or above.
 
-A release build ignores the debug overrides that `e2e/device.sh` writes, so for a release APK the script turns app switching on through the app's own toggle, the way a user would, and the app-switch suite runs in full. That keeps an R8 break in the toggle, its DataStore write or the recognizer visible as a failing case, where a skip would hide all three. The cost is a dependency on the screen. The script reads the `label_app_switch` string, finds that label with `uiautomator` and taps the first switch after it, so a layout that moves the switch away from its label fails the run before any gesture is tried. The Recents hold also keeps its 100 ms default, since its override is debug-only as well. Installing over a build signed with another key uninstalls it first, so the release and debug runs can share one emulator, and on a phone that wipes the installed copy and its settings.
+A release build ignores the debug overrides that `e2e/device.sh` writes, so for a release APK the script turns app switching on through the app's own toggle, the way a user would, and the app-switch suite runs in full. That keeps an R8 break in the toggle, its DataStore write or the recognizer visible as a failing case, where a skip would hide all three. The cost is a dependency on the screen. The app turns its Compose test tags into resource ids. The script finds the switch by its `switch_app_switch` tag in a `uiautomator` dump and taps it. A layout that drops the tag fails the run before any gesture is tried. Every suite selects rows by tag through `find_id`, `tap_id`, `text_of_id` and `set_toggle_id` in `e2e/lib`, with the tags in `ui/TestTags.kt`. Moving a row or rewording its label leaves the suites working. The Recents hold also keeps its 100 ms default, since its override is debug-only as well. Installing over a build signed with another key uninstalls it first, so the release and debug runs can share one emulator, and on a phone that wipes the installed copy and its settings. The app opens on whichever screen was last showing, so `open_home` taps the back arrow until home, and `open_screen <row tag>` goes from home to a nested screen.
 
 Every bug found on a real device so far was in the Android integration, not the recognizer:
 
