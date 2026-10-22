@@ -20,10 +20,12 @@
 <!--
   No event types, so the framework delivers no events and notificationTimeout would throttle nothing.
   canPerformGestures is for the dispatchGesture touch replay, and nothing reads window content.
+  settingsActivity puts a settings link on HyperGesture's own Accessibility page.
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="false"
     android:description="@string/accessibility_service_description"
+    android:settingsActivity="com.h3nc4.hypergesture.ui.MainActivity"
     android:summary="@string/accessibility_service_summary" />

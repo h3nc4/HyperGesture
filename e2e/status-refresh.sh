@@ -30,8 +30,8 @@ require_adb
 
 usage_granted="$(string_res label_usage_access_granted)"
 usage_missing="$(string_res label_usage_access_missing)"
-service_active="$(string_res status_active)"
-service_inactive="$(string_res status_inactive)"
+service_working="$(string_res status_working)"
+service_off="$(string_res status_off)"
 
 # Pressing Home pauses the activity without destroying it, so coming back is a resume.
 leave_app() {
@@ -39,14 +39,14 @@ leave_app() {
   sleep 2
 }
 
-# assert_shows <description> <expected> <other> - which of two texts the app shows.
+# assert_shows <description> <tag> <expected> - the text the node with that tag shows.
 assert_shows() {
-  # shellcheck disable=SC2310 # neither text on screen is a result, reported below
-  shown="$(seek_text "$2" "$3" || true)"
-  if [ "${shown}" = "$2" ]; then
+  # shellcheck disable=SC2310 # a missing node is a result, reported below
+  shown="$(text_of_id "$2" || true)"
+  if [ "${shown}" = "$3" ]; then
     pass "$1"
   else
-    fail "$1 (expected '$2', the screen shows '${shown:-neither}')"
+    fail "$1 (expected '$3', the screen shows '${shown:-nothing}')"
   fi
 }
 
@@ -58,29 +58,29 @@ service_enabled() {
 echo >&2
 echo "== usage access granted in the background shows on return ==" >&2
 "${ADB_BIN}" shell appops set "${PKG}" GET_USAGE_STATS default >/dev/null
-open_test_app
-assert_shows "the row starts out missing" "${usage_missing}" "${usage_granted}"
+open_screen row_app_switching
+assert_shows "the row starts out missing" usage_access "${usage_missing}"
 leave_app
 "${ADB_BIN}" shell appops set "${PKG}" GET_USAGE_STATS allow >/dev/null
-open_test_app
-assert_shows "the row reads granted without a tap" "${usage_granted}" "${usage_missing}"
+open_screen row_app_switching
+assert_shows "the row reads granted without a tap" usage_access "${usage_granted}"
 
 echo >&2
 echo "== usage access revoked in the background shows on return ==" >&2
 leave_app
 "${ADB_BIN}" shell appops set "${PKG}" GET_USAGE_STATS default >/dev/null
-open_test_app
-assert_shows "the row reads missing without a tap" "${usage_missing}" "${usage_granted}"
+open_screen row_app_switching
+assert_shows "the row reads missing without a tap" usage_access "${usage_missing}"
 
 echo >&2
 echo "== the service turned off in the background shows on return ==" >&2
-open_test_app
-assert_shows "the service card starts out active" "${service_active}" "${service_inactive}"
+open_home
+assert_shows "the status starts out working" service_status "${service_working}"
 leave_app
 "${ADB_BIN}" shell settings delete secure enabled_accessibility_services >/dev/null
 sleep 3
-open_test_app
-assert_shows "the service card reads not running without a tap" "${service_inactive}" "${service_active}"
+open_home
+assert_shows "the status reads off without a tap" service_status "${service_off}"
 
 echo >&2
 echo "== the service turned back on shows on return ==" >&2
@@ -93,7 +93,7 @@ while [ "${bound}" -le 10 ] && ! service_enabled; do
   sleep 1
   bound=$((bound + 1))
 done
-open_test_app
-assert_shows "the service card reads active without a tap" "${service_active}" "${service_inactive}"
+open_home
+assert_shows "the status reads working without a tap" service_status "${service_working}"
 
 report "STATUS REFRESH"

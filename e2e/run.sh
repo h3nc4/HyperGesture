@@ -71,7 +71,7 @@ trap cleanup INT TERM EXIT
 # shellcheck disable=SC2086 # an empty apk argument must vanish, not become an empty string
 e2e/device.sh ${apk_arg:+-p "${apk_arg}"}
 
-suites='navigation app-switch back-revert status-refresh'
+suites='navigation app-switch back-revert status-refresh circle-to-search'
 worst=0
 for suite in ${suites}; do
   echo >&2

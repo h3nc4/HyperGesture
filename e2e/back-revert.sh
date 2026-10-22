@@ -62,7 +62,7 @@ assert_left() {
 
 echo >&2
 echo "== a left swipe brought back to the edge does not go back ==" >&2
-open_test_app
+open_home
 reset_log
 swipe_path 2 300 150 4
 sleep 2
@@ -73,7 +73,7 @@ assert_stayed "the test app is still on screen after the revert"
 
 echo >&2
 echo "== a right swipe brought back to the edge does not go back ==" >&2
-open_test_app
+open_home
 reset_log
 swipe_path "${RIGHT_X}" $((RIGHT_X - 300)) $((RIGHT_X - 150)) $((RIGHT_X - 2))
 sleep 2
@@ -83,7 +83,7 @@ assert_stayed "the test app is still on screen after the right revert"
 
 echo >&2
 echo "== a swipe out with a small wobble still goes back ==" >&2
-open_test_app
+open_home
 reset_log
 swipe_path 2 300 270
 sleep 2
@@ -96,7 +96,7 @@ fi
 
 echo >&2
 echo "== a revert leaves the strips live for the next swipe ==" >&2
-open_test_app
+open_home
 reset_log
 swipe_path 2 300 4
 sleep 2
