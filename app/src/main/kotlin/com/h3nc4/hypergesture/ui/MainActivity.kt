@@ -19,9 +19,12 @@ package com.h3nc4.hypergesture.ui
 
 import android.app.Activity
 import android.app.AppOpsManager
+import android.app.StatusBarManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.graphics.drawable.Icon as PlatformIcon
+import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.provider.Settings
@@ -80,6 +83,8 @@ import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.navigation.EnableRequestOutcome
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.settings.GestureSettingsRepository
+import com.h3nc4.hypergesture.setup.GestureTileService
+import com.h3nc4.hypergesture.setup.TileAddOutcome
 import com.h3nc4.hypergesture.ui.theme.HyperGestureTheme
 import com.h3nc4.hypergesture.ui.theme.onSuccessContainer
 import com.h3nc4.hypergesture.ui.theme.onWarningContainer
@@ -137,6 +142,8 @@ private fun HyperGestureScreen(
         AccessibilityStatusCard(enabled = diagnostics.accessibilityServiceEnabled) {
             context.startFirst(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
+
+        TileCard(onRequestAdd = { onOutcome -> requestTile(context, onOutcome) })
 
         SurviveRebootCard(
             onOpenAutostart = { openAutostart(context) },
@@ -281,7 +288,7 @@ private data class StatusBadgeState(
 @Composable
 private fun StatusCard(
     title: String,
-    status: StatusBadgeState,
+    status: StatusBadgeState?,
     body: String,
     hint: String?,
     actionLabel: String?,
@@ -307,7 +314,7 @@ private fun StatusCard(
                         .weight(1f)
                         .padding(end = 12.dp),
                 )
-                StatusBadge(status.healthy, status.label)
+                status?.let { StatusBadge(it.healthy, it.label) }
             }
             Text(text = body, style = MaterialTheme.typography.bodyMedium)
             hint?.let {
@@ -336,6 +343,54 @@ private fun StatusBadge(healthy: Boolean, label: String) {
             .background(background, RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 4.dp),
     )
+}
+
+@Composable
+private fun TileCard(onRequestAdd: ((TileAddOutcome) -> Unit) -> Unit) {
+    val promptAvailable = TileAddOutcome.promptAvailable
+    val lastOutcome = remember {
+        val initial: TileAddOutcome? = TileAddOutcome.Unsupported.takeUnless { promptAvailable }
+        mutableStateOf(initial)
+    }
+    StatusCard(
+        title = stringResource(R.string.tile_card_title),
+        status = null,
+        body = stringResource(R.string.tile_card_body),
+        hint = lastOutcome.value?.let { tileOutcomeMessage(it) },
+        actionLabel = stringResource(R.string.action_add_tile).takeIf { promptAvailable },
+        onAction = { onRequestAdd { lastOutcome.value = it } },
+    )
+}
+
+@Composable
+private fun tileOutcomeMessage(outcome: TileAddOutcome): String = when (outcome) {
+    TileAddOutcome.Added -> stringResource(R.string.tile_add_added)
+    TileAddOutcome.AlreadyAdded -> stringResource(R.string.tile_add_already)
+    TileAddOutcome.Dismissed -> stringResource(R.string.tile_add_dismissed)
+    is TileAddOutcome.Refused -> stringResource(R.string.tile_add_refused, outcome.code)
+    is TileAddOutcome.Failed -> stringResource(R.string.tile_add_failed, outcome.reason)
+    TileAddOutcome.Unsupported -> stringResource(R.string.tile_add_unsupported)
+}
+
+/** Android 13's one-tap prompt. Every answer, a refusal included, reaches the card's hint. */
+private fun requestTile(context: Context, onOutcome: (TileAddOutcome) -> Unit) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        onOutcome(TileAddOutcome.Unsupported)
+        return
+    }
+    val statusBar = context.getSystemService(StatusBarManager::class.java)
+    if (statusBar == null) {
+        onOutcome(TileAddOutcome.Failed("no StatusBarManager"))
+        return
+    }
+    runCatching {
+        statusBar.requestAddTileService(
+            GestureTileService.component(context),
+            context.getString(R.string.app_name),
+            PlatformIcon.createWithResource(context, R.drawable.ic_tile),
+            context.mainExecutor,
+        ) { result -> onOutcome(TileAddOutcome.fromResult(result)) }
+    }.onFailure { onOutcome(TileAddOutcome.Failed(it.message ?: it.javaClass.name)) }
 }
 
 @Composable

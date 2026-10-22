@@ -24,6 +24,7 @@ app/
     settings/     DataStore-backed configuration
     diagnostics/  Local-only device/state snapshot
     boot/         BOOT_COMPLETED observer
+    setup/        Control Center tile
     ui/           MainActivity, the single Compose screen, theme
   src/test/kotlin/            Recognizer tests (plain JVM, no device)
 docker/           Dev container and APK build images
