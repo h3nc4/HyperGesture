@@ -59,6 +59,12 @@
       "pinDigests": false
     },
     {
+      "description": "The site's npm dependencies and the wrangler that deploys it move together",
+      "groupName": "site",
+      "matchFileNames": ["site/**", ".github/workflows/site.yaml"],
+      "matchDatasources": ["npm"]
+    },
+    {
       "description": "Auto-merge all minor, patch, pin, and digest updates",
       "matchUpdateTypes": [
         "minor",
@@ -83,6 +89,18 @@
       ],
       "datasourceTemplate": "gradle-version",
       "depNameTemplate": "gradle"
+    },
+    {
+      "description": "Update the wrangler version the site deploy installs",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/site\\.yaml$/"
+      ],
+      "matchStrings": [
+        "wranglerVersion: \"(?<currentValue>.*?)\""
+      ],
+      "datasourceTemplate": "npm",
+      "depNameTemplate": "wrangler"
     }
   ]
 }

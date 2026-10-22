@@ -6,6 +6,7 @@ on:
       - HyperGesture Development CI
       - HyperGesture Gesture E2E
       - Security Analysis
+      - HyperGesture Site
     types:
       - completed
 

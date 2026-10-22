@@ -1,0 +1,72 @@
+---
+// Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+//
+// This file is part of HyperGesture.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import type { Strings } from "../i18n/en";
+
+interface Props {
+  t: Strings;
+}
+
+const { t } = Astro.props;
+
+// One diagram per entry of t.gestures, in the same order.
+const diagrams = [
+  { arrow: "M5 50h15m-5-5 5 5-5 5M51 50H36m5-5-5 5 5 5" },
+  { arrow: "M28 93V58m-5 5 5-5 5 5" },
+  { arrow: "M28 93V68", hold: true },
+  { arrow: "M12 88h30m-5-5 5 5-5 5", optional: true },
+  { arrow: "M44 88H14m5-5-5 5 5 5", optional: true },
+];
+---
+
+<ul class="moves">
+  {
+    t.gestures.map((g, i) => (
+      <li>
+        <svg viewBox="0 0 56 100" aria-hidden="true">
+          <rect class="mv-frame" x="2" y="2" width="52" height="96" rx="9" />
+          <path class="mv-arrow" d={diagrams[i].arrow} />
+          {diagrams[i].hold && <circle class="mv-hold" cx="28" cy="62" r="5" />}
+        </svg>
+        <div>
+          <h3>{g.name}</h3>
+          <p>{g.how}.</p>
+          {diagrams[i].optional && <span class="opt">{t.moves.optional}</span>}
+        </div>
+      </li>
+    ))
+  }
+</ul>
+
+<style is:global>
+  .moves{list-style:none;margin:36px 0 0;padding:0;display:grid;gap:12px}
+  .moves li{display:grid;grid-template-columns:56px 1fr;gap:16px;align-items:center;padding:14px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line)}
+  .moves svg{width:56px;height:100px}
+  .moves h3{font-size:1.125rem}
+  .moves p{color:var(--muted);font-size:1rem;margin-top:2px}
+  .moves .opt{display:inline-block;margin-top:6px;font-size:.875rem;color:var(--ink);background:var(--accent-soft);border-radius:999px;padding:1px 10px}
+  .mv-frame{fill:none;stroke:var(--muted);stroke-width:2}
+  .mv-arrow{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+  .mv-hold{fill:var(--accent)}
+  @media (min-width:768px){.moves{grid-template-columns:repeat(2,minmax(0,1fr))}.moves li:first-child{grid-column:1/-1}}
+  @media (min-width:1100px){
+    .moves{grid-template-columns:repeat(5,minmax(0,1fr))}
+    .moves li,.moves li:first-child{grid-column:auto;grid-template-columns:1fr;align-content:start;padding:20px}
+    .moves svg{width:64px;height:114px}
+  }
+</style>

@@ -56,6 +56,9 @@ jobs:
     name: Build Android APK
     runs-on: ubuntu-latest
     needs: prepare
+    outputs:
+      apk-size: ${{ steps.verify.outputs.apk-size }}
+      cert-sha256: ${{ steps.verify.outputs.cert-sha256 }}
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -83,13 +86,19 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: ./scripts/build-apk.sh "${{ needs.prepare.outputs.version }}"
       - name: Verify the APK is signed
+        id: verify
         run: |
-          docker run --rm --entrypoint bash \
+          certs="$(docker run --rm --entrypoint bash \
             -v "${PWD}:/apk:ro" \
             "${{ needs.prepare.outputs.dev-image }}" \
             -c 'set -e
               apksigner="$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort | tail -n1)"
-              "${apksigner}" verify --print-certs /apk/hypergesture.apk'
+              "${apksigner}" verify --print-certs /apk/hypergesture.apk')"
+          printf '%s\n' "${certs}"
+          sha="$(printf '%s\n' "${certs}" | grep -m1 -oE 'certificate SHA-256 digest: [0-9a-f]{64}' | cut -d' ' -f4)"
+          test -n "${sha}" || { echo '::error::apksigner printed no SHA-256 certificate digest' && exit 1; }
+          echo "cert-sha256=${sha}" >>"${GITHUB_OUTPUT}"
+          echo "apk-size=$(stat -c %s hypergesture.apk)" >>"${GITHUB_OUTPUT}"
       - name: Run actions/upload-artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
@@ -113,6 +122,17 @@ jobs:
         with:
           generate_release_notes: true
           files: hypergesture.apk
+
+  site:
+    name: Deploy the site for this release
+    needs: [prepare, build-apk, release]
+    uses: ./.github/workflows/site.yaml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      apk-size: ${{ needs.build-apk.outputs.apk-size }}
+      cert-sha256: ${{ needs.build-apk.outputs.cert-sha256 }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
   bump-version-code:
     name: Bump versionCode for the next release

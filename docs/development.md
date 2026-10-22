@@ -31,6 +31,7 @@ app/
 docker/           Dev container and APK build images
 scripts/          Entrypoint, hooks, sonar, version, emulator and E2E helpers
 docs/             This file and the platform investigations
+site/             The website, an Astro build served as Worker static assets
 .github/          CI workflows
 ```
 
@@ -48,7 +49,7 @@ Note `bash -c`, not `-lc`, when running commands in the container: a login shell
 
 ## Commands
 
-Gradle is the only task runner. There is no Node toolchain.
+Gradle is the only task runner for the app. Node appears only in `site/`, the website, and runs in a container.
 
 ```sh
 gradle assembleDebug   # build
@@ -133,3 +134,23 @@ adb shell settings delete global hypergesture_version_name
 ```
 
 The last check time and answer sit in the `update_check` DataStore, so a second open on the same day doesn't send a request. **Check now** skips that limit.
+
+## Website
+
+`site/` builds hypergesture.h3nc4.com with Astro into static HTML and CSS, with no client JavaScript. The English strings are in `site/src/i18n/en.ts` and the Brazilian Portuguese ones in `site/src/i18n/pt.ts`, which render `/` and `/pt/` from the same components. Add a string to both files, since `pt.ts` is declared with the type of the English object.
+
+The host has no Node, so run npm in the pinned image the site workflow uses:
+
+```sh
+node_image=node:24.22.1-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
+docker run --rm -it -u "$(id -u):$(id -g)" -e HOME=/tmp -v "${PWD}/site:/site" -w /site "${node_image}" npm ci
+docker run --rm -it -u "$(id -u):$(id -g)" -e HOME=/tmp -v "${PWD}/site:/site" -w /site "${node_image}" npm run build
+docker run --rm -it -u "$(id -u):$(id -g)" -e HOME=/tmp -v "${PWD}/site:/site" -w /site "${node_image}" npm run check
+docker run --rm -it -u "$(id -u):$(id -g)" -e HOME=/tmp -v "${PWD}/site:/site" -w /site -p 4321:4321 "${node_image}" npx astro dev --host 0.0.0.0
+```
+
+`npm run check` fails when a built page weighs more than 100 KB with the font and every file it loads, or when a link points at an id or a page missing from `dist/`.
+
+The version, the APK size and the signing certificate come from the `VERSION`, `APK_SIZE` and `CERT_SHA256` environment variables, read by `site/src/facts.ts` at build time. Unset, they fall back to v1.0.0. `MIN_ANDROID` sets the Android version and defaults to 11. The QR code for the APK link is generated during the build as inline SVG.
+
+The site deploys as an assets-only Cloudflare Worker named `hypergesture-site`, with no script, on the custom domain in `site/wrangler.toml`. The `HyperGesture Site` workflow builds and checks it on every pull request touching `site/`, and deploys on a push to main touching `site/`, reading the version and size of the latest release from the GitHub API. The release workflow calls the same workflow after publishing, with the version, size and certificate of the APK it built. Both deploys need the repository secret `CLOUDFLARE_API_TOKEN`. To deploy by hand, build first, then run `npx wrangler@4.151.2 deploy` in `site/` with that token in the environment.

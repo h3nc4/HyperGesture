@@ -1,0 +1,46 @@
+---
+// Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+//
+// This file is part of HyperGesture.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+interface Props {
+  caption: string;
+}
+
+const { caption } = Astro.props;
+---
+
+<div class="strips">
+  <svg viewBox="0 0 120 220" aria-hidden="true">
+    <rect class="st-frame" x="2" y="2" width="116" height="216" rx="18" />
+    <rect class="st-on" x="6" y="30" width="5" height="150" rx="2.5" />
+    <rect class="st-on" x="109" y="30" width="5" height="150" rx="2.5" />
+    <rect class="st-on" x="20" y="207" width="80" height="5" rx="2.5" />
+  </svg>
+  <p>{caption}</p>
+</div>
+
+<style is:global>
+  .strips{display:flex;gap:20px;align-items:center}
+  .strips svg{width:96px;height:auto;flex:none}
+  .strips p{color:var(--muted);font-size:.9375rem}
+  .st-frame{fill:var(--surface);stroke:var(--muted);stroke-width:2}
+  .st-on{fill:var(--accent)}
+  @media (min-width:900px){
+    .strips{flex-direction:column;align-items:flex-start}
+    .strips svg{width:150px}
+  }
+</style>

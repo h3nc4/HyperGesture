@@ -21,6 +21,7 @@ build/
 .cxx/
 captures/
 local.properties
+site/
 
 # android.keystore is the deliberate exception: apk.Dockerfile needs it to sign, and only
 # in the builder stage - the final stage is FROM scratch, so the key never ships.

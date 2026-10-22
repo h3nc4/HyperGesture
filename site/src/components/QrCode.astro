@@ -1,0 +1,44 @@
+---
+// Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+//
+// This file is part of HyperGesture.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import { encode } from "uqr";
+
+interface Props {
+  value: string;
+  label: string;
+}
+
+const { value, label } = Astro.props;
+const qr = encode(value, { ecc: "L", border: 0 });
+
+// One horizontal run per row keeps the path a few kilobytes.
+let d = "";
+qr.data.forEach((row, y) => {
+  for (let x = 0; x < row.length; x++) {
+    if (!row[x]) continue;
+    const start = x;
+    while (row[x + 1]) x++;
+    d += `M${start} ${y}h${x - start + 1}v1h-${x - start + 1}z`;
+  }
+});
+const quiet = 2;
+---
+
+<svg viewBox={`${-quiet} ${-quiet} ${qr.size + 2 * quiet} ${qr.size + 2 * quiet}`} role="img" aria-label={label} shape-rendering="crispEdges">
+  <path fill="#151918" d={d} />
+</svg>
