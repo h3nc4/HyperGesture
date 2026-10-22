@@ -19,8 +19,10 @@ The website at [hypergesture.h3nc4.com](https://hypergesture.h3nc4.com) shows th
 | Swipe in from the **left or right edge** | Back |
 | Swipe up from the **bottom edge** | Home |
 | Swipe up from the bottom **and hold** | Recent apps |
+| Swipe up from the bottom **twice**, in landscape | Home, as the first swipe only shows a pill |
 | Swipe **right along the bottom edge** | Previous app, once app switching is on |
 | Swipe **left along the bottom edge** | Next app, once app switching is on |
+| Touch and hold the **middle of the bottom edge** | Circle to Search, once it is turned on |
 
 A side swipe draws a dark bulge with a back arrow beside the finger, the way HyperOS's own Back gesture does. It grows as the finger moves inward and shrinks away on release.
 
@@ -28,28 +30,35 @@ A back swipe can be taken back before lifting the finger. Pulling it back inside
 
 Recent apps opens once the finger has rested for the hold time, before it lifts. A swipe has to stay within 45 degrees of its own direction to count. A touch near an edge that never becomes a gesture is replayed to the app underneath as an ordinary tap, long press or drag.
 
+In landscape a first swipe up from the bottom edge leaves the app alone, the way HyperOS treats a landscape game. A short pill shows at the bottom centre with a light tick. A second bottom swipe within 2 seconds goes Home, or to Recent apps when held. A sideways swipe switches apps the same way, once app switching is on. Once the pill fades, the next swipe starts over. Portrait still goes Home on the first swipe, and turning off **Confirm in landscape** in Gesture settings makes landscape do the same.
+
+Circle to Search starts after the touch and hold delay chosen under Accessibility, and only within the 108 dp where the gesture handle sits. A finger that moves past the touch slop cancels it, and a long press beside the handle is replayed to the app underneath as before. It needs the Google app as the default digital assistant, and a launch that Google refuses shows a toast and the reason in Troubleshooting.
+
 App switching walks the apps used in the last six hours, newest first. Swipes within five seconds of each other keep walking the same order, and after a longer pause the next swipe starts again from the most recent app. It needs usage access, granted in step 5 of [Installing](#installing).
 
 Each threshold is adjustable in Gesture settings:
 
 | Setting | Default | Range |
 | --- | --- | --- |
-| Edge activation width, how far in from the edge a swipe can start | 20 dp | 8 to 64 dp |
-| Side swipe distance | 24 dp | 8 to 80 dp |
-| Bottom swipe distance | 10 dp | 4 to 60 dp |
-| Hold for Recent apps | 100 ms | 50 to 500 ms |
-| Time allowed to start a swipe, after which the touch goes to the app underneath | 1000 ms | 300 to 3000 ms |
-| Left edge swipe = Back, Right edge swipe = Back | on | on or off |
+| Edge width, how far in from the edge a swipe can start | 20 dp | 8 to 64 dp |
+| Side swipe, the distance a Back swipe travels | 24 dp | 8 to 80 dp |
+| Bottom swipe, the distance a Home swipe travels | 10 dp | 4 to 60 dp |
+| Hold for Recents | 100 ms | 50 to 500 ms |
+| Time to start a swipe, after which the touch goes to the app underneath | 1000 ms | 300 to 3000 ms |
+| Left edge and Right edge, Back from each side | on | on or off |
+| Confirm in landscape, a second bottom swipe before leaving a landscape app | on | on or off |
 | Vibrate when a gesture fires | on | on or off |
 
-Tune those if a gesture fires when you did not mean it, or fails to fire when you did. **Reset to defaults** puts every value back.
+Circle to Search has two more settings next to its switch. With **Use system delay** on, the default, it waits for the system's touch and hold delay. With it off, a **Hold time** slider sets the wait from 250 to 1500 ms.
+
+Tune those if a gesture fires when you did not mean it, or fails to fire when you did. **Reset to defaults** puts every value back, and the **Undo** that follows restores them.
 
 ## Requirements
 
 - Android 11 or newer
 - Tested on a Redmi 14 running Android 16 / HyperOS OS3.0, and by the test suite on a stock Android 16 emulator
 
-On a Xiaomi, Redmi or POCO phone running HyperOS or MIUI, the app adds a **Navigation bar** shortcut and an **Autostart** shortcut. Any other phone gets the same gestures, the Navigation bar card reads **Unavailable**, and the Autostart button opens the app's App info page instead.
+On a Xiaomi, Redmi or POCO phone running HyperOS or MIUI, setup adds an **Autostart** step and a **Hide navigation bar** step. Any other phone gets the same gestures. Setup leaves Autostart out there and marks the navigation bar step as not available.
 
 Permissions, and how each is granted:
 
@@ -58,6 +67,8 @@ Permissions, and how each is granted:
 | Accessibility service | by hand, required | every gesture |
 | Usage access | by hand, optional | Previous app and Next app alone |
 | `RECEIVE_BOOT_COMPLETED` | at install | checking the navigation mode after a reboot |
+| `INTERNET` | at install | the update check, which stays off until you turn it on |
+| Install unknown apps | by hand, optional | installing an update the check found |
 
 ## Installing
 
@@ -73,41 +84,52 @@ Android blocks sideloaded apps from using accessibility features until you opt i
 
 **3. Turn it on.** Settings -> Accessibility -> **HyperGesture** -> on.
 
-Then open HyperGesture. The first card should say **Active**. Try a swipe.
+Then open HyperGesture. The status at the top should say **Gestures are on**. Try a swipe.
 
-**4. On HyperOS, keep it running.** HyperOS stops the gestures in the background unless autostart is allowed and battery restriction is off. In the **Keep me running** card, tap **Autostart** and allow it, then tap **App info** and choose **No restrictions** under Power.
+**4. On HyperOS, keep it running.** HyperOS stops the gestures in the background unless autostart is allowed and battery restriction is off. In the setup checklist, tap **Autostart** and allow it, then tap **App info** and choose **No restrictions** under Power. The app cannot read either setting back on HyperOS, so tap **I did it** on each step once it is set.
 
-**5. Optionally, turn on app switching.** In the **App switching** card, turn on the sideways swipe, tap **Grant** and allow Usage access for HyperGesture. Back in the app, the card reads **Usage access granted**.
+**5. Optionally, turn on app switching.** Under **App switching**, turn on **Use app switching**, tap **Grant** and allow Usage access for HyperGesture. Back in the app, Usage access reads **Granted**.
+
+**6. Optionally, turn on update checks.** Under **About**, turn on **Check for updates**. Once a day, as you open the app, it asks GitHub for the latest release and shows **Download and install** when that release is newer than yours. The first install asks you to allow installs from HyperGesture, and every update ends at Android's own confirmation. Android installs it over your copy only when the release is signed with the same key, so your settings stay. With the switch off, update by hand from [the latest release](https://github.com/h3nc4/HyperGesture/releases/latest).
 
 ## Using it
 
-The app shows these cards, top to bottom:
+The app opens on its home screen. A row with an arrow opens a screen of its own, which has a back arrow in its top bar. Home holds, top to bottom:
 
-- **Gesture service**: whether your gestures are running, and a shortcut to the Accessibility screen if they aren't.
-- **Keep me running**: the Autostart and App info shortcuts from step 4 above.
-- **Navigation bar**: on HyperOS, an optional shortcut to hide the three-button bar and reclaim that screen space. See [What it can't do](#what-it-cant-do).
-- **App switching**: the switch for Previous app and Next app, and whether usage access is granted. It stays expanded, because this gesture needs a permission before it works.
-- **Your gestures**: a reminder of what each swipe does.
-- **Gesture settings**: tap to expand for the thresholds, a haptic-feedback switch and a reset button. It stays collapsed by default so a stray tap cannot move a slider.
-- **Diagnostics**: tap to expand. Device details, the current navigation mode, whether the service is enabled and running, and the last Back, Home, Recents or app switch failure. Useful when reporting a problem. It never leaves the phone.
+- **Status**: whether your gestures run. When they are off it offers **Turn on**. When the Accessibility switch is on but HyperOS stopped the service, it reads **Gestures stopped** and offers **Fix**, which opens the service's page.
+- **Setup**: the required steps from [Installing](#installing) as a checklist, until they are all done. From then on one **Setup** row opens its own screen, which adds two recommended steps. A step the app cannot read takes an **I did it**, with an **Undo** afterwards.
+- **Control Center tile**, the first recommended step: on Android 13 and newer, **Add** puts the HyperGesture tile in Control Center and the outcome shows under it. Older versions take the tile by editing Control Center by hand. The tile reads Active or Not running, and a tap on it while stopped opens the Accessibility screen. A long press on it opens the app.
+- **Hide navigation bar**, the other recommended step: on HyperOS, a shortcut to the navigation-mode screen. It unlocks once the gestures run and the tile is in Control Center, so a stopped service never leaves you without Back and Home. See [What it can't do](#what-it-cant-do).
+- **App switching** and **Circle to Search**: each row has a switch that turns the feature on in place, and a tap on its name opens its screen. The line under the name says On, Off or what the feature still needs.
+- **App switching**, a screen of its own: the switch and whether usage access is granted, followed by the two gestures it adds and its last problem.
+- **Circle to Search**, a screen of its own: the switch with its timing. Below them it shows whether Google is the assistant, a shortcut to the assistant settings and the last problem.
+- **Gesture settings**, a screen of its own. It starts with the gestures you have and ends with **Reset to defaults**, with every threshold from [Your gestures](#your-gestures) in between. Its row on home shows the three distances.
+- **Troubleshooting**, a screen of its own. It offers the two most common fixes, then device details and the navigation mode. It also shows whether the service is switched on, bound and running, and the last failure of each gesture. Useful when reporting a problem, and it never leaves the phone.
+- **About**, a screen of its own. The version comes first, with the opt-in **Check for updates** switch below it. With the switch on it shows the last result and a **Check now** button, plus **Download and install** when a newer release exists. A failed check or install says why, such as no connection, GitHub's rate limit, a checksum mismatch or a declined prompt. The links to the source code and license and the credits follow. Its row on home shows the version, or **Update available** once a check finds a newer release.
+
+HyperGesture's page under Settings -> Accessibility links to the app as well.
 
 The app follows your system light/dark setting.
 
 ## Privacy
 
-HyperGesture holds `RECEIVE_BOOT_COMPLETED` and `PACKAGE_USAGE_STATS`, and the second does nothing until Usage access is granted by hand. It also declares that it looks up installed apps with a launcher icon, which Android 11 and newer require before one app can find how to start another. It lacks internet, storage and location access.
+HyperGesture holds `RECEIVE_BOOT_COMPLETED` and `PACKAGE_USAGE_STATS`, and the second does nothing until Usage access is granted by hand. It also declares that it looks up installed apps with a launcher icon, which Android 11 and newer require before one app can find how to start another. It lacks storage and location access.
+
+It also requests `INTERNET` and `REQUEST_INSTALL_PACKAGES`, for the update check alone. That check is off by default, and while it is off the app doesn't connect to anything. Turned on, it sends one request a day to `api.github.com` for the latest HyperGesture release, plus the APK download from GitHub when you tap **Download and install**. Apart from the app's version in the user agent, a request says nothing about you or your phone. Traffic is HTTPS only and goes to GitHub hosts alone, and the download has to match the SHA-256 digest GitHub publishes before Android sees it. Analytics and tracking code are absent from the app.
 
 Gesture navigation needs an accessibility service, which is a powerful thing to grant. To be concrete about this one: it watches for touches in thin strips along the screen edges and turns a swipe into Back, Home, Recents or a switch to another app. Its configuration withholds both window content and accessibility events from it, so it never reads screen contents, typed text or keystrokes.
 
-With app switching on, the app reads which apps came to the front in the last six hours, to know where Previous app leads. That list stays in memory on the phone, like everything in Diagnostics, because the app lacks network access.
+With Circle to Search on, a long press on the handle has the system open the Google assistant with a screenshot, as the system's own handle does. The system takes that screenshot and hands it to Google, and HyperGesture never sees it.
+
+With app switching on, the app reads which apps came to the front in the last six hours, to know where Previous app leads. That list stays in memory on the phone, like everything in Troubleshooting, and the update check doesn't send it.
 
 ## What it can't do
 
 **It can't turn on HyperOS's own gesture navigation.** That's locked behind permissions only the system itself holds, and no ordinary app can get them (including via Shizuku, which still needs ADB or root to start).
 
-The **Navigation bar** button opens the navigation-mode screen, where you can hide the three-button bar and reclaim that screen space. Choosing gesture navigation there still leaves a third-party launcher without working native gestures, so HyperGesture's own gestures remain the ones that function, either way.
+The **Hide navigation bar** step opens the navigation-mode screen, where you can hide the three-button bar and reclaim that screen space. Choosing gesture navigation there still leaves a third-party launcher without working native gestures, so HyperGesture's own gestures remain the ones that function, either way.
 
-If HyperOS resets your navigation mode after a reboot, Diagnostics shows the mode it came back in, but the app can't change it back for you.
+If HyperOS resets your navigation mode after a reboot, Troubleshooting shows the mode it came back in, but the app can't change it back for you.
 
 App switching skips the home screen and any app without a launcher icon, since those lack a launch entry to start.
 
@@ -119,11 +141,15 @@ The details are in [docs/hyperos-navigation.md](docs/hyperos-navigation.md).
 
 **Gestures stop after a while, or after a reboot, on HyperOS.** Autostart or battery restriction is still at its default. Redo step 4 above.
 
+**Gestures stopped and the navigation bar is hidden, so Back and Home are gone.** Swipe down from the top of the screen and tap the HyperGesture tile, which opens the Accessibility screen. Add the tile from the app beforehand.
+
 **The Accessibility switch does nothing.** You missed step 2 above. Allow restricted settings, then try again.
 
-**Previous app and Next app do nothing.** Usage access is missing, or the swipe is still off in the App switching card. Diagnostics names the reason under **Last app switch problem**.
+**Previous app and Next app do nothing.** Usage access is missing, or **Use app switching** is still off. Troubleshooting names the reason under **Last app switch problem**.
 
-**Taps near the bottom of the screen feel slightly slow.** Known. The app has to briefly take each touch near an edge to see whether it becomes a swipe, then hand it back if it doesn't. Reducing the edge activation width in Gesture settings shrinks the area this affects.
+**Circle to Search does not start.** Google has to be the default digital assistant app, chosen through **Assistant settings** under Circle to Search. Troubleshooting names the reason under **Last Circle to Search problem**.
+
+**Taps near the bottom of the screen feel slightly slow.** Known. The app has to briefly take each touch near an edge to see whether it becomes a swipe, then hand it back if it doesn't. Reducing the edge width in Gesture settings shrinks the area this affects.
 
 **A gesture fires when you didn't mean it, or won't fire when you do.** Adjust the swipe distance for that edge in Gesture settings. The bottom edge is deliberately more sensitive than the sides, because a swipe starting on the navigation bar has already travelled some distance before the app sees it.
 
@@ -153,6 +179,10 @@ Releasing, signing and debugging on a device are in [docs/development.md](docs/d
 | `README.md` | What HyperGesture is, installing and using it, building it from source |
 | [`docs/hyperos-navigation.md`](docs/hyperos-navigation.md) | What HyperOS does and doesn't permit about the navigation bar |
 | [`docs/development.md`](docs/development.md) | Building, testing, releasing, debugging on a device |
+
+## Credits
+
+Circle to Search on a long press of the bottom edge was written by Victor Eduardo ([@victoresidoro](https://github.com/victoresidoro)) for his fork, [AnyGest](https://github.com/VictorEsidoro/AnyGest). It starts Circle to Search without root the way [MiCTS](https://github.com/parallelcc/MiCTS) by parallelcc and [CTSLauncher](https://github.com/chenxiaolong/CTSLauncher) by chenxiaolong do, both under GPL-3.0.
 
 ## License
 

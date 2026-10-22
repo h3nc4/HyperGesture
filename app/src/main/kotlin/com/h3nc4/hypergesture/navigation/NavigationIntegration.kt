@@ -42,4 +42,7 @@ interface NavigationIntegration {
     fun isSupported(): Boolean
     fun status(): NavigationIntegrationStatus
     fun requestEnable(): EnableRequestOutcome
+
+    /** Tag the vendor's own launcher starts the assistant with, tried before the app's own. */
+    val assistantAttributionTag: String? get() = null
 }

@@ -19,7 +19,10 @@ package com.h3nc4.hypergesture.service
 
 import android.accessibilityservice.AccessibilityService
 import android.util.Log
+import android.widget.Toast
+import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.gesture.GestureAction
+import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 
 /**
  * MIUI/HyperOS occasionally returns `false` from
@@ -30,6 +33,10 @@ class GestureActionPerformer(private val service: AccessibilityService) {
 
     private val switcher = AppSwitcher(service)
 
+    private val assistantTag: String? by lazy {
+        NavigationIntegrationFactory.create(service).assistantAttributionTag
+    }
+
     fun perform(action: GestureAction): Boolean {
         val globalAction = when (action) {
             GestureAction.Back -> AccessibilityService.GLOBAL_ACTION_BACK
@@ -38,6 +45,7 @@ class GestureActionPerformer(private val service: AccessibilityService) {
             // Android exposes no global action for these, so they launch instead.
             GestureAction.PreviousApp -> return switcher.step(toPrevious = true)
             GestureAction.NextApp -> return switcher.step(toPrevious = false)
+            GestureAction.CircleToSearch -> return circleToSearch()
         }
 
         // performGlobalAction throws instead of returning false once the service has been
@@ -56,8 +64,24 @@ class GestureActionPerformer(private val service: AccessibilityService) {
         return performed
     }
 
+    // A missing default assistant is invisible from a gesture, so it is said on screen too.
+    private fun circleToSearch(): Boolean {
+        val problem = CircleToSearchLauncher.launch(service, assistantTag) ?: return true
+        lastCircleToSearchFailure = problem
+        Log.w(TAG, "CIRCLE_TO_SEARCH_FAILED $problem")
+        runCatching {
+            Toast.makeText(service, R.string.toast_circle_to_search_failed, Toast.LENGTH_LONG)
+                .show()
+        }
+        return false
+    }
+
     companion object {
         private const val TAG = "HyperGesture"
+
+        @Volatile
+        var lastCircleToSearchFailure: String? = null
+            private set
 
         @Volatile
         var lastFailure: String? = null

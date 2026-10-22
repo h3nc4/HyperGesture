@@ -295,28 +295,116 @@ string_res() {
   sed -n "s/.*name=\"$1\">\(.*\)<\/string>.*/\1/p" app/src/main/res/values/strings.xml
 }
 
-# seek_text <text>... - scrolls the app until a node shows one of the texts, and prints it.
-# Off-screen rows are missing from a dump, so it pages down and then back up.
-seek_text() {
+# scroll_app <up|down> - drags the app's own content, clear of every edge strip.
+scroll_app() {
   size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
-  sw="${size%x*}"
-  sh="${size#*x}"
-  step=1
-  while [ "${step}" -le 12 ]; do
+  w="${size%x*}"
+  h="${size#*x}"
+  if [ "$1" = 'up' ]; then
+    "${ADB_BIN}" shell input swipe $((w / 2)) $((h / 3)) $((w / 2)) $((h * 2 / 3)) 300 >/dev/null
+  else
+    "${ADB_BIN}" shell input swipe $((w / 2)) $((h * 2 / 3)) $((w / 2)) $((h / 3)) 300 >/dev/null
+  fi
+}
+
+# Test tags reach uiautomator as resource ids, so these select by tag rather than by text.
+
+# find_id <tag> - scrolls the app from the top until that node's centre clears the bottom
+# strip, which takes a tap there for itself, and prints the node.
+find_id() {
+  scroll_app up
+  scroll_app up
+  size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
+  clear_y=$((${size#*x} - 260))
+  found=''
+  tries=1
+  while [ "${tries}" -le 8 ]; do
     screen="$(ui_nodes)"
-    for want in "$@"; do
-      if printf '%s\n' "${screen}" | grep -qF "text=\"${want}\""; then
-        printf '%s\n' "${want}"
-        return 0
-      fi
-    done
-    if [ "${step}" -le 4 ]; then
-      "${ADB_BIN}" shell input swipe $((sw / 2)) $((sh * 2 / 3)) $((sw / 2)) $((sh / 3)) 300 >/dev/null
-    else
-      "${ADB_BIN}" shell input swipe $((sw / 2)) $((sh / 3)) $((sw / 2)) $((sh * 2 / 3)) 300 >/dev/null
+    found="$(printf '%s\n' "${screen}" | grep -m1 "resource-id=\"$1\"" || true)"
+    centre="$(printf '%s\n' "${found}" |
+      sed -n 's/.*bounds="\[[0-9]*,\([0-9]*\)\]\[[0-9]*,\([0-9]*\)\]".*/\1 \2/p' |
+      awk '{print int(($1 + $2) / 2)}')"
+    if [ -n "${centre}" ] && [ "${centre}" -lt "${clear_y}" ]; then
+      printf '%s\n' "${found}"
+      return 0
     fi
+    scroll_app down
     sleep 1
-    step=$((step + 1))
+    tries=$((tries + 1))
   done
+  [ -n "${found}" ] || return 1
+  printf '%s\n' "${found}"
+}
+
+# tap_id <tag> - taps the node with that tag.
+tap_id() {
+  # shellcheck disable=SC2310 # a missing node is reported by the caller
+  node="$(find_id "$1")" || return 1
+  tap_node "${node}"
+}
+
+# text_of_id <tag> - prints the text the node with that tag shows.
+text_of_id() {
+  # shellcheck disable=SC2310 # a missing node is reported by the caller
+  node="$(find_id "$1")" || return 1
+  printf '%s\n' "${node}" | sed -n 's/.* text="\([^"]*\)".*/\1/p'
+}
+
+# set_toggle_id <tag> <true|false> - sets the switch with that tag on the current screen.
+set_toggle_id() {
+  tapped=''
+  tries=1
+  while [ "${tries}" -le 6 ]; do
+    # shellcheck disable=SC2310 # a missing node is retried and then reported below
+    node="$(find_id "$1" || true)"
+    case "${node}" in
+      *"checked=\"$2\""*)
+        echo "   '$1' is $2" >&2
+        return 0
+        ;;
+      # Tapped once, since a loaded emulator redraws late and a second tap would undo it.
+      *'checked="'*)
+        if [ -z "${tapped}" ]; then
+          tap_node "${node}"
+          tapped='1'
+        fi
+        ;;
+      *) ;;
+    esac
+    sleep 2
+    tries=$((tries + 1))
+  done
+  echo "Could not set '$1' to $2 (tapped: ${tapped:-no}). On screen:" >&2
+  ui_nodes | grep -o 'resource-id="[^"]\{1,\}"\|text="[^"]\{1,\}"' | sed 's/^/    /' >&2
   return 1
+}
+
+# open_test_app lands on whichever screen was open last, where Back only returns home.
+# So a suite that touches the UI or needs Back to leave the app goes through these.
+
+# to_home - taps the app bar's back arrow until home, which has none, is showing.
+to_home() {
+  back_try=1
+  while [ "${back_try}" -le 6 ]; do
+    back_node="$(ui_nodes | grep -m1 'resource-id="nav_back"' || true)"
+    if [ -z "${back_node}" ]; then
+      return 0
+    fi
+    tap_node "${back_node}"
+    sleep 1
+    back_try=$((back_try + 1))
+  done
+}
+
+open_home() {
+  open_test_app
+  to_home
+}
+
+# open_screen <row tag> - opens the screen behind that row on home.
+open_screen() {
+  open_home
+  # shellcheck disable=SC2310 # a missing row is reported by the caller's own assertion
+  tap_id "$1" || echo "   no '$1' row on home" >&2
+  sleep 1
 }

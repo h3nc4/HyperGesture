@@ -36,6 +36,8 @@ class GestureTracker(
     private val edge: ScreenEdge,
     private val configuration: GestureConfiguration,
     private val density: Float,
+    /** Display x of the handle's centre, where a long press counts, or null for the whole edge. */
+    private val handleCenterXPx: Float? = null,
 ) {
 
     // What an armed gesture became, as one field. A boolean beside a nullable also described a
@@ -65,11 +67,22 @@ class GestureTracker(
     // Null until the gesture arms.
     private var arm: Arm? = null
 
+    // A still touch that may yet become a long press. Once the finger strays it stays cleared,
+    // and a slow swipe that pauses later cannot start one.
+    private var longPressPending = false
+
     private val shortAction: GestureAction =
         if (edge == ScreenEdge.BOTTOM) GestureAction.Home else GestureAction.Back
 
     private val holdAction: GestureAction? =
         if (edge == ScreenEdge.BOTTOM) GestureAction.Recents else null
+
+    private val longPressAction: GestureAction? =
+        if (edge == ScreenEdge.BOTTOM && configuration.circleToSearchEnabled) {
+            GestureAction.CircleToSearch
+        } else {
+            null
+        }
 
     private val minimumDistancePx: Float
         get() = density * when (edge) {
@@ -79,21 +92,39 @@ class GestureTracker(
 
     private val stillnessPx: Float get() = configuration.holdStillnessDp * density
 
+    private val longPressSlopPx: Float get() = configuration.platform.touchSlopDp * density
+
+    private val handleHalfWidthPx: Float
+        get() = density / 2f * maxOf(
+            configuration.platform.handleWidthDp,
+            PlatformDefaults.MIN_TOUCH_TARGET_DP,
+        )
+
     fun onDown(sample: TouchSample): TrackerAction {
         start = sample
         tracked = sample
         arm = null
-        return TrackerAction.None
+        longPressPending = longPressAction != null && overHandle(sample)
+        return if (longPressPending) {
+            TrackerAction.ScheduleLongPress(configuration.effectiveCircleToSearchHoldMs)
+        } else {
+            TrackerAction.None
+        }
     }
 
     fun onMove(sample: TouchSample): TrackerAction {
         val origin = tracked ?: return TrackerAction.None
+        if (longPressPending && strayedBeyondSlop(origin, sample)) longPressPending = false
         val state = arm
         return if (state == null) whileArming(origin, sample) else whileArmed(origin, state, sample)
     }
 
     private fun whileArming(origin: TouchSample, sample: TouchSample): TrackerAction {
-        if (sample.timestampMs - origin.timestampMs > configuration.maximumArmDurationMs) {
+        // A pending long press holds the arm window open, or a system touch and hold delay
+        // of 1000 or 1500 ms would be cut off by it and never fire.
+        if (!longPressPending &&
+            sample.timestampMs - origin.timestampMs > configuration.maximumArmDurationMs
+        ) {
             tracked = null
             return TrackerAction.Unused(RejectionReason.TOO_SLOW_TO_ARM)
         }
@@ -154,10 +185,21 @@ class GestureTracker(
         return TrackerAction.Fire(action, edge)
     }
 
+    /** Fires only for a touch still down, unarmed and within the slop since DOWN. */
+    fun onLongPressElapsed(): TrackerAction {
+        val action = longPressAction ?: return TrackerAction.None
+        if (!longPressPending || arm != null) return TrackerAction.None
+        longPressPending = false
+        // Marked fired, so the release is consumed rather than read as Home or replayed.
+        arm = Arm.Fired
+        return TrackerAction.Fire(action, edge)
+    }
+
     fun onUp(sample: TouchSample): TrackerAction {
         val origin = tracked
         val state = arm
         tracked = null
+        longPressPending = false
 
         if (state is Arm.Fired) return TrackerAction.None
         if (origin == null) return TrackerAction.Unused(rejectionFor(start, sample))
@@ -183,6 +225,19 @@ class GestureTracker(
         start = null
         tracked = null
         arm = null
+        longPressPending = false
+    }
+
+    // Launcher3 aborts a handle long press past the platform touch slop, as a distance.
+    private fun strayedBeyondSlop(reference: TouchSample, sample: TouchSample): Boolean {
+        val dx = sample.xPx - reference.xPx
+        val dy = sample.yPx - reference.yPx
+        return dx * dx + dy * dy > longPressSlopPx * longPressSlopPx
+    }
+
+    private fun overHandle(sample: TouchSample): Boolean {
+        val center = handleCenterXPx ?: return true
+        return abs(sample.xPx - center) <= handleHalfWidthPx
     }
 
     // A swipe along the bottom edge rather than up from it. Only the bottom edge offers this:

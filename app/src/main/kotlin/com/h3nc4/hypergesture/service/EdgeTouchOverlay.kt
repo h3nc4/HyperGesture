@@ -22,15 +22,21 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import com.h3nc4.hypergesture.gesture.ConfirmVerdict
 import com.h3nc4.hypergesture.gesture.GestureAction
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.gesture.GestureTracker
+import com.h3nc4.hypergesture.gesture.HapticGate
+import com.h3nc4.hypergesture.gesture.LandscapeConfirm
 import com.h3nc4.hypergesture.gesture.ScreenEdge
 import com.h3nc4.hypergesture.gesture.TouchSample
 import com.h3nc4.hypergesture.gesture.TrackerAction
@@ -65,8 +71,24 @@ internal class EdgeTouchOverlay(
 
     private var streamHeld = false
 
+    // Owned here rather than by a strip, so a pending pill is kept across a reinstall.
+    private val confirmation = LandscapeConfirm()
+
+    private var pill: ConfirmPillOverlay? = null
+
+    private var pillVisible = false
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val pillExpiry = Runnable(::onPillTimeout)
+
     fun install(configuration: GestureConfiguration, geometry: ScreenGeometry) {
         remove()
+        confirmation.configure(configuration.landscapeConfirmEnabled, geometry.landscape)
+        if (configuration.landscapeConfirmEnabled && geometry.landscape) {
+            pill = ConfirmPillOverlay(context, windowManager, geometry).also { it.install() }
+        }
+        syncPill()
 
         val edges = buildList {
             if (configuration.leftEdgeBackEnabled) add(ScreenEdge.LEFT)
@@ -92,6 +114,10 @@ internal class EdgeTouchOverlay(
         strips.clear()
         bellies.values.forEach(BackBellyOverlay::remove)
         bellies.clear()
+        handler.removeCallbacks(pillExpiry)
+        pill?.remove()
+        pill = null
+        pillVisible = false
         // Detaching kills any in-flight stream, so its UP never arrives to release the
         // hold; without this reset, freshly installed strips start out inert.
         streamHeld = false
@@ -105,13 +131,20 @@ internal class EdgeTouchOverlay(
         val view = TouchCaptureView(
             context = context,
             edge = edge,
-            tracker = GestureTracker(edge, configuration, geometry.density),
+            tracker = GestureTracker(
+                edge,
+                configuration,
+                geometry.density,
+                // Display coordinates, like the rawX the tracker is fed.
+                handleCenterXPx = if (edge == ScreenEdge.BOTTOM) geometry.widthPx / 2f else null,
+            ),
             hapticsEnabled = configuration.hapticFeedbackEnabled,
             belly = bellies[edge],
-            onStreamStart = ::onStreamStart,
+            onStreamStart = { onStreamStart(edge) },
+            admit = { action -> admit(action, edge) },
             onFire = { action -> onFire(action, edge) },
-            onUnused = ::onUnused,
-            onStreamEnd = ::releaseStream,
+            onUnused = { samples -> onUnused(edge, samples) },
+            onStreamEnd = { endStream(edge) },
         )
         val params = paramsFor(edge, configuration, geometry)
         runCatching {
@@ -170,19 +203,60 @@ internal class EdgeTouchOverlay(
         }
     }
 
-    private fun onStreamStart() {
+    private fun onStreamStart(edge: ScreenEdge) {
         bellies.values.forEach(BackBellyOverlay::hide)
+        confirmation.onDown(edge, SystemClock.uptimeMillis())
+        syncPill()
         streamHeld = true
         applyInteractivity()
+    }
+
+    /** False when the gesture is held back behind the pill instead. */
+    private fun admit(action: GestureAction, edge: ScreenEdge): Boolean {
+        val verdict = confirmation.onFire(action, edge, SystemClock.uptimeMillis())
+        syncPill()
+        if (verdict is ConfirmVerdict.ShowPill) Log.i(TAG, "GESTURE_CONFIRM_SHOWN $edge ${action.id}")
+        return verdict is ConfirmVerdict.Perform
     }
 
     private fun onFire(action: GestureAction, edge: ScreenEdge) {
         onGestureAction(action, edge)
     }
 
-    private fun onUnused(samples: List<TouchSample>) {
+    private fun onUnused(edge: ScreenEdge, samples: List<TouchSample>) {
+        confirmation.onReplayed(edge)
+        syncPill(immediate = true)
         val dispatched = replayer.replay(samples) { releaseStream() }
         if (!dispatched) releaseStream()
+    }
+
+    private fun endStream(edge: ScreenEdge) {
+        confirmation.onStreamEnd(edge, SystemClock.uptimeMillis())
+        syncPill()
+        releaseStream()
+    }
+
+    private fun onPillTimeout() {
+        confirmation.expire(SystemClock.uptimeMillis())
+        if (!confirmation.pillShown) Log.i(TAG, "GESTURE_CONFIRM_EXPIRED")
+        syncPill()
+    }
+
+    // Brings the pill window and its expiry timer in line with the model.
+    private fun syncPill(immediate: Boolean = false) {
+        val expiresAt = confirmation.expiresAtMs
+        val overlay = pill
+        if (expiresAt != null && overlay != null) {
+            if (!pillVisible) overlay.show()
+            pillVisible = true
+            handler.removeCallbacks(pillExpiry)
+            handler.postAtTime(pillExpiry, expiresAt)
+            return
+        }
+        handler.removeCallbacks(pillExpiry)
+        if (!pillVisible) return
+        pillVisible = false
+        if (immediate) overlay?.hide() else overlay?.fadeOut()
     }
 
     private fun releaseStream() {
@@ -218,6 +292,7 @@ internal class EdgeTouchOverlay(
         private val hapticsEnabled: Boolean,
         private val belly: BackBellyOverlay?,
         private val onStreamStart: () -> Unit,
+        private val admit: (GestureAction) -> Boolean,
         private val onFire: (GestureAction) -> Unit,
         private val onUnused: (List<TouchSample>) -> Unit,
         private val onStreamEnd: () -> Unit,
@@ -225,8 +300,12 @@ internal class EdgeTouchOverlay(
 
         private val samples = ArrayList<TouchSample>(MAX_SAMPLES)
         private var abandoned = false
+        private val haptics = HapticGate()
 
         private val holdRunnable = Runnable { handle(tracker.onHoldElapsed(), replayable = false) }
+
+        private val longPressRunnable =
+            Runnable { handle(tracker.onLongPressElapsed(), replayable = false) }
 
         init {
             setBackgroundColor(Color.TRANSPARENT)
@@ -241,6 +320,7 @@ internal class EdgeTouchOverlay(
                 MotionEvent.ACTION_DOWN -> {
                     samples.clear()
                     abandoned = false
+                    haptics.reset()
                     samples += sample
                     Log.d(TAG, "$edge DOWN at ${sample.xPx.toInt()},${sample.yPx.toInt()}")
                     onStreamStart()
@@ -296,13 +376,26 @@ internal class EdgeTouchOverlay(
          * while the finger is still down. Returns true when the release was deferred.
          */
         private fun handle(action: TrackerAction, replayable: Boolean): Boolean {
+            val admitted = action !is TrackerAction.Fire || admit(action.action)
+            val buzz = haptics.shouldTick(action)
+            // One buzz per gesture. A sideways swipe already ticked on arming and doesn't tick again.
+            when {
+                !admitted && buzz -> confirmTick()
+                !admitted || !buzz -> Unit
+                action is TrackerAction.Fire && action.action == GestureAction.CircleToSearch -> longPressTick()
+                else -> tick()
+            }
             when (action) {
                 is TrackerAction.None -> Unit
+                is TrackerAction.ScheduleLongPress -> {
+                    removeCallbacks(longPressRunnable)
+                    postDelayed(longPressRunnable, action.delayMs)
+                }
                 is TrackerAction.Armed -> {
+                    // A swipe is under way, so this touch can no longer be a long press.
+                    removeCallbacks(longPressRunnable)
                     Log.d(TAG, "$edge armed (hold=${action.scheduleHoldMs})")
-                    // The bottom edge ticks on fire instead of on arming, so a plain
-                    // upward swipe does not buzz on the way up.
-                    action.scheduleHoldMs?.let { postDelayed(holdRunnable, it) } ?: tick()
+                    action.scheduleHoldMs?.let { postDelayed(holdRunnable, it) }
                 }
                 is TrackerAction.RearmHold -> {
                     removeCallbacks(holdRunnable)
@@ -310,10 +403,11 @@ internal class EdgeTouchOverlay(
                 }
                 is TrackerAction.Fire -> {
                     cancelHold()
-                    tick()
-                    // action.id, not ::class.simpleName - R8 obfuscates class names.
-                    Log.i(TAG, "GESTURE_FIRED $edge ${action.action.id}")
-                    onFire(action.action)
+                    if (admitted) {
+                        // action.id, not ::class.simpleName - R8 obfuscates class names.
+                        Log.i(TAG, "GESTURE_FIRED $edge ${action.action.id}")
+                        onFire(action.action)
+                    }
                 }
                 is TrackerAction.Disarmed -> Log.d(TAG, "$edge disarmed, pulled back inside the trigger")
                 // Consumed rather than replayed: the app never asked for this swipe.
@@ -336,7 +430,11 @@ internal class EdgeTouchOverlay(
             return handle(action, replayable)
         }
 
-        private fun cancelHold() = removeCallbacks(holdRunnable)
+        // Both timers, since a long press left scheduled past the end of a touch would fire on it.
+        private fun cancelHold() {
+            removeCallbacks(holdRunnable)
+            removeCallbacks(longPressRunnable)
+        }
 
         private fun collapseBelly() {
             belly?.collapse()
@@ -351,6 +449,18 @@ internal class EdgeTouchOverlay(
         private fun tick() {
             if (!hapticsEnabled) return
             performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
+        }
+
+        /** Lighter than a gesture, since nothing happened yet. */
+        private fun confirmTick() {
+            if (!hapticsEnabled) return
+            performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        }
+
+        /** The system's long-press buzz, so the hold reads as having landed. */
+        private fun longPressTick() {
+            if (!hapticsEnabled) return
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
 
         private companion object {

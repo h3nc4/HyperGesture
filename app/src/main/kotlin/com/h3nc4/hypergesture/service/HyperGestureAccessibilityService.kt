@@ -15,8 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// This accessibility privilege is used for navigation only: it never reads window
-// content, text or keystrokes, and sends nothing off the device.
+// The service uses this privilege for navigation alone, without reading window content or
+// keystrokes or sending anything. The app goes online only for its opt-in update check.
 
 package com.h3nc4.hypergesture.service
 
@@ -37,14 +37,19 @@ import android.view.accessibility.AccessibilityEvent
 import com.h3nc4.hypergesture.diagnostics.FailureLog
 import com.h3nc4.hypergesture.gesture.GestureAction
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
+import com.h3nc4.hypergesture.gesture.PlatformDefaults
 import com.h3nc4.hypergesture.gesture.ScreenEdge
 import com.h3nc4.hypergesture.gesture.TouchSample
 import com.h3nc4.hypergesture.settings.GestureSettingsRepository
+import com.h3nc4.hypergesture.setup.GestureTileService
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.hypot
 
@@ -93,11 +98,13 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        runningState.value = true
         try {
             setUp()
         } catch (t: Throwable) {
             FailureLog.record(this, "onServiceConnected", t)
         }
+        GestureTileService.requestRefresh(this)
     }
 
     private fun setUp() {
@@ -124,6 +131,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
     override fun onUnbind(intent: Intent?): Boolean {
         teardown()
+        GestureTileService.requestRefresh(this)
         return super.onUnbind(intent)
     }
 
@@ -145,7 +153,20 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     private fun installOverlay() {
         val geometry = ScreenGeometry.current(this, windowManager)
         lastGeometry = geometry
-        overlay?.install(configuration, geometry)
+        overlay?.install(configuration.copy(platform = platformDefaults()), geometry)
+    }
+
+    // Read on every install, so a changed touch and hold delay lands with the next settings
+    // change or rotation. The AOSP values stand in if the platform refuses.
+    private fun platformDefaults(): PlatformDefaults {
+        val fallback = PlatformDefaults()
+        val touchSlopDp = runCatching {
+            ViewConfiguration.get(this).scaledTouchSlop / resources.displayMetrics.density
+        }.getOrDefault(fallback.touchSlopDp)
+        return fallback.copy(
+            longPressTimeoutMs = ViewConfiguration.getLongPressTimeout().toLong(),
+            touchSlopDp = touchSlopDp,
+        )
     }
 
     /**
@@ -168,6 +189,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         handler.removeCallbacksAndMessages(null)
         scope.cancel()
         instance = null
+        runningState.value = false
     }
 
     private fun onGestureAction(action: GestureAction, edge: ScreenEdge) {
@@ -294,5 +316,10 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         private var instance: HyperGestureAccessibilityService? = null
 
         fun isRunning(): Boolean = instance != null
+
+        private val runningState = MutableStateFlow(false)
+
+        /** Lets an open screen see the service start or stop without waiting for a resume. */
+        val running: StateFlow<Boolean> = runningState.asStateFlow()
     }
 }
