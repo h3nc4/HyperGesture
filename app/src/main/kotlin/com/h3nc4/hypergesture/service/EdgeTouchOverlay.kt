@@ -31,6 +31,7 @@ import android.view.WindowManager
 import com.h3nc4.hypergesture.gesture.GestureAction
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.gesture.GestureTracker
+import com.h3nc4.hypergesture.gesture.HapticGate
 import com.h3nc4.hypergesture.gesture.ScreenEdge
 import com.h3nc4.hypergesture.gesture.TouchSample
 import com.h3nc4.hypergesture.gesture.TrackerAction
@@ -225,6 +226,7 @@ internal class EdgeTouchOverlay(
 
         private val samples = ArrayList<TouchSample>(MAX_SAMPLES)
         private var abandoned = false
+        private val haptics = HapticGate()
 
         private val holdRunnable = Runnable { handle(tracker.onHoldElapsed(), replayable = false) }
 
@@ -241,6 +243,7 @@ internal class EdgeTouchOverlay(
                 MotionEvent.ACTION_DOWN -> {
                     samples.clear()
                     abandoned = false
+                    haptics.reset()
                     samples += sample
                     Log.d(TAG, "$edge DOWN at ${sample.xPx.toInt()},${sample.yPx.toInt()}")
                     onStreamStart()
@@ -296,13 +299,12 @@ internal class EdgeTouchOverlay(
          * while the finger is still down. Returns true when the release was deferred.
          */
         private fun handle(action: TrackerAction, replayable: Boolean): Boolean {
+            if (haptics.shouldTick(action)) tick()
             when (action) {
                 is TrackerAction.None -> Unit
                 is TrackerAction.Armed -> {
                     Log.d(TAG, "$edge armed (hold=${action.scheduleHoldMs})")
-                    // The bottom edge ticks on fire instead of on arming, so a plain
-                    // upward swipe does not buzz on the way up.
-                    action.scheduleHoldMs?.let { postDelayed(holdRunnable, it) } ?: tick()
+                    action.scheduleHoldMs?.let { postDelayed(holdRunnable, it) }
                 }
                 is TrackerAction.RearmHold -> {
                     removeCallbacks(holdRunnable)
@@ -310,7 +312,6 @@ internal class EdgeTouchOverlay(
                 }
                 is TrackerAction.Fire -> {
                     cancelHold()
-                    tick()
                     // action.id, not ::class.simpleName - R8 obfuscates class names.
                     Log.i(TAG, "GESTURE_FIRED $edge ${action.action.id}")
                     onFire(action.action)
