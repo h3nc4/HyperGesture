@@ -1,0 +1,165 @@
+---
+// Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+//
+// This file is part of HyperGesture.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import type { Strings } from "../i18n/en";
+
+interface Props {
+  t: Strings;
+}
+
+const { t } = Astro.props;
+---
+
+<figure class="stage">
+  <svg class="phone" viewBox="0 0 200 400" aria-hidden="true" focusable="false">
+    <defs><clipPath id="scr"><rect x="10" y="10" width="180" height="380" rx="23"></rect></clipPath></defs>
+    <rect x="2" y="2" width="196" height="396" rx="31" fill="var(--phone)" stroke="var(--line)" stroke-width="1.5"></rect>
+    <g clip-path="url(#scr)">
+      <rect x="10" y="10" width="180" height="380" fill="var(--screen)"></rect>
+      <g fill="var(--icon)">
+        <circle cx="46" cy="90" r="12"></circle><circle cx="82" cy="90" r="12"></circle><circle cx="118" cy="90" r="12"></circle><circle cx="154" cy="90" r="12"></circle>
+        <circle cx="46" cy="134" r="12"></circle><circle cx="82" cy="134" r="12"></circle><circle cx="118" cy="134" r="12"></circle><circle cx="154" cy="134" r="12"></circle>
+        <circle cx="46" cy="178" r="12"></circle><circle cx="82" cy="178" r="12"></circle>
+        <rect x="30" y="330" width="140" height="34" rx="17" opacity=".7"></rect>
+      </g>
+      <g class="app app-b">
+        <rect x="10" y="10" width="180" height="380" rx="23" fill="var(--app-b)"></rect>
+        <rect x="10" y="10" width="180" height="70" fill="var(--app-b-head)"></rect>
+        <g fill="var(--block)"><rect x="24" y="100" width="72" height="72" rx="10"></rect><rect x="104" y="100" width="72" height="72" rx="10"></rect><rect x="24" y="182" width="72" height="72" rx="10"></rect><rect x="104" y="182" width="72" height="72" rx="10"></rect></g>
+      </g>
+      <g class="app app-c">
+        <rect x="10" y="10" width="180" height="380" rx="23" fill="var(--app-c)"></rect>
+        <rect x="10" y="10" width="180" height="70" fill="var(--app-c-head)"></rect>
+        <g fill="var(--block)"><rect x="24" y="100" width="152" height="18" rx="9"></rect><rect x="24" y="130" width="120" height="18" rx="9"></rect><rect x="24" y="160" width="140" height="18" rx="9"></rect><rect x="24" y="190" width="100" height="18" rx="9"></rect></g>
+      </g>
+      <g class="app app-a">
+        <rect x="10" y="10" width="180" height="380" rx="23" fill="var(--app-a)"></rect>
+        <rect x="10" y="10" width="180" height="70" fill="var(--app-a-head)"></rect>
+        <g fill="var(--block)">
+          <rect x="24" y="98" width="152" height="14" rx="7"></rect><rect x="24" y="124" width="120" height="14" rx="7"></rect>
+          <rect x="24" y="150" width="138" height="14" rx="7"></rect><rect x="24" y="176" width="96" height="14" rx="7"></rect>
+          <rect x="24" y="202" width="146" height="14" rx="7"></rect><rect x="24" y="228" width="110" height="14" rx="7"></rect>
+        </g>
+        <g class="detail">
+          <rect x="10" y="10" width="180" height="380" fill="var(--app-a)"></rect>
+          <rect x="10" y="10" width="180" height="70" fill="var(--app-a-head)"></rect>
+          <rect x="24" y="96" width="152" height="110" rx="12" fill="var(--block)"></rect>
+          <g fill="var(--block)"><rect x="24" y="220" width="140" height="12" rx="6"></rect><rect x="24" y="242" width="150" height="12" rx="6"></rect><rect x="24" y="264" width="90" height="12" rx="6"></rect></g>
+        </g>
+      </g>
+      <rect x="70" y="378" width="60" height="4" rx="2" fill="var(--ink)" opacity=".55"></rect>
+      <g class="back">
+        <path d="M10 140 C10 172 42 178 42 200 C42 222 10 228 10 260 Z" fill="var(--bulge)" opacity=".86"></path>
+        <path d="M30 191 L22 200 L30 209" fill="none" stroke="var(--arrow)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+      </g>
+      <circle class="dot" r="11" fill="var(--dot)" fill-opacity=".55" stroke="var(--dot)" stroke-width="2.5"></circle>
+    </g>
+    <circle cx="100" cy="24" r="4" fill="var(--phone)"></circle>
+  </svg>
+  <ol class="cues">
+    {t.gestures.map((g, i) => <li style={`--i:${i}`}><b>{g.name}</b><span>{g.how}</span></li>)}
+  </ol>
+  <figcaption>{t.hero.caption}</figcaption>
+</figure>
+
+<style is:global>
+  .stage{display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:center;margin:0}
+  .phone{width:100%;height:auto;display:block;filter:drop-shadow(0 18px 28px rgb(15 40 28 / .18))}
+  .cues{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+  .cues li{position:relative;padding:8px 10px 8px 14px;border-radius:10px;line-height:1.3;min-height:44px;display:flex;flex-direction:column;justify-content:center}
+  .cues li::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--accent);opacity:0;transform:scaleY(.3)}
+  .cues b{display:block;font-weight:650;font-size:1.0625rem}
+  .cues span{display:none;font-size:.9375rem;color:var(--muted)}
+  .stage figcaption{grid-column:1/-1;font-size:.9375rem;color:var(--muted);max-width:52ch}
+  @media (min-width:600px){.stage{grid-template-columns:200px 1fr}.cues span{display:block}}
+  @media (min-width:1024px){
+    .stage{grid-template-columns:270px 1fr;gap:32px}
+    .cues li{padding:12px 14px 12px 18px}
+  }
+
+  /* A static Back frame by default, and the loop only where motion is allowed. */
+  .app,.back,.dot,.detail{transform-box:view-box}
+  .app{transform-origin:100px 200px}
+  .back{transform-origin:10px 200px}
+  .app-b{transform:translate(-190px,0)}
+  .app-c{transform:translate(190px,0)}
+  .dot{transform:translate(52px,200px)}
+  .cues li:first-child{background:var(--accent-soft)}
+  .cues li:first-child::before{opacity:1;transform:scaleY(1)}
+  @media (prefers-reduced-motion:no-preference){
+    .app-a{animation:appA 15s infinite}
+    .app-b{animation:appB 15s infinite}
+    .app-c{animation:appC 15s infinite}
+    .back{animation:back 15s infinite}
+    .dot{animation:dot 15s infinite}
+    .detail{animation:detail 15s infinite}
+    .cues li,.cues li:first-child{animation:cue 15s infinite;animation-delay:calc(var(--i) * 3s);background:transparent}
+    .cues li::before,.cues li:first-child::before{animation:cuebar 15s infinite;animation-delay:calc(var(--i) * 3s);opacity:0}
+  }
+  @keyframes cue{0%,17%{background:var(--accent-soft)}20%,100%{background:transparent}}
+  @keyframes cuebar{0%,17%{opacity:1;transform:scaleY(1)}20%,100%{opacity:0;transform:scaleY(.3)}}
+  @keyframes dot{
+    0%{transform:translate(12px,200px);opacity:0}
+    2%{transform:translate(12px,200px);opacity:1}
+    10%{transform:translate(58px,200px);opacity:1}
+    12%{transform:translate(58px,200px);opacity:0}
+    20%{transform:translate(100px,384px);opacity:0}
+    22%{transform:translate(100px,384px);opacity:1}
+    29%{transform:translate(100px,250px);opacity:1}
+    31%{transform:translate(100px,250px);opacity:0}
+    40%{transform:translate(100px,384px);opacity:0}
+    42%{transform:translate(100px,384px);opacity:1}
+    47%{transform:translate(100px,300px);opacity:1}
+    53%{transform:translate(100px,300px);opacity:1}
+    54.5%{transform:translate(100px,300px);opacity:0}
+    55.5%{transform:translate(100px,205px);opacity:0}
+    56.5%{transform:translate(100px,205px);opacity:1}
+    57.5%{transform:translate(100px,205px);opacity:0}
+    60%{transform:translate(48px,382px);opacity:0}
+    62%{transform:translate(48px,382px);opacity:1}
+    70%{transform:translate(152px,382px);opacity:1}
+    72%{transform:translate(152px,382px);opacity:0}
+    80%{transform:translate(152px,382px);opacity:0}
+    82%{transform:translate(152px,382px);opacity:1}
+    90%{transform:translate(48px,382px);opacity:1}
+    92%,100%{transform:translate(48px,382px);opacity:0}
+  }
+  @keyframes back{0%,2%{transform:scaleX(0)}10%,12%{transform:scaleX(1)}15%,100%{transform:scaleX(0)}}
+  @keyframes detail{0%,12%{transform:translate(0,0);opacity:1}16%{transform:translate(70px,0);opacity:0}94%{transform:translate(0,0);opacity:0}100%{transform:translate(0,0);opacity:1}}
+  @keyframes appA{
+    0%,22%{transform:translate(0,0) scale(1);opacity:1}
+    29%,33%{transform:translate(0,70px) scale(.22);opacity:0}
+    37%,42%{transform:translate(0,0) scale(1);opacity:1}
+    47%,56%{transform:translate(0,0) scale(.62);opacity:1}
+    59%,62%{transform:translate(0,0) scale(1);opacity:1}
+    70%,82%{transform:translate(190px,0) scale(1);opacity:1}
+    90%,100%{transform:translate(0,0) scale(1);opacity:1}
+  }
+  @keyframes appB{
+    0%,42%{transform:translate(-190px,0) scale(1)}
+    47%,56%{transform:translate(-122px,0) scale(.62)}
+    59%,62%{transform:translate(-190px,0) scale(1)}
+    70%,82%{transform:translate(0,0) scale(1)}
+    90%,100%{transform:translate(-190px,0) scale(1)}
+  }
+  @keyframes appC{
+    0%,42%{transform:translate(190px,0) scale(1)}
+    47%,56%{transform:translate(122px,0) scale(.62)}
+    59%,100%{transform:translate(190px,0) scale(1)}
+  }
+</style>

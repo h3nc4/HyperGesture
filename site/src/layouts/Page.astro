@@ -1,0 +1,249 @@
+---
+// Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+//
+// This file is part of HyperGesture.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import geist from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
+import EdgeStrips from "../components/EdgeStrips.astro";
+import GestureMoves from "../components/GestureMoves.astro";
+import PhoneStage from "../components/PhoneStage.astro";
+import QrCode from "../components/QrCode.astro";
+import { facts, formatSize, links } from "../facts";
+import { en, type Strings } from "../i18n/en";
+import { pt } from "../i18n/pt";
+import "../styles/site.css";
+
+interface Props {
+  t: Strings;
+}
+
+const { t } = Astro.props;
+const languages = [
+  { t: en, name: "English" },
+  { t: pt, name: "Português" },
+];
+const fontFace = `@font-face{font-family:"Geist";font-style:normal;font-display:swap;font-weight:100 900;src:url(${geist}) format("woff2")}`;
+---
+
+<!doctype html>
+<html lang={t.lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{t.title}</title>
+    <meta name="description" content={t.description} />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="canonical" href={new URL(t.home, links.site).href} />
+    {languages.map((l) => <link rel="alternate" hreflang={l.t.lang} href={new URL(l.t.home, links.site).href} />)}
+    <link rel="alternate" hreflang="x-default" href={new URL(en.home, links.site).href} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href={geist} as="font" type="font/woff2" crossorigin />
+    <style is:inline set:html={fontFace} />
+  </head>
+  <body>
+    <a class="skip" href="#main">{t.skip}</a>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="#top" aria-label={t.brandLabel}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="1.5" width="16" height="21" rx="4" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M8 18.5h8" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"></path><path d="M4.5 9v6" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"></path></svg>
+          HyperGesture
+        </a>
+        <nav class="nav" aria-label={t.nav.label}>
+          <a href="#install">{t.nav.install}</a>
+          <a href="#privacy">{t.nav.privacy}</a>
+          <a href="#faq">{t.nav.faq}</a>
+          <a href={links.repo}>{t.nav.github}</a>
+        </nav>
+        <details class="lang">
+          <summary aria-label={`${t.language.label}: ${t.language.current}`}>{t.language.current}</summary>
+          <ul>
+            {
+              languages.map((l) => (
+                <li>
+                  <a href={l.t.home} hreflang={l.t.lang} lang={l.t.lang} aria-current={l.t.lang === t.lang ? "page" : undefined}>
+                    {l.name}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </details>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="h1">
+        <div class="wrap">
+          <div>
+            <h1 id="h1">{t.hero.title}</h1>
+            <p class="lede">{t.hero.lede}</p>
+            <div class="ctas">
+              <a class="btn" href={links.apk}>{t.hero.download}<small>{t.hero.downloadFacts}</small></a>
+              <a class="ghost" href="#install">{t.hero.howTo}</a>
+            </div>
+            <div class="qr">
+              <QrCode value={links.apk} label={t.hero.qrLabel} />
+              <p>{t.hero.qrText}</p>
+            </div>
+          </div>
+          <PhoneStage t={t} />
+        </div>
+      </section>
+
+      <div class="facts">
+        <div class="wrap">
+          <dl>
+            <div><dt>{t.facts.version}</dt><dd>{facts.version}</dd></div>
+            <div><dt>{t.facts.size}</dt><dd>{formatSize(facts.apkBytes, t.locale)}</dd></div>
+            <div><dt>{t.facts.needs}</dt><dd>{t.facts.needsValue}</dd></div>
+            <div><dt>{t.facts.license}</dt><dd>{t.facts.licenseValue}</dd></div>
+            <div class="fp">
+              <dt>{t.facts.cert}</dt>
+              <dd>{facts.certPairs.map((pair, i) => (i === 0 ? pair : <Fragment>:<wbr />{pair}</Fragment>))}</dd>
+            </div>
+            <div class="na"><dt class="skip">{t.facts.affiliation}</dt><dd set:html={t.facts.affiliationValue} /></div>
+          </dl>
+        </div>
+      </div>
+
+      <section class="sec why" aria-labelledby="why-h">
+        <div class="wrap">
+          <h2 id="why-h">{t.why.title}</h2>
+          <div class="grid">
+            <div>
+              <p class="big">{t.why.big}</p>
+              <p class="prose">{t.why.body}</p>
+            </div>
+            <div class="limits">
+              <h3>{t.why.limitsTitle}</h3>
+              <p>{t.why.limits}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec gestures" aria-labelledby="g-h">
+        <div class="wrap">
+          <h2 id="g-h">{t.moves.title}</h2>
+          <GestureMoves t={t} />
+          <p class="note">{t.moves.note}</p>
+        </div>
+      </section>
+
+      <section class="sec install" id="install" aria-labelledby="i-h">
+        <div class="wrap">
+          <aside>
+            <h2 id="i-h">{t.install.title}</h2>
+            <p>{t.install.intro}</p>
+            <a class="btn" href={links.apk}>{t.hero.download}<small>{t.hero.downloadFacts}</small></a>
+            <p set:html={t.install.more} />
+          </aside>
+          <ol class="steps">
+            {
+              t.install.steps.map((step) => (
+                <li>
+                  <h3>
+                    {step.title}
+                    {"optional" in step && step.optional && <small> {t.install.optional}</small>}
+                  </h3>
+                  {step.body.map((p) => <p set:html={p} />)}
+                  {"dialogs" in step && step.dialogs && (
+                    <ul class="dialogs">
+                      {step.dialogs.map((d) => (
+                        <li>
+                          <q>{d.name}</q>
+                          <br />
+                          {d.action}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))
+            }
+          </ol>
+        </div>
+      </section>
+
+      <section class="sec privacy" id="privacy" aria-labelledby="p-h">
+        <div class="wrap">
+          <EdgeStrips caption={t.privacy.strips} />
+          <div>
+            <h2 id="p-h">{t.privacy.title}</h2>
+            <p class="claim">{t.privacy.claim}</p>
+            <div class="cols">
+              {t.privacy.body.map((p) => <p set:html={p} />)}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec faq" id="faq" aria-labelledby="f-h">
+        <div class="wrap">
+          <h2 id="f-h">{t.faq.title}</h2>
+          <div class="list">
+            {
+              t.faq.items.map((item) => (
+                <details>
+                  <summary>{item.q}</summary>
+                  <p set:html={item.a} />
+                </details>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <div class="cols">
+          <div>
+            <h2>HyperGesture</h2>
+            <p set:html={t.footer.blurb} />
+          </div>
+          <nav aria-labelledby="ft-p">
+            <h2 id="ft-p">{t.footer.project}</h2>
+            <ul>
+              <li><a href={links.repo}>{t.footer.source}</a></li>
+              <li><a href={links.releases}>{t.footer.releases}</a></li>
+              <li><a href={links.issues}>{t.footer.report}</a></li>
+            </ul>
+          </nav>
+          <nav aria-labelledby="ft-l">
+            <h2 id="ft-l">{t.language.label}</h2>
+            <ul>
+              {
+                languages.map((l) => (
+                  <li>
+                    <a href={l.t.home} hreflang={l.t.lang} lang={l.t.lang} aria-current={l.t.lang === t.lang ? "page" : undefined}>
+                      {l.name}
+                    </a>
+                  </li>
+                ))
+              }
+            </ul>
+          </nav>
+        </div>
+        <div class="legal">
+          <p>{t.footer.license}</p>
+          <p>{t.footer.trademarks}</p>
+          <p>© 2026 Henrique Almeida</p>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

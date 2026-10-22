@@ -1,0 +1,56 @@
+---
+// Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+//
+// This file is part of HyperGesture.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import { en } from "../i18n/en";
+import { pt } from "../i18n/pt";
+import "../styles/site.css";
+
+// Wrangler serves one 404 page for every missing path, so it shows both languages.
+const both = [en, pt];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{en.notFound.title}</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <main class="sec">
+      <div class="wrap">
+        {
+          both.map((t) => (
+            <section lang={t.lang} class="lost">
+              <h1>{t.notFound.title}</h1>
+              <p class="prose">{t.notFound.body} <a href={t.home}>{t.notFound.back}</a></p>
+            </section>
+          ))
+        }
+      </div>
+    </main>
+  </body>
+</html>
+
+<style is:global>
+  .lost + .lost{margin-top:48px}
+  .lost h1{font-size:clamp(1.875rem,1.4rem + 2vw,3rem)}
+</style>

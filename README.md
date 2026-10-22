@@ -10,6 +10,8 @@ The gestures work on any phone running Android 11 or newer. HyperOS adds two sho
 
 **[Download the latest release](https://github.com/h3nc4/HyperGesture/releases/latest)**
 
+The website at [hypergesture.h3nc4.com](https://hypergesture.h3nc4.com) shows the gestures and walks through the install in English and Brazilian Portuguese.
+
 ## Your gestures
 
 | Gesture | Does |

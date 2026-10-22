@@ -1,0 +1,37 @@
+# Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+#
+# This file is part of HyperGesture.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# Serves the built site from the edge. There is no main, so no script ever runs
+# and no visitor request is billed or counted against the request limit.
+name = "hypergesture-site"
+compatibility_date = "2026-10-22"
+
+# Off. On, the same Worker would also answer on workers.dev.
+workers_dev = false
+
+[assets]
+directory = "./dist"
+
+# Answers an unknown path with dist/404.html and a 404 status.
+not_found_handling = "404-page"
+
+# A custom domain creates the DNS record and certificate itself. A route would need
+# a proxied record already in place, and this hostname has none.
+[[routes]]
+pattern = "hypergesture.h3nc4.com"
+zone_name = "h3nc4.com"
+custom_domain = true
