@@ -32,7 +32,7 @@ const diagrams: { arrow: string; hold?: [number, number]; tag?: string; landscap
   { arrow: "M12 88h30m-5-5 5 5-5 5", tag: t.moves.optional },
   { arrow: "M44 88H14m5-5-5 5 5 5", tag: t.moves.optional },
   { arrow: "M20 93h16", hold: [28, 86], tag: t.moves.circle },
-  { arrow: "M20 66V44m-4 4 4-4 4 4M36 66V44m-4 4 4-4 4 4", landscape: true },
+  { arrow: "M42 42V18m-4 4 4-4 4 4M58 42V18m-4 4 4-4 4 4", landscape: true },
 ];
 ---
 
@@ -40,9 +40,12 @@ const diagrams: { arrow: string; hold?: [number, number]; tag?: string; landscap
   {
     t.gestures.map((g, i) => (
       <li>
-        <svg viewBox="0 0 56 100" aria-hidden="true">
+        <svg viewBox={diagrams[i].landscape ? "0 0 100 56" : "0 0 56 100"} class={diagrams[i].landscape ? "land" : undefined} aria-hidden="true">
           {diagrams[i].landscape ? (
-            <rect class="mv-frame" x="2" y="28" width="52" height="44" rx="8" />
+            <>
+              <rect class="mv-frame" x="2" y="2" width="96" height="52" rx="9" />
+              <path class="mv-pill" d="M43 48h14" />
+            </>
           ) : (
             <rect class="mv-frame" x="2" y="2" width="52" height="96" rx="9" />
           )}
@@ -61,18 +64,21 @@ const diagrams: { arrow: string; hold?: [number, number]; tag?: string; landscap
 
 <style is:global>
   .moves{list-style:none;margin:36px 0 0;padding:0;display:grid;gap:12px}
-  .moves li{display:grid;grid-template-columns:56px 1fr;gap:16px;align-items:center;padding:14px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line)}
-  .moves svg{width:56px;height:100px}
+  .moves li{display:grid;grid-template-columns:100px 1fr;gap:16px;align-items:center;padding:14px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line)}
+  .moves svg{width:56px;height:100px;justify-self:center}
+  .moves svg.land{width:100px;height:56px}
   .moves h3{font-size:1.125rem}
   .moves p{color:var(--muted);font-size:1rem;margin-top:2px}
   .moves .opt{display:inline-block;margin-top:6px;font-size:.875rem;color:var(--ink);background:var(--accent-soft);border-radius:999px;padding:1px 10px}
   .mv-frame{fill:none;stroke:var(--muted);stroke-width:2}
   .mv-arrow{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
   .mv-hold{fill:var(--accent)}
+  .mv-pill{fill:none;stroke:var(--muted);stroke-width:3;stroke-linecap:round}
   @media (min-width:768px){.moves{grid-template-columns:repeat(2,minmax(0,1fr))}.moves li:first-child{grid-column:1/-1}}
   @media (min-width:1100px){
     .moves{grid-template-columns:repeat(4,minmax(0,1fr))}
     .moves li,.moves li:first-child{grid-column:auto;grid-template-columns:1fr;align-content:start;padding:20px}
-    .moves svg{width:64px;height:114px}
+    .moves svg{width:64px;height:114px;justify-self:start}
+    .moves svg.land{width:114px;height:64px;margin:25px 0}
   }
 </style>
