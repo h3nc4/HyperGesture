@@ -34,10 +34,13 @@ Gestures need an accessibility service. This one watches thin strips along the s
 
 It can't switch on HyperOS's own gesture navigation, since only the system is allowed to do that. It can open the navigation settings so you can hide the three-button bar. [docs/hyperos-navigation.md](docs/hyperos-navigation.md) has the details, and [docs/development.md](docs/development.md) covers working on the code.
 
-## Credits
+## Contributors
 
-Circle to Search and the Control Center tile come from Victor Eduardo's fork [AnyGest](https://github.com/VictorEsidoro/AnyGest). Circle to Search starts the way [MiCTS](https://github.com/parallelcc/MiCTS) and [CTSLauncher](https://github.com/chenxiaolong/CTSLauncher) do.
+- Henrique Almeida ([@h3nc4](https://github.com/h3nc4)), author and maintainer
+- Victor Eduardo ([@victoresidoro](https://github.com/victoresidoro)), Circle to Search, the Control Center tile, edge to edge and wrapping labels, from his fork [AnyGest](https://github.com/VictorEsidoro/AnyGest)
+
+Circle to Search starts the way [MiCTS](https://github.com/parallelcc/MiCTS) and [CTSLauncher](https://github.com/chenxiaolong/CTSLauncher) do. Everyone who has sent code is on [the contributors page](https://github.com/h3nc4/HyperGesture/graphs/contributors).
 
 ## License
 
-GPL-3.0-or-later, see [LICENSE](LICENSE). Copyright (C) 2026 Henrique Almeida.
+GPL-3.0-or-later, see [LICENSE](LICENSE). Copyright (C) 2026 Henrique Almeida and the contributors above.
