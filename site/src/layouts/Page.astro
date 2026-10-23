@@ -64,7 +64,6 @@ const fontFace = `@font-face{font-family:"Geist";font-style:normal;font-display:
         <nav class="nav" aria-label={t.nav.label}>
           <a href="#install">{t.nav.install}</a>
           <a href="#privacy">{t.nav.privacy}</a>
-          <a href="#faq">{t.nav.faq}</a>
           <a href={links.repo}>{t.nav.github}</a>
         </nav>
         <details class="lang">
@@ -191,21 +190,6 @@ const fontFace = `@font-face{font-family:"Geist";font-style:normal;font-display:
         </div>
       </section>
 
-      <section class="sec faq" id="faq" aria-labelledby="f-h">
-        <div class="wrap">
-          <h2 id="f-h">{t.faq.title}</h2>
-          <div class="list">
-            {
-              t.faq.items.map((item) => (
-                <details>
-                  <summary>{item.q}</summary>
-                  <p set:html={item.a} />
-                </details>
-              ))
-            }
-          </div>
-        </div>
-      </section>
     </main>
 
     <footer>

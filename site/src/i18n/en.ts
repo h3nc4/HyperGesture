@@ -29,7 +29,7 @@ export const en = {
     "Free, open-source app that brings Back, Home and Recents gestures back to HyperOS when you use Nova, Niagara, Lawnchair or any other launcher. It works without root, ADB or a computer.",
   skip: "Skip to content",
   brandLabel: "HyperGesture home",
-  nav: { label: "Sections", install: "Install", privacy: "Privacy", faq: "FAQ", github: "GitHub" },
+  nav: { label: "Sections", install: "Install", privacy: "Privacy", github: "GitHub" },
   language: { label: "Language", current: "English" },
 
   hero: {
@@ -136,39 +136,6 @@ export const en = {
     ],
   },
 
-  faq: {
-    title: "Questions",
-    items: [
-      {
-        q: "Is it safe to turn on an accessibility service?",
-        a: "It is a powerful permission. The app's setup refuses the parts that read the screen. It sees touches near the edges and nothing else, and it has no internet permission. The code is public under GPL-3.0, and every release is built from it.",
-      },
-      {
-        q: "Why is it not on the Play Store?",
-        a: "It is a free, open-source project distributed on GitHub. That is why Android shows the Play Protect and restricted settings steps on the first install.",
-      },
-      {
-        q: "The Accessibility switch does nothing.",
-        a: `Allow restricted settings first (${path("Settings &gt; Apps &gt; HyperGesture &gt; menu")}), then turn the switch on again.`,
-      },
-      {
-        q: "My gestures stop after a while or after a reboot.",
-        a: "HyperOS is closing the app in the background. Allow Autostart, and choose No restrictions under Power in App info.",
-      },
-      {
-        q: "Accessibility says “This service is malfunctioning”.",
-        a: `Turn HyperGesture off and on again under ${path("Settings &gt; Accessibility")}.`,
-      },
-      {
-        q: "Does it work on phones that aren't Xiaomi, or with my launcher?",
-        a: `Yes, on any phone with Android ${facts.minAndroid} or newer and with any launcher.`,
-      },
-      {
-        q: "How do I update?",
-        a: `Download the new APK and install it over the old one. Your settings stay. <a href="${links.obtainium}">Obtainium</a> can do it for you.`,
-      },
-    ],
-  },
 
   footer: {
     blurb: `Free and open source, built with <a href="${links.contributors}">its contributors</a>. <a href="mailto:me@h3nc4.com">me@h3nc4.com</a>`,
