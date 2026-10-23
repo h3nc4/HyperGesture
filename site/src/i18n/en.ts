@@ -49,6 +49,8 @@ export const en = {
     { name: "Recent apps", how: "Swipe up from the bottom and hold" },
     { name: "Previous app", how: "Swipe right along the bottom edge" },
     { name: "Next app", how: "Swipe left along the bottom edge" },
+    { name: "Circle to Search", how: "Touch and hold the middle of the bottom edge, with Google as the default assistant" },
+    { name: "Home in landscape", how: "The first swipe up shows a pill, and a second within 2 seconds goes Home" },
   ],
 
   facts: {
@@ -75,6 +77,7 @@ export const en = {
   moves: {
     title: "Back, Home and Recents gestures for HyperOS",
     optional: "Turn on App switching",
+    circle: "Turn on Circle to Search",
     note: "Pull your finger back before lifting and nothing happens. Every distance and delay is adjustable in Gesture settings.",
   },
 
@@ -127,15 +130,15 @@ export const en = {
   privacy: {
     title: "Privacy",
     strips: "It listens only in thin strips along the left, right and bottom edges.",
-    claim: "HyperGesture has no internet permission, so it cannot send anything anywhere.",
+    claim: "The gesture service never reads your screen or what you type, and it doesn't send anything off your phone.",
     body: [
       "Gestures need an accessibility service, which is a powerful thing to grant. This one only watches for touches in thin strips along the screen edges and turns a swipe into Back, Home, Recents or a switch to another app.",
-      "It never reads what is on your screen, what you type or your keystrokes. With app switching on, it reads which apps you used in the last six hours, and that list stays in memory on your phone.",
+      "With app switching on, it reads which apps you used in the last six hours, and that list stays in memory on your phone.",
+      "The app goes online only for its update check, which is off until you turn it on. Then it asks GitHub's Releases API for the latest release, at most once a day as you open the app. The INTERNET and REQUEST_INSTALL_PACKAGES permissions exist only for that check and the update it offers to install.",
       "Like the app, this website works without ads, trackers or an account.",
       `The code is public under GPL-3.0, and every release is built from it. <a href="${links.repo}">Read the source</a>.`,
     ],
   },
-
 
   footer: {
     blurb: `Free and open source, built with <a href="${links.contributors}">its contributors</a>. <a href="mailto:me@h3nc4.com">me@h3nc4.com</a>`,

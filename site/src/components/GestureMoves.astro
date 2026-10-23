@@ -25,12 +25,14 @@ interface Props {
 const { t } = Astro.props;
 
 // One diagram per entry of t.gestures, in the same order.
-const diagrams = [
+const diagrams: { arrow: string; hold?: [number, number]; tag?: string; landscape?: boolean }[] = [
   { arrow: "M5 50h15m-5-5 5 5-5 5M51 50H36m5-5-5 5 5 5" },
   { arrow: "M28 93V58m-5 5 5-5 5 5" },
-  { arrow: "M28 93V68", hold: true },
-  { arrow: "M12 88h30m-5-5 5 5-5 5", optional: true },
-  { arrow: "M44 88H14m5-5-5 5 5 5", optional: true },
+  { arrow: "M28 93V68", hold: [28, 62] },
+  { arrow: "M12 88h30m-5-5 5 5-5 5", tag: t.moves.optional },
+  { arrow: "M44 88H14m5-5-5 5 5 5", tag: t.moves.optional },
+  { arrow: "M20 93h16", hold: [28, 86], tag: t.moves.circle },
+  { arrow: "M20 66V44m-4 4 4-4 4 4M36 66V44m-4 4 4-4 4 4", landscape: true },
 ];
 ---
 
@@ -39,14 +41,18 @@ const diagrams = [
     t.gestures.map((g, i) => (
       <li>
         <svg viewBox="0 0 56 100" aria-hidden="true">
-          <rect class="mv-frame" x="2" y="2" width="52" height="96" rx="9" />
+          {diagrams[i].landscape ? (
+            <rect class="mv-frame" x="2" y="28" width="52" height="44" rx="8" />
+          ) : (
+            <rect class="mv-frame" x="2" y="2" width="52" height="96" rx="9" />
+          )}
           <path class="mv-arrow" d={diagrams[i].arrow} />
-          {diagrams[i].hold && <circle class="mv-hold" cx="28" cy="62" r="5" />}
+          {diagrams[i].hold && <circle class="mv-hold" cx={diagrams[i].hold[0]} cy={diagrams[i].hold[1]} r="5" />}
         </svg>
         <div>
           <h3>{g.name}</h3>
           <p>{g.how}.</p>
-          {diagrams[i].optional && <span class="opt">{t.moves.optional}</span>}
+          {diagrams[i].tag && <span class="opt">{diagrams[i].tag}</span>}
         </div>
       </li>
     ))
@@ -65,7 +71,7 @@ const diagrams = [
   .mv-hold{fill:var(--accent)}
   @media (min-width:768px){.moves{grid-template-columns:repeat(2,minmax(0,1fr))}.moves li:first-child{grid-column:1/-1}}
   @media (min-width:1100px){
-    .moves{grid-template-columns:repeat(5,minmax(0,1fr))}
+    .moves{grid-template-columns:repeat(4,minmax(0,1fr))}
     .moves li,.moves li:first-child{grid-column:auto;grid-template-columns:1fr;align-content:start;padding:20px}
     .moves svg{width:64px;height:114px}
   }

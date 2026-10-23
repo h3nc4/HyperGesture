@@ -23,6 +23,8 @@ interface Props {
 }
 
 const { t } = Astro.props;
+// The loop animates only the first five gestures.
+const cues = t.gestures.slice(0, 5);
 ---
 
 <figure class="stage">
@@ -72,7 +74,7 @@ const { t } = Astro.props;
     <circle cx="100" cy="24" r="4" fill="var(--phone)"></circle>
   </svg>
   <ol class="cues">
-    {t.gestures.map((g, i) => <li style={`--i:${i}`}><b>{g.name}</b><span>{g.how}</span></li>)}
+    {cues.map((g, i) => <li style={`--i:${i}`}><b>{g.name}</b><span>{g.how}</span></li>)}
   </ol>
   <figcaption>{t.hero.caption}</figcaption>
 </figure>
