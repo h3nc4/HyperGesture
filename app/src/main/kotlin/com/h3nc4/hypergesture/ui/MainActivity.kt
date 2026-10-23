@@ -41,7 +41,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -79,6 +78,7 @@ internal enum class Screen(@param:StringRes val title: Int) {
     SETUP(R.string.section_setup),
     APP_SWITCHING(R.string.section_app_switch),
     CIRCLE_TO_SEARCH(R.string.section_circle_to_search),
+    UPDATES(R.string.section_updates),
     GESTURE_SETTINGS(R.string.section_gestures),
     TROUBLESHOOTING(R.string.section_troubleshooting),
     ABOUT(R.string.section_about),
@@ -93,9 +93,8 @@ private val BackStackSaver = Saver<List<Screen>, ArrayList<String>>(
 @Composable
 private fun HyperGestureApp() {
     val model = rememberAppModel()
-    // Held here rather than in About. The daily check runs on app open and home reads its result.
+    // Held here rather than in Updates. The daily check runs on app open and home reads its result.
     val updates: UpdateViewModel = viewModel()
-    val updateState by updates.state.collectAsState()
     LifecycleResumeEffect(updates) {
         updates.onResume()
         onPauseOrDispose {}
@@ -140,13 +139,14 @@ private fun HyperGestureApp() {
                     .padding(bottom = 16.dp),
             ) {
                 when (screen) {
-                    Screen.HOME -> HomeScreen(model, updateState.offer != null) { stack = stack + it }
+                    Screen.HOME -> HomeScreen(model, updates) { stack = stack + it }
                     Screen.SETUP -> SetupScreen(model)
                     Screen.APP_SWITCHING -> AppSwitchingScreen(model)
                     Screen.CIRCLE_TO_SEARCH -> CircleToSearchScreen(model)
+                    Screen.UPDATES -> UpdatesScreen(updates)
                     Screen.GESTURE_SETTINGS -> GestureSettingsScreen(model)
                     Screen.TROUBLESHOOTING -> TroubleshootingScreen(model)
-                    Screen.ABOUT -> AboutScreen(model, updates)
+                    Screen.ABOUT -> AboutScreen(model)
                 }
             }
         }
