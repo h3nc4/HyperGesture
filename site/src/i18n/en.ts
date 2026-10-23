@@ -164,10 +164,6 @@ export const en = {
         a: `Yes, on any phone with Android ${facts.minAndroid} or newer and with any launcher.`,
       },
       {
-        q: "I keep going Home by accident in games.",
-        a: `Lower the edge activation width or raise the bottom swipe distance in Gesture settings. A confirmation for landscape games is requested in <a href="${links.issues}/70">issue #70</a>.`,
-      },
-      {
         q: "How do I update?",
         a: `Download the new APK and install it over the old one. Your settings stay. <a href="${links.obtainium}">Obtainium</a> can do it for you.`,
       },

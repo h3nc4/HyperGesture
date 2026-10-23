@@ -172,10 +172,6 @@ export const pt: Strings = {
         a: `Sim, em qualquer celular com Android ${facts.minAndroid} ou mais recente e com qualquer launcher.`,
       },
       {
-        q: "Vivo indo para o Início sem querer em jogos.",
-        a: `Diminua a largura de ativação da borda ou aumente a distância do deslize inferior em Gesture settings. Uma confirmação para jogos na horizontal foi pedida na <a href="${links.issues}/70">issue #70</a>.`,
-      },
-      {
         q: "Como eu atualizo?",
         a: `Baixe o novo APK e instale por cima do antigo. Suas configurações continuam. O <a href="${links.obtainium}">Obtainium</a> pode fazer isso por você.`,
       },
