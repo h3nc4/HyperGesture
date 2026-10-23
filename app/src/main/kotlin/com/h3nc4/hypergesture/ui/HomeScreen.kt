@@ -18,12 +18,16 @@
 package com.h3nc4.hypergesture.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.h3nc4.hypergesture.R
+import com.h3nc4.hypergesture.update.UpdateViewModel
 
 @Composable
-internal fun HomeScreen(model: AppModel, updateAvailable: Boolean, onOpen: (Screen) -> Unit) {
+internal fun HomeScreen(model: AppModel, updates: UpdateViewModel, onOpen: (Screen) -> Unit) {
+    val updateState by updates.state.collectAsState()
     StatusBlock(model.status, model.configuration)
     SetupGroup(model) { onOpen(Screen.SETUP) }
 
@@ -44,6 +48,15 @@ internal fun HomeScreen(model: AppModel, updateAvailable: Boolean, onOpen: (Scre
         switchTag = TestTags.SWITCH_CIRCLE_TO_SEARCH,
         onOpen = { onOpen(Screen.CIRCLE_TO_SEARCH) },
     ) { on -> model.update { it.copy(circleToSearchEnabled = on) } }
+    SplitSwitchRow(
+        title = stringResource(R.string.section_updates),
+        supporting = updatesSummary(updateState),
+        checked = updateState.enabled,
+        rowTag = TestTags.ROW_UPDATES,
+        switchTag = TestTags.SWITCH_UPDATE_CHECK,
+        onOpen = { onOpen(Screen.UPDATES) },
+        onChange = updates::setEnabled,
+    )
 
     SectionHeader(stringResource(R.string.section_more))
     NavigationRow(
@@ -57,12 +70,8 @@ internal fun HomeScreen(model: AppModel, updateAvailable: Boolean, onOpen: (Scre
     ) { onOpen(Screen.TROUBLESHOOTING) }
     NavigationRow(
         title = stringResource(R.string.section_about),
-        supporting = if (updateAvailable) {
-            stringResource(R.string.about_update_available)
-        } else {
-            model.diagnostics.appVersionName?.let {
-                stringResource(R.string.about_version_summary, it)
-            }
+        supporting = model.diagnostics.appVersionName?.let {
+            stringResource(R.string.about_version_summary, it)
         },
         tag = TestTags.ROW_ABOUT,
     ) { onOpen(Screen.ABOUT) }

@@ -17,8 +17,6 @@
 
 package com.h3nc4.hypergesture.ui
 
-import android.content.Intent
-import android.provider.Settings
 import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
@@ -33,8 +31,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,7 +38,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.update.CheckFailure
 import com.h3nc4.hypergesture.update.CheckResult
@@ -50,41 +45,11 @@ import com.h3nc4.hypergesture.update.DownloadResult
 import com.h3nc4.hypergesture.update.InstallOutcome
 import com.h3nc4.hypergesture.update.UpdatePhase
 import com.h3nc4.hypergesture.update.UpdateState
-import com.h3nc4.hypergesture.update.UpdateViewModel
 import java.util.Date
 
-/** The switch and, while it is on, the last answer with its actions, under About's Version row. */
+/** The last answer with its time and actions, shown on the Updates screen while the check is on. */
 @Composable
-internal fun UpdateRows(model: UpdateViewModel) {
-    val context = LocalContext.current
-    val state by model.state.collectAsState()
-    ToggleRow(
-        label = stringResource(R.string.update_switch),
-        checked = state.enabled,
-        supporting = stringResource(
-            if (state.enabled) R.string.update_switch_on else R.string.update_switch_off,
-        ),
-        tag = TestTags.SWITCH_UPDATE_CHECK,
-        onChange = model::setEnabled,
-    )
-    if (!state.enabled) return
-    UpdateStatusRow(
-        state = state,
-        onCheckNow = model::checkNow,
-        onInstall = model::downloadAndInstall,
-        onAllowInstalls = {
-            context.startFirst(
-                Intent(
-                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    "package:${context.packageName}".toUri(),
-                ),
-            )
-        },
-    )
-}
-
-@Composable
-private fun UpdateStatusRow(
+internal fun UpdateStatusRow(
     state: UpdateState,
     onCheckNow: () -> Unit,
     onInstall: () -> Unit,
@@ -201,6 +166,34 @@ private fun updateMessage(state: UpdateState): String? {
                     stringResource(R.string.update_install_failed, reason)
                 }
             }
+        }
+    }
+}
+
+/** The supporting text of the Updates row on home, short enough for one line. */
+@Composable
+internal fun updatesSummary(state: UpdateState): String {
+    val offer = state.offer
+    return when {
+        !state.enabled -> stringResource(R.string.feature_off)
+        offer != null -> stringResource(R.string.update_summary_available, offer.tag)
+        else -> when (val phase = state.phase) {
+            UpdatePhase.Checking -> stringResource(R.string.update_summary_checking)
+            is UpdatePhase.Checked -> when (val result = phase.result) {
+                is CheckResult.NoApkAsset -> stringResource(R.string.update_summary_no_apk, result.tag)
+                CheckResult.NothingPublished -> stringResource(R.string.update_summary_nothing_published)
+                is CheckResult.UnreadableVersion ->
+                    stringResource(R.string.update_summary_unreadable_version)
+                is CheckResult.UpToDate, is CheckResult.Available ->
+                    stringResource(R.string.update_summary_up_to_date)
+            }
+            is UpdatePhase.CheckFailed -> when (val failure = phase.failure) {
+                is CheckFailure.NoNetwork -> stringResource(R.string.update_summary_no_network)
+                is CheckFailure.RateLimited -> stringResource(R.string.update_summary_rate_limited)
+                is CheckFailure.Http -> stringResource(R.string.update_summary_http_error, failure.code)
+                is CheckFailure.BadResponse -> stringResource(R.string.update_summary_bad_response)
+            }
+            else -> stringResource(R.string.update_not_checked)
         }
     }
 }

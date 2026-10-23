@@ -173,8 +173,18 @@
 
     <!-- Update check. Off by default, and the only code that touches the network. -->
     <string name="update_switch">Check for updates</string>
-    <string name="update_switch_off">Off, asks GitHub only when on</string>
-    <string name="update_switch_on">On, asks GitHub once a day as you open the app</string>
+    <string name="update_switch_body">Asks GitHub for the latest release once a day as you open the app.</string>
+    <string name="section_updates">Updates</string>
+    <string name="update_summary_up_to_date">Up to date</string>
+    <string name="update_summary_available">Update available (%1$s)</string>
+    <string name="update_summary_checking">Checking…</string>
+    <string name="update_summary_no_network">No connection</string>
+    <string name="update_summary_rate_limited">GitHub is limiting requests</string>
+    <string name="update_summary_http_error">GitHub answered HTTP %1$d</string>
+    <string name="update_summary_bad_response">Unreadable answer from GitHub</string>
+    <string name="update_summary_no_apk">%1$s has no APK yet</string>
+    <string name="update_summary_nothing_published">No release yet</string>
+    <string name="update_summary_unreadable_version">Could not compare versions</string>
     <string name="update_status">Latest release</string>
     <string name="update_not_checked">Not checked yet</string>
     <string name="update_check_now">Check now</string>
@@ -242,7 +252,6 @@
     <string name="section_about">About</string>
     <string name="about_version">Version</string>
     <string name="about_version_summary">Version %1$s</string>
-    <string name="about_update_available">Update available</string>
     <string name="about_website">Website</string>
     <string name="value_website" translatable="false">hypergesture.h3nc4.com</string>
     <string name="about_source">Source code</string>

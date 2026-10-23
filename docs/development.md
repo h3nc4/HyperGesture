@@ -64,7 +64,7 @@ shellcheck -o all scripts/*.sh scripts/hooks/*
 
 ## Screens
 
-Home shows the status and the rows that lead to every other screen, each one level deep under a Material 3 top app bar with a back arrow. The back stack is a list of `Screen` values in `MainActivity`, saved with `rememberSaveable` and popped by `BackHandler`, without a navigation library. Navigation 3 is the upgrade if a screen ever needs a second level or a deep link. `AppModel` holds what the screens show and reads it again on every resume.
+Home shows the status and the rows that lead to every other screen, each one level deep under a Material 3 top app bar with a back arrow. Its Features group holds App switching, Circle to Search and Updates, each a split row whose label opens the screen and whose switch turns the feature on or off in place. About holds the version, the links and the credits. The back stack is a list of `Screen` values in `MainActivity`, saved with `rememberSaveable` and popped by `BackHandler`, without a navigation library. Navigation 3 is the upgrade if a screen ever needs a second level or a deep link. `AppModel` holds what the screens show and reads it again on every resume.
 
 ## Testing
 
@@ -121,7 +121,7 @@ Pushing a `v*.*.*` tag runs the same build in CI and attaches the APK to a GitHu
 
 ## Update check
 
-The update check under `update/` is off by default and is the only code that opens a connection. The activity's view model runs it on app open at most once a day, plus **Check now** on the About screen, and home's About row reads **Update available** once it finds a newer release. The accessibility service never calls it, and nothing runs it in the background. It asks `https://api.github.com/repos/h3nc4/HyperGesture/releases/latest` and compares the tag, `v1.2.3`, with the installed `versionName`, `1.2.3`, which `scripts/version.sh` writes from that same tag. `versionCode` plays no part, since the API doesn't publish it.
+The update check under `update/` is off by default and is the only code that opens a connection. The activity's view model runs it on app open at most once a day, plus **Check now** on the Updates screen, and home's Updates row reads **Update available** with the version once it finds a newer release. The accessibility service never calls it, and nothing runs it in the background. It asks `https://api.github.com/repos/h3nc4/HyperGesture/releases/latest` and compares the tag, `v1.2.3`, with the installed `versionName`, `1.2.3`, which `scripts/version.sh` writes from that same tag. `versionCode` plays no part, since the API doesn't publish it.
 
 Redirects are followed by hand, so every hop has to be HTTPS to `api.github.com`, `github.com` or a `*.githubusercontent.com` asset host. `res/xml/network_security_config.xml` refuses cleartext and user-added certificates. The APK is written to `noBackupFilesDir` and has to match the asset's `digest` when GitHub publishes one. It then goes to `PackageInstaller` as a session that requires the user's confirmation. Android refuses that session when the APK is signed with another key, so a debug build cannot install a release. A debug build from main usually meets the earlier refusal, `INSTALL_FAILED_VERSION_DOWNGRADE`, because main's `versionCode` already sits past the released one.
 
