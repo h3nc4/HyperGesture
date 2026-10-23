@@ -30,7 +30,7 @@ export const pt: Strings = {
     "App gratuito e de código aberto que traz de volta os gestos de Voltar, Início e Recentes ao HyperOS quando você usa Nova, Niagara, Lawnchair ou qualquer outro launcher. Funciona sem root, ADB ou computador.",
   skip: "Pular para o conteúdo",
   brandLabel: "Página inicial do HyperGesture",
-  nav: { label: "Seções", install: "Instalar", privacy: "Privacidade", faq: "Dúvidas", github: "GitHub" },
+  nav: { label: "Seções", install: "Instalar", privacy: "Privacidade", github: "GitHub" },
   language: { label: "Idioma", current: "Português" },
 
   hero: {
@@ -50,6 +50,8 @@ export const pt: Strings = {
     { name: "Apps recentes", how: "Deslize para cima a partir da borda inferior e segure" },
     { name: "App anterior", how: "Deslize para a direita ao longo da borda inferior" },
     { name: "Próximo app", how: "Deslize para a esquerda ao longo da borda inferior" },
+    { name: "Circule para Pesquisar", how: "Toque e segure o meio da borda inferior, com o Google como assistente padrão" },
+    { name: "Início na horizontal", how: "O primeiro deslize para cima mostra uma pílula, e outro em até 2 segundos vai para o Início" },
   ],
 
   facts: {
@@ -76,6 +78,7 @@ export const pt: Strings = {
   moves: {
     title: "Gestos de Voltar, Início e Recentes para o HyperOS",
     optional: "Ative App switching",
+    circle: "Ative Circle to Search",
     note: "Puxe o dedo de volta antes de soltar e nada acontece. Todas as distâncias e tempos podem ser ajustados em Gesture settings.",
   },
 
@@ -135,46 +138,13 @@ export const pt: Strings = {
   privacy: {
     title: "Privacidade",
     strips: "Ele só presta atenção em faixas finas nas bordas esquerda, direita e inferior.",
-    claim: "O HyperGesture não tem permissão de internet, então não consegue enviar nada para lugar nenhum.",
+    claim: "O serviço de gestos nunca lê sua tela nem o que você digita, e não envia nada para fora do seu celular.",
     body: [
       "Os gestos precisam de um serviço de acessibilidade, uma permissão poderosa. Este só observa toques em faixas finas nas bordas da tela e transforma um deslize em Voltar, Início, Recentes ou na troca para outro app.",
-      "Ele nunca lê o que está na tela, o que você digita nem as teclas que você aperta. Com a troca de apps ativada, ele lê quais apps você usou nas últimas seis horas, e essa lista fica só na memória do seu celular.",
+      "Com a troca de apps ativada, ele lê quais apps você usou nas últimas seis horas, e essa lista fica só na memória do seu celular.",
+      "O app só acessa a internet para verificar atualizações, e essa verificação fica desligada até você ativá-la. Ativada, ela consulta a API de Releases do GitHub no máximo uma vez por dia, quando você abre o app. As permissões INTERNET e REQUEST_INSTALL_PACKAGES existem só para essa verificação e para instalar a atualização que ela encontrar.",
       "Assim como o app, este site funciona sem anúncios, rastreadores ou conta.",
       `O código é público sob a GPL-3.0, e cada versão é compilada a partir dele. <a href="${links.repo}">Leia o código</a>.`,
-    ],
-  },
-
-  faq: {
-    title: "Dúvidas",
-    items: [
-      {
-        q: "É seguro ativar um serviço de acessibilidade?",
-        a: "É uma permissão poderosa. A configuração do app recusa as partes que leem a tela. Ele vê toques perto das bordas e mais nada, e não tem permissão de internet. O código é público sob a GPL-3.0, e cada versão é compilada a partir dele.",
-      },
-      {
-        q: "Por que ele não está na Play Store?",
-        a: "É um projeto gratuito e de código aberto, distribuído pelo GitHub. Por isso o Android mostra os passos do Play Protect e das configurações restritas na primeira instalação.",
-      },
-      {
-        q: "A chave de Acessibilidade não faz nada.",
-        a: `Permita as configurações restritas antes (${path("Configurações &gt; Aplicativos &gt; HyperGesture &gt; menu")}) e ative a chave de novo.`,
-      },
-      {
-        q: "Meus gestos param depois de um tempo ou depois de reiniciar.",
-        a: "O HyperOS está fechando o app em segundo plano. Permita o início automático e escolha Sem restrições em Economia de bateria, dentro de App info.",
-      },
-      {
-        q: "A Acessibilidade diz que o serviço não está funcionando.",
-        a: `Desative e ative o HyperGesture de novo em ${path("Configurações &gt; Acessibilidade")}.`,
-      },
-      {
-        q: "Funciona em celulares que não são Xiaomi, ou com o meu launcher?",
-        a: `Sim, em qualquer celular com Android ${facts.minAndroid} ou mais recente e com qualquer launcher.`,
-      },
-      {
-        q: "Como eu atualizo?",
-        a: `Baixe o novo APK e instale por cima do antigo. Suas configurações continuam. O <a href="${links.obtainium}">Obtainium</a> pode fazer isso por você.`,
-      },
     ],
   },
 

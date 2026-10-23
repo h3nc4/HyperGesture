@@ -29,7 +29,7 @@ export const en = {
     "Free, open-source app that brings Back, Home and Recents gestures back to HyperOS when you use Nova, Niagara, Lawnchair or any other launcher. It works without root, ADB or a computer.",
   skip: "Skip to content",
   brandLabel: "HyperGesture home",
-  nav: { label: "Sections", install: "Install", privacy: "Privacy", faq: "FAQ", github: "GitHub" },
+  nav: { label: "Sections", install: "Install", privacy: "Privacy", github: "GitHub" },
   language: { label: "Language", current: "English" },
 
   hero: {
@@ -49,6 +49,8 @@ export const en = {
     { name: "Recent apps", how: "Swipe up from the bottom and hold" },
     { name: "Previous app", how: "Swipe right along the bottom edge" },
     { name: "Next app", how: "Swipe left along the bottom edge" },
+    { name: "Circle to Search", how: "Touch and hold the middle of the bottom edge, with Google as the default assistant" },
+    { name: "Home in landscape", how: "The first swipe up shows a pill, and a second within 2 seconds goes Home" },
   ],
 
   facts: {
@@ -75,6 +77,7 @@ export const en = {
   moves: {
     title: "Back, Home and Recents gestures for HyperOS",
     optional: "Turn on App switching",
+    circle: "Turn on Circle to Search",
     note: "Pull your finger back before lifting and nothing happens. Every distance and delay is adjustable in Gesture settings.",
   },
 
@@ -127,46 +130,13 @@ export const en = {
   privacy: {
     title: "Privacy",
     strips: "It listens only in thin strips along the left, right and bottom edges.",
-    claim: "HyperGesture has no internet permission, so it cannot send anything anywhere.",
+    claim: "The gesture service never reads your screen or what you type, and it doesn't send anything off your phone.",
     body: [
       "Gestures need an accessibility service, which is a powerful thing to grant. This one only watches for touches in thin strips along the screen edges and turns a swipe into Back, Home, Recents or a switch to another app.",
-      "It never reads what is on your screen, what you type or your keystrokes. With app switching on, it reads which apps you used in the last six hours, and that list stays in memory on your phone.",
+      "With app switching on, it reads which apps you used in the last six hours, and that list stays in memory on your phone.",
+      "The app goes online only for its update check, which is off until you turn it on. Then it asks GitHub's Releases API for the latest release, at most once a day as you open the app. The INTERNET and REQUEST_INSTALL_PACKAGES permissions exist only for that check and the update it offers to install.",
       "Like the app, this website works without ads, trackers or an account.",
       `The code is public under GPL-3.0, and every release is built from it. <a href="${links.repo}">Read the source</a>.`,
-    ],
-  },
-
-  faq: {
-    title: "Questions",
-    items: [
-      {
-        q: "Is it safe to turn on an accessibility service?",
-        a: "It is a powerful permission. The app's setup refuses the parts that read the screen. It sees touches near the edges and nothing else, and it has no internet permission. The code is public under GPL-3.0, and every release is built from it.",
-      },
-      {
-        q: "Why is it not on the Play Store?",
-        a: "It is a free, open-source project distributed on GitHub. That is why Android shows the Play Protect and restricted settings steps on the first install.",
-      },
-      {
-        q: "The Accessibility switch does nothing.",
-        a: `Allow restricted settings first (${path("Settings &gt; Apps &gt; HyperGesture &gt; menu")}), then turn the switch on again.`,
-      },
-      {
-        q: "My gestures stop after a while or after a reboot.",
-        a: "HyperOS is closing the app in the background. Allow Autostart, and choose No restrictions under Power in App info.",
-      },
-      {
-        q: "Accessibility says “This service is malfunctioning”.",
-        a: `Turn HyperGesture off and on again under ${path("Settings &gt; Accessibility")}.`,
-      },
-      {
-        q: "Does it work on phones that aren't Xiaomi, or with my launcher?",
-        a: `Yes, on any phone with Android ${facts.minAndroid} or newer and with any launcher.`,
-      },
-      {
-        q: "How do I update?",
-        a: `Download the new APK and install it over the old one. Your settings stay. <a href="${links.obtainium}">Obtainium</a> can do it for you.`,
-      },
     ],
   },
 
