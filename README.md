@@ -24,7 +24,7 @@ In landscape the first bottom swipe only shows a pill, and a second one within 2
 2. Allow restricted settings under Settings › Apps › HyperGesture › ⋮ › **Allow restricted settings**.
 3. Turn it on under Settings › Accessibility › **HyperGesture**, then open the app. Its setup checklist covers the rest.
 
-If Play Protect blocks the install or the gestures stop, see the site's [install steps](https://hypergesture.h3nc4.com/#install) and [questions](https://hypergesture.h3nc4.com/#faq).
+If Play Protect blocks the install, the site's [install steps](https://hypergesture.h3nc4.com/#install) explain it. If the gestures stop, the app's Troubleshooting screen has the fixes.
 
 ## Privacy
 
