@@ -31,18 +31,17 @@ on:
       - "main"
       - "release/*"
 
-env:
-  DEV_DOCKER_ARGS: -v ${HOME:?}/ci-cache/gradle:/cache/gradle -e GRADLE_USER_HOME=/cache/gradle --device /dev/kvm
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  gestures:
-    name: Gesture end-to-end
+  build:
+    name: Build the debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
+    env:
+      DEV_DOCKER_ARGS: -v ${HOME:?}/ci-cache/gradle:/cache/gradle -e GRADLE_USER_HOME=/cache/gradle
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -52,13 +51,6 @@ jobs:
         uses: h3nc4/dev-image-action@1e296b26a16b3e20db153e32b963d953a41ef1a1 # v2
         with:
           docker-args: ${{ env.DEV_DOCKER_ARGS }}
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          ls -l /dev/kvm
       - name: Run actions/cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
@@ -73,12 +65,72 @@ jobs:
         run: mkdir -p ~/ci-cache/gradle
       - name: Build the debug APK
         run: $DEV_RUN -c 'gradle --no-daemon assembleDebug'
-      - name: Run the gesture E2E suite
-        run: $DEV_RUN -c './e2e/run.sh'
+      - name: Run actions/upload-artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 1
+
+  shards:
+    name: Gesture suites ${{ matrix.shard }} (${{ matrix.suites }})
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            suites: status-refresh app-switch
+          - shard: 2
+            suites: navigation back-revert
+          - shard: 3
+            suites: circle-to-search landscape-confirm
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Run h3nc4/dev-image-action
+        uses: h3nc4/dev-image-action@1e296b26a16b3e20db153e32b963d953a41ef1a1 # v2
+        with:
+          docker-args: --device /dev/kvm
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+      - name: Run actions/download-artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug
+      - name: Run the gesture E2E suites
+        run: $DEV_RUN -c './e2e/run.sh ${{ matrix.suites }}'
       - name: Upload emulator log on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: emulator-log
+          name: emulator-log-${{ matrix.shard }}
           path: build/e2e-logs/
           retention-days: 3
+
+  gestures:
+    name: Gesture end-to-end
+    needs: [build, shards]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every shard to pass
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: ${RESULTS}"
+          for result in ${RESULTS}; do
+            [ "${result}" = success ] || exit 1
+          done

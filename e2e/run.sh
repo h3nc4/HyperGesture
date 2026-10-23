@@ -22,7 +22,8 @@
 # One suite alone costs seconds instead of a boot:
 #   e2e/emulator.sh && e2e/device.sh && e2e/app-switch.sh && e2e/emulator.sh -s
 #
-# Usage: e2e/run.sh [-a avd] [-p apk] [-k]
+# Usage: e2e/run.sh [-a avd] [-p apk] [-k] [suite ...]
+#   suite  run only these suites, by name (default: every suite)
 #   -a  AVD name (default: hypergesture)
 #   -p  APK to test (default: debug). Point at hypergesture.apk to catch R8 breakage.
 #   -k  keep the emulator running afterwards
@@ -37,7 +38,7 @@ set -e
 
 keep=''
 apk_arg=''
-usage="usage: $0 [-a avd] [-p apk] [-k]"
+usage="usage: $0 [-a avd] [-p apk] [-k] [suite ...]"
 
 while getopts 'a:p:kh' opt; do
   case "${opt}" in
@@ -50,6 +51,22 @@ while getopts 'a:p:kh' opt; do
       ;;
     *)
       echo "${usage}" >&2
+      exit 2
+      ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+all_suites='navigation app-switch back-revert status-refresh circle-to-search landscape-confirm'
+suites="${all_suites}"
+if [ "$#" -gt 0 ]; then
+  suites="$*"
+fi
+for suite in ${suites}; do
+  case " ${all_suites} " in
+    *" ${suite} "*) ;;
+    *)
+      echo "no suite named ${suite}, pick from: ${all_suites}" >&2
       exit 2
       ;;
   esac
@@ -71,7 +88,6 @@ trap cleanup INT TERM EXIT
 # shellcheck disable=SC2086 # an empty apk argument must vanish, not become an empty string
 e2e/device.sh ${apk_arg:+-p "${apk_arg}"}
 
-suites='navigation app-switch back-revert status-refresh circle-to-search landscape-confirm'
 worst=0
 for suite in ${suites}; do
   echo >&2
