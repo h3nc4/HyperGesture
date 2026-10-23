@@ -37,7 +37,7 @@ It can't switch on HyperOS's own gesture navigation, since only the system is al
 ## Contributors
 
 - Henrique Almeida ([@h3nc4](https://github.com/h3nc4)), author and maintainer
-- Victor Eduardo ([@victoresidoro](https://github.com/victoresidoro)), Circle to Search, the Control Center tile, edge to edge and wrapping labels, from his fork [AnyGest](https://github.com/VictorEsidoro/AnyGest)
+- Victor Eduardo ([@victoresidoro](https://github.com/victoresidoro)), Circle to Search, the Control Center tile, edge to edge and wrapping labels
 
 Circle to Search starts the way [MiCTS](https://github.com/parallelcc/MiCTS) and [CTSLauncher](https://github.com/chenxiaolong/CTSLauncher) do. Everyone who has sent code is on [the contributors page](https://github.com/h3nc4/HyperGesture/graphs/contributors).
 
