@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Fails when a built page outweighs its budget or links to an anchor or page that does not exist.
+// Fails when a built page outweighs its budget, links to an anchor or page that does not exist, or lacks its link preview image.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -62,6 +62,15 @@ for (const page of pages(dist)) {
     if (file) total += statSync(file).size;
     else failures.push(`${name}: asset ${asset} is not in ${dist}`);
   }
+  // A link preview image is fetched by the sharing app, never by the page, so it stays out of the weight.
+  if (/<link rel="canonical"/.test(html)) {
+    for (const key of ['property="og:image"', 'name="twitter:image"']) {
+      const url = new RegExp(`<meta ${key} content="([^"]+)"`).exec(html)?.[1];
+      if (!url) failures.push(`${name}: no ${key} meta tag`);
+      else if (!url.startsWith(`${site}/`) || !fileFor(url.slice(site.length))) failures.push(`${name}: ${key} ${url} is not in ${dist}`);
+    }
+  }
+
   rows.push({ page: name, html: Buffer.byteLength(html), assets: assets.size, total });
   if (total > budget) failures.push(`${name}: ${total} bytes with its assets, over the ${budget} byte budget`);
 

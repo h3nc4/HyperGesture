@@ -149,7 +149,9 @@ docker run --rm -it -u "$(id -u):$(id -g)" -e HOME=/tmp -v "${PWD}/site:/site" -
 docker run --rm -it -u "$(id -u):$(id -g)" -e HOME=/tmp -v "${PWD}/site:/site" -w /site -p 4321:4321 "${node_image}" npx astro dev --host 0.0.0.0
 ```
 
-`npm run check` fails when a built page weighs more than 100 KB with the font and every file it loads, or when a link points at an id or a page missing from `dist/`.
+`npm run check` fails when a built page weighs more than 100 KB with the font and every file it loads, when a link points at an id or a page missing from `dist/`, or when a page lacks its `og:image` or the image file is missing.
+
+The link preview cards in `site/public/og/` are committed PNGs, rendered from `site/og/template.html` with the hero strings of each language. After changing that template or the hero strings, run `CHROME=<path to chrome-headless-shell> site/scripts/og-images.sh` after `npm ci` and commit both PNGs.
 
 The version, the APK size and the signing certificate come from the `VERSION`, `APK_SIZE` and `CERT_SHA256` environment variables, read by `site/src/facts.ts` at build time. Unset, they fall back to v1.0.0. `MIN_ANDROID` sets the Android version and defaults to 11. The QR code for the APK link is generated during the build as inline SVG.
 

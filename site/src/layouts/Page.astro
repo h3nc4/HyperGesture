@@ -24,6 +24,7 @@ import QrCode from "../components/QrCode.astro";
 import { facts, formatSize, links } from "../facts";
 import { en, type Strings } from "../i18n/en";
 import { pt } from "../i18n/pt";
+import { ogImage, ogLocale } from "../og";
 import "../styles/site.css";
 
 interface Props {
@@ -35,6 +36,9 @@ const languages = [
   { t: en, name: "English" },
   { t: pt, name: "Português" },
 ];
+const canonical = new URL(t.home, links.site).href;
+const image = ogImage(t);
+const imageUrl = new URL(image.path, links.site).href;
 const fontFace = `@font-face{font-family:"Geist";font-style:normal;font-display:swap;font-weight:100 900;src:url(${geist}) format("woff2")}`;
 ---
 
@@ -46,7 +50,22 @@ const fontFace = `@font-face{font-family:"Geist";font-style:normal;font-display:
     <title>{t.title}</title>
     <meta name="description" content={t.description} />
     <meta name="color-scheme" content="light dark" />
-    <link rel="canonical" href={new URL(t.home, links.site).href} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="HyperGesture" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:title" content={t.title} />
+    <meta property="og:description" content={t.description} />
+    <meta property="og:locale" content={ogLocale(t)} />
+    {languages.filter((l) => l.t.lang !== t.lang).map((l) => <meta property="og:locale:alternate" content={ogLocale(l.t)} />)}
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:width" content={String(image.width)} />
+    <meta property="og:image:height" content={String(image.height)} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content={image.alt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={imageUrl} />
+    <meta name="twitter:image:alt" content={image.alt} />
     {languages.map((l) => <link rel="alternate" hreflang={l.t.lang} href={new URL(l.t.home, links.site).href} />)}
     <link rel="alternate" hreflang="x-default" href={new URL(en.home, links.site).href} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
