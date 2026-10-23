@@ -1,4 +1,5 @@
 // Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+// Copyright (C) 2026  Victor Eduardo (@victoresidoro)
 //
 // This file is part of HyperGesture.
 //
