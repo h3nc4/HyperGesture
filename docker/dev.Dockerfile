@@ -34,11 +34,6 @@ ARG ANDROID_COMPILE_SDK="37.0"
 ARG ANDROID_BUILD_TOOLS="37.0.0"
 ARG ANDROID_EMULATOR_API="36"
 
-########################################
-# Gradle
-ARG GRADLE_VERSION="9.8.0"
-ARG GRADLE_SHA256="bafd5ce9cfaea0fbccfdc8439a1ac42fbd4cd9c89dc9a988228d8a2639a58e6c"
-
 # The package mirror to build through. It answers on one network only, so
 # resolving the name is the test for reaching it.
 ARG APT_MIRROR="http://debian.lan.h3nc4.com"
@@ -134,14 +129,9 @@ RUN apt-get update -qq && apt-get install --no-install-recommends -y -qq \
 
 ########################################
 # Gradle. There is no committed wrapper, so the build tool comes from here.
-ARG GRADLE_VERSION
-ARG GRADLE_SHA256
-ADD "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" /tmp/gradle.zip
-RUN echo "${GRADLE_SHA256}  /tmp/gradle.zip" | sha256sum -c - \
-  && unzip -q /tmp/gradle.zip -d /opt \
-  && mv "/opt/gradle-${GRADLE_VERSION}" /opt/gradle \
-  && ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle \
-  && rm /tmp/gradle.zip \
+# Copied from the official image, so Renovate moves its version and digest as one pin.
+COPY --from=gradle:9.8.2-jdk21@sha256:37110d25b7a0f866d07f7e61968347b83d2e0fd01bd6ddf74c9ae2ff04000691 /opt/gradle /opt/gradle
+RUN ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle \
   && gradle --version
 
 ########################################

@@ -79,18 +79,6 @@
   ],
   "customManagers": [
     {
-      "description": "Update the Gradle version pinned in the dev container",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^docker/dev\\.Dockerfile$/"
-      ],
-      "matchStrings": [
-        "ARG GRADLE_VERSION=\"(?<currentValue>.*?)\""
-      ],
-      "datasourceTemplate": "gradle-version",
-      "depNameTemplate": "gradle"
-    },
-    {
       "description": "Update the wrangler version the site deploy installs",
       "customType": "regex",
       "managerFilePatterns": [
