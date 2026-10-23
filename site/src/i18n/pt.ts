@@ -30,7 +30,7 @@ export const pt: Strings = {
     "App gratuito e de código aberto que traz de volta os gestos de Voltar, Início e Recentes ao HyperOS quando você usa Nova, Niagara, Lawnchair ou qualquer outro launcher. Funciona sem root, ADB ou computador.",
   skip: "Pular para o conteúdo",
   brandLabel: "Página inicial do HyperGesture",
-  nav: { label: "Seções", install: "Instalar", privacy: "Privacidade", faq: "Dúvidas", github: "GitHub" },
+  nav: { label: "Seções", install: "Instalar", privacy: "Privacidade", github: "GitHub" },
   language: { label: "Idioma", current: "Português" },
 
   hero: {
@@ -144,39 +144,6 @@ export const pt: Strings = {
     ],
   },
 
-  faq: {
-    title: "Dúvidas",
-    items: [
-      {
-        q: "É seguro ativar um serviço de acessibilidade?",
-        a: "É uma permissão poderosa. A configuração do app recusa as partes que leem a tela. Ele vê toques perto das bordas e mais nada, e não tem permissão de internet. O código é público sob a GPL-3.0, e cada versão é compilada a partir dele.",
-      },
-      {
-        q: "Por que ele não está na Play Store?",
-        a: "É um projeto gratuito e de código aberto, distribuído pelo GitHub. Por isso o Android mostra os passos do Play Protect e das configurações restritas na primeira instalação.",
-      },
-      {
-        q: "A chave de Acessibilidade não faz nada.",
-        a: `Permita as configurações restritas antes (${path("Configurações &gt; Aplicativos &gt; HyperGesture &gt; menu")}) e ative a chave de novo.`,
-      },
-      {
-        q: "Meus gestos param depois de um tempo ou depois de reiniciar.",
-        a: "O HyperOS está fechando o app em segundo plano. Permita o início automático e escolha Sem restrições em Economia de bateria, dentro de App info.",
-      },
-      {
-        q: "A Acessibilidade diz que o serviço não está funcionando.",
-        a: `Desative e ative o HyperGesture de novo em ${path("Configurações &gt; Acessibilidade")}.`,
-      },
-      {
-        q: "Funciona em celulares que não são Xiaomi, ou com o meu launcher?",
-        a: `Sim, em qualquer celular com Android ${facts.minAndroid} ou mais recente e com qualquer launcher.`,
-      },
-      {
-        q: "Como eu atualizo?",
-        a: `Baixe o novo APK e instale por cima do antigo. Suas configurações continuam. O <a href="${links.obtainium}">Obtainium</a> pode fazer isso por você.`,
-      },
-    ],
-  },
 
   footer: {
     blurb: `Gratuito e de código aberto, feito com <a href="${links.contributors}">seus colaboradores</a>. <a href="mailto:me@h3nc4.com">me@h3nc4.com</a>`,
