@@ -109,7 +109,7 @@ internal fun requestTile(context: Context, onOutcome: (TileAddOutcome) -> Unit) 
 internal fun hasUsageAccess(context: Context): Boolean {
     val ops = context.getSystemService(AppOpsManager::class.java) ?: return false
     val mode = runCatching {
-        ops.unsafeCheckOpNoThrow(
+        ops.checkOpNoThrow(
             AppOpsManager.OPSTR_GET_USAGE_STATS,
             Process.myUid(),
             context.packageName,
