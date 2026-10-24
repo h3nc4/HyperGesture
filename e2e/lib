@@ -264,8 +264,17 @@ geometry() {
 #
 # What the app shows, read through uiautomator.
 
+# A failed dump leaves the last screen's file behind, so it is deleted first and the dump retried.
 dump_nodes() {
-  "${ADB_BIN}" shell uiautomator dump /sdcard/hg-ui.xml >/dev/null 2>&1 || true
+  dump_try=1
+  while [ "${dump_try}" -le 3 ]; do
+    "${ADB_BIN}" shell rm -f /sdcard/hg-ui.xml >/dev/null 2>&1 || true
+    if "${ADB_BIN}" shell uiautomator dump /sdcard/hg-ui.xml 2>/dev/null | grep -q 'dumped to'; then
+      break
+    fi
+    sleep 1
+    dump_try=$((dump_try + 1))
+  done
   "${ADB_BIN}" exec-out cat /sdcard/hg-ui.xml 2>/dev/null | sed 's/<node /\
 <node /g'
 }
@@ -401,10 +410,72 @@ open_home() {
   to_home
 }
 
-# open_screen <row tag> - opens the screen behind that row on home.
+# open_screen <row tag> [<tag on that screen>] - opens the screen behind that row on home. With a
+# second tag it retries until that node shows, since a tap on a home still settling can miss.
 open_screen() {
-  open_home
-  # shellcheck disable=SC2310 # a missing row is reported by the caller's own assertion
-  tap_id "$1" || echo "   no '$1' row on home" >&2
-  sleep 1
+  open_try=1
+  while [ "${open_try}" -le 3 ]; do
+    open_home
+    # shellcheck disable=SC2310 # a missing row is reported by the caller's own assertion
+    tap_id "$1" || echo "   no '$1' row on home" >&2
+    sleep 1
+    # shellcheck disable=SC2310 # a missing node is the retry signal, not an error
+    if [ -z "${2:-}" ] || find_id "$2" >/dev/null; then
+      return 0
+    fi
+    echo "   '$2' not shown after tapping '$1' (attempt ${open_try} of 3), on screen:" >&2
+    ui_nodes | grep -o 'resource-id="[^"]\{1,\}"\|text="[^"]\{1,\}"' | sed 's/^/      /' >&2
+    open_try=$((open_try + 1))
+  done
+}
+
+# bottom_strip_frame - the left, top, right and bottom of the bottom strip's window as the window
+# manager placed it, which is where a touch lands, unlike a size logged mid-rotation.
+bottom_strip_frame() {
+  "${ADB_BIN}" shell dumpsys window windows 2>/dev/null | tr -d '\r' | awk -v pkg="u0 ${PKG}}" '
+    /^  Window #/ { mine = index($0, pkg) > 0; bottom = 0 }
+    mine && /ty=ACCESSIBILITY_OVERLAY/ && /gr=BOTTOM CENTER/ { bottom = 1 }
+    mine && bottom && / frame=\[/ {
+      f = $0
+      sub(/.* frame=\[/, "", f)
+      sub(/\] last=.*/, "", f)
+      gsub(/[^0-9-]+/, " ", f)
+      split(f, b, " ")
+      if (b[3] - b[1] > best) { best = b[3] - b[1]; out = b[1] " " b[2] " " b[3] " " b[4] }
+      bottom = 0
+    }
+    END { if (out != "") print out }'
+}
+
+# display_rotation - 0 to 3, as the window manager has it now.
+display_rotation() {
+  "${ADB_BIN}" shell dumpsys window displays 2>/dev/null | tr -d '\r' |
+    sed -n 's/.*mCurrentRotation=ROTATION_\([0-9]*\).*/\1/p' | head -1 |
+    awk '{print $1 / 90}'
+}
+
+# wait_strip <rotation 0|1> - waits for that rotation and a bottom strip as wide as it, unmoved
+# across two reads, and sets STRIP_TOP. The strip from before the turn lingers for seconds.
+wait_strip() {
+  last=''
+  strip_try=1
+  while [ "${strip_try}" -le 30 ]; do
+    frame=''
+    # shellcheck disable=SC2310 # a rotation still in flight is the retry signal
+    if [ "$(display_rotation)" = "$1" ]; then
+      frame="$(bottom_strip_frame)"
+    fi
+    span="$(printf '%s\n' "${frame}" | awk '{print $3 - $1}')"
+    if [ -n "${frame}" ] && [ "${frame}" = "${last}" ]; then
+      if { [ "$1" = '1' ] && [ "${span}" -gt "${WIDTH}" ]; } ||
+        { [ "$1" = '0' ] && [ "${span}" -le "${WIDTH}" ]; }; then
+        STRIP_TOP="$(printf '%s\n' "${frame}" | awk '{print $2}')"
+        return 0
+      fi
+    fi
+    last="${frame}"
+    sleep 1
+    strip_try=$((strip_try + 1))
+  done
+  return 1
 }

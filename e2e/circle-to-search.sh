@@ -129,7 +129,7 @@ assert_no_log "and not CircleToSearch" "GESTURE_FIRED BOTTOM CircleToSearch"
 if [ -n "${launch_failed}" ]; then
   echo >&2
   echo "== Troubleshooting names the failure ==" >&2
-  open_screen row_troubleshooting
+  open_screen row_troubleshooting diag_circle_to_search_failure
   # shellcheck disable=SC2310 # a missing row is the failure reported below
   shown="$(text_of_id diag_circle_to_search_failure || true)"
   case "${shown}" in

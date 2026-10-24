@@ -28,7 +28,6 @@ set -e
 
 require_adb
 geometry
-warm_input
 
 # Locks the display through `wm user-rotation` and puts the previous state back on exit.
 rotation_before="$("${ADB_BIN}" shell wm user-rotation | tr -d '\r')"
@@ -41,59 +40,75 @@ restore_rotation() {
 }
 trap restore_rotation INT TERM EXIT
 
-# rotate <0|1> - turns the display and waits for the service to log strips rebuilt for it.
+# rotate <0|1> - turns the display and waits for the strips rebuilt for it, then aims the next
+# swipe inside the strip the window manager placed rather than one measured before the turn.
 rotate() {
-  reset_log
   "${ADB_BIN}" shell wm user-rotation lock "$1" >/dev/null
+  # shellcheck disable=SC2310 # a timeout is the caller's failed case, not a script error
+  wait_strip "$1" || return 1
   if [ "$1" = '1' ]; then
-    want_w="${HEIGHT}"
+    L_BOTTOM_Y=$((STRIP_TOP + 8))
   else
-    want_w="${WIDTH}"
+    BOTTOM_Y=$((STRIP_TOP + 8))
   fi
-  rotate_try=1
-  while [ "${rotate_try}" -le 20 ]; do
-    strip_h="$(gesture_log | sed -n "s/.*strip BOTTOM installed [0-9]*x\([0-9]*\) geometry=ScreenGeometry(widthPx=${want_w},.*/\1/p" | tail -1)"
-    if [ -n "${strip_h}" ]; then
-      ROT_STRIP_H="${strip_h}"
-      return 0
-    fi
-    sleep 1
-    rotate_try=$((rotate_try + 1))
-  done
-  return 1
 }
 
 # monkey thaws the rotation lock as it exits, so landscape cases open the app with am instead.
+# Each case waits for landscape and its strip again, since a confirmed Home leaves the app.
 open_in_landscape() {
   "${ADB_BIN}" shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER \
     -n "${PKG}/.ui.MainActivity" >/dev/null 2>&1 || true
-  sleep 2
+  # shellcheck disable=SC2310 # a timeout shows as the failed swipe that follows
+  rotate 1 || echo "   landscape never settled, the swipe below reports what the device did" >&2
 }
 
+# stalled <attempt> - true when the emulator stretched a swipe past the arm window, as it does
+# now and then after a rotation. The case runs again once the strips take touches again.
+stalled() {
+  # shellcheck disable=SC2310 # a false predicate is the common outcome
+  log_has "unused (TOO_SLOW_TO_ARM)" || return 1
+  [ "$1" -lt 3 ] || return 1
+  echo "   a swipe arrived too slow to arm, running the case again (attempt $1 of 3)" >&2
+  release_try=1
+  # shellcheck disable=SC2310 # a missing line is the retry signal
+  while [ "${release_try}" -le 10 ] && ! log_has "strips interactive again"; do
+    sleep 1
+    release_try=$((release_try + 1))
+  done
+}
+
+# A previous suite may have left the display turned, and warm_input swipes in portrait.
+# shellcheck disable=SC2310 # a timeout shows as the failed cases that follow
+rotate 0 || echo "   portrait never settled before the cases" >&2
+warm_input
 open_test_app
 
 echo >&2
 echo "== the strips follow a rotation to landscape ==" >&2
+L_WIDTH="${HEIGHT}"
+L_HEIGHT="${WIDTH}"
+L_BOTTOM_Y=$((L_HEIGHT - 44))
+L_TOP_Y=$((L_HEIGHT / 2))
 # shellcheck disable=SC2310 # a timeout is reported as a failed case, not a script error
 if rotate 1; then
   pass "the bottom strip was rebuilt for the landscape width"
 else
-  fail "no landscape strip within 20 s, the cases below report what the device did"
-  ROT_STRIP_H=60
+  fail "no landscape strip within 30 s, the cases below report what the device did"
 fi
-L_WIDTH="${HEIGHT}"
-L_HEIGHT="${WIDTH}"
-L_BOTTOM_Y=$((L_HEIGHT - ROT_STRIP_H + 8))
-L_TOP_Y=$((L_HEIGHT / 2))
-sleep 2
 
 echo >&2
 echo "== a first swipe shows the pill and a second goes Home ==" >&2
-open_in_landscape
-reset_log
-# One device shell keeps the focus check between the swipes inside the 2 s window.
-between="$("${ADB_BIN}" shell "input swipe $((L_WIDTH / 2)) ${L_BOTTOM_Y} $((L_WIDTH / 2)) ${L_TOP_Y} 120 && sleep 0.3 && dumpsys window | grep mCurrentFocus && input swipe $((L_WIDTH / 2)) ${L_BOTTOM_Y} $((L_WIDTH / 2)) ${L_TOP_Y} 120" | tr -d '\r')"
-sleep 2
+case_try=1
+while [ "${case_try}" -le 3 ]; do
+  open_in_landscape
+  reset_log
+  # One device shell keeps the focus check between the swipes inside the 2 s window.
+  between="$("${ADB_BIN}" shell "input swipe $((L_WIDTH / 2)) ${L_BOTTOM_Y} $((L_WIDTH / 2)) ${L_TOP_Y} 120 && sleep 0.3 && dumpsys window | grep mCurrentFocus && input swipe $((L_WIDTH / 2)) ${L_BOTTOM_Y} $((L_WIDTH / 2)) ${L_TOP_Y} 120" | tr -d '\r')"
+  sleep 2
+  # shellcheck disable=SC2310 # a false predicate means the swipes arrived in time
+  stalled "${case_try}" || break
+  case_try=$((case_try + 1))
+done
 assert_log "the first landscape swipe shows the pill" "GESTURE_CONFIRM_SHOWN BOTTOM Home"
 case "${between}" in
   *"${PKG}"*) pass "the app stayed in front after the first swipe" ;;
@@ -111,12 +126,18 @@ fi
 
 echo >&2
 echo "== the pill fades and the next swipe starts over ==" >&2
-open_in_landscape
-reset_log
-swipe $((L_WIDTH / 2)) "${L_BOTTOM_Y}" $((L_WIDTH / 2)) "${L_TOP_Y}" 120
-sleep 3
-swipe $((L_WIDTH / 2)) "${L_BOTTOM_Y}" $((L_WIDTH / 2)) "${L_TOP_Y}" 120
-sleep 2
+case_try=1
+while [ "${case_try}" -le 3 ]; do
+  open_in_landscape
+  reset_log
+  swipe $((L_WIDTH / 2)) "${L_BOTTOM_Y}" $((L_WIDTH / 2)) "${L_TOP_Y}" 120
+  sleep 3
+  swipe $((L_WIDTH / 2)) "${L_BOTTOM_Y}" $((L_WIDTH / 2)) "${L_TOP_Y}" 120
+  sleep 2
+  # shellcheck disable=SC2310 # a false predicate means the swipes arrived in time
+  stalled "${case_try}" || break
+  case_try=$((case_try + 1))
+done
 assert_log "the pill expired after its window" "GESTURE_CONFIRM_EXPIRED"
 assert_no_log "a swipe after the window does not go Home" "GESTURE_FIRED BOTTOM Home"
 # shellcheck disable=SC2310 # an empty log is a legitimate result, not a script error
@@ -138,9 +159,8 @@ echo "== back in portrait one swipe goes Home ==" >&2
 if rotate 0; then
   pass "the bottom strip was rebuilt for the portrait width"
 else
-  fail "no portrait strip within 20 s"
+  fail "no portrait strip within 30 s"
 fi
-sleep 2
 open_test_app
 reset_log
 swipe $((WIDTH / 2)) "${BOTTOM_Y}" $((WIDTH / 2)) $((HEIGHT - 600)) 120
