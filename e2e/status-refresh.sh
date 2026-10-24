@@ -58,18 +58,18 @@ service_enabled() {
 echo >&2
 echo "== usage access granted in the background shows on return ==" >&2
 "${ADB_BIN}" shell appops set "${PKG}" GET_USAGE_STATS default >/dev/null
-open_screen row_app_switching
+open_screen row_app_switching usage_access
 assert_shows "the row starts out missing" usage_access "${usage_missing}"
 leave_app
 "${ADB_BIN}" shell appops set "${PKG}" GET_USAGE_STATS allow >/dev/null
-open_screen row_app_switching
+open_screen row_app_switching usage_access
 assert_shows "the row reads granted without a tap" usage_access "${usage_granted}"
 
 echo >&2
 echo "== usage access revoked in the background shows on return ==" >&2
 leave_app
 "${ADB_BIN}" shell appops set "${PKG}" GET_USAGE_STATS default >/dev/null
-open_screen row_app_switching
+open_screen row_app_switching usage_access
 assert_shows "the row reads missing without a tap" usage_access "${usage_missing}"
 
 echo >&2
