@@ -126,7 +126,7 @@
 
         <receiver
             android:name=".navigation.NavigationRecoveryReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.PACKAGE_ADDED" />
                 <action android:name="android.intent.action.PACKAGE_CHANGED" />
