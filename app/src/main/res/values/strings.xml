@@ -88,6 +88,15 @@
     <string name="outcome_unsupported">Not supported on this device. This is a platform restriction, not a HyperGesture problem.</string>
     <string name="outcome_failed">Could not open the screen: %1$s</string>
 
+    <string name="recovery_title">Navigation setting recovery (Shizuku)</string>
+    <string name="recovery_status_disabled">Off. Current navigation settings are left unchanged.</string>
+    <string name="recovery_status_unavailable">Shizuku is stopped or unavailable. Start it, then return to HyperGesture.</string>
+    <string name="recovery_status_permission">Shizuku permission is missing. Grant it to HyperGesture in Shizuku.</string>
+    <string name="recovery_status_verified">Active. Gestural mode verified (force_fsg=1, nav_mode=2), 3-button overlay suppressed, and MIUI cleaner immunity granted.</string>
+    <string name="recovery_status_failed">A setting write failed or did not read back correctly on this build. The manual navigation settings route remains available.</string>
+    <string name="recovery_explanation">Maintains full-screen gestures across launcher changes, suppresses conflicting 3-button overlays, and grants MIUI Autostart &amp; Battery immunity so HyperOS never kills your gestures.</string>
+    <string name="recovery_request_permission">Request Shizuku permission</string>
+
     <!-- Control Center tile. -->
     <string name="step_tile">Control Center tile</string>
     <string name="step_tile_body">Your way back if gestures stop</string>

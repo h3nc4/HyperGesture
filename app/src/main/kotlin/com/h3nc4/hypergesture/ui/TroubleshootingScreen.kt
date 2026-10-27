@@ -34,6 +34,8 @@ import com.h3nc4.hypergesture.diagnostics.Diagnostics
 import com.h3nc4.hypergesture.navigation.GenericAndroidNavigationIntegration
 import com.h3nc4.hypergesture.navigation.HyperOSNavigationIntegration
 import com.h3nc4.hypergesture.navigation.NavigationMode
+import com.h3nc4.hypergesture.navigation.RecoveryState
+import com.h3nc4.hypergesture.navigation.RecoveryStatus
 
 @Composable
 internal fun TroubleshootingScreen(model: AppModel) {
@@ -61,7 +63,7 @@ internal fun TroubleshootingScreen(model: AppModel) {
     )
 
     SectionHeader(stringResource(R.string.section_this_device))
-    DeviceRows(diagnostics)
+    DeviceRows(diagnostics, model.recoveryState)
 
     SectionHeader(stringResource(R.string.section_last_problems))
     val none = stringResource(R.string.diag_none)
@@ -88,7 +90,7 @@ internal fun TroubleshootingScreen(model: AppModel) {
 }
 
 @Composable
-private fun DeviceRows(diagnostics: Diagnostics) {
+private fun DeviceRows(diagnostics: Diagnostics, recoveryState: RecoveryState) {
     val none = stringResource(R.string.diag_none)
     val unknown = stringResource(R.string.diag_unknown)
     val yes = stringResource(R.string.value_yes)
@@ -111,6 +113,18 @@ private fun DeviceRows(diagnostics: Diagnostics) {
     ValueRow(stringResource(R.string.diag_service_bound), yesNo(diagnostics.accessibilityServiceEnabled))
     ValueRow(stringResource(R.string.diag_service_running), yesNo(diagnostics.accessibilityServiceRunning))
     ValueRow(stringResource(R.string.diag_integration), integrationLabel(diagnostics.navigationIntegrationId))
+    if (diagnostics.navigationIntegrationAvailable) {
+        val recoveryLabel = stringResource(
+            when (recoveryState.status) {
+                RecoveryStatus.DISABLED -> R.string.recovery_status_disabled
+                RecoveryStatus.SHIZUKU_UNAVAILABLE -> R.string.recovery_status_unavailable
+                RecoveryStatus.PERMISSION_DENIED -> R.string.recovery_status_permission
+                RecoveryStatus.VERIFIED -> R.string.recovery_status_verified
+                RecoveryStatus.WRITE_FAILED -> R.string.recovery_status_failed
+            },
+        )
+        ValueRow(stringResource(R.string.recovery_title), recoveryLabel)
+    }
 }
 
 private fun navigationModeLabel(mode: NavigationMode): Int = when (mode) {

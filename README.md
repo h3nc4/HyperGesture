@@ -32,7 +32,15 @@ Gestures need an accessibility service. This one watches thin strips along the s
 
 ## What it can't do
 
-It can't switch on HyperOS's own gesture navigation, since only the system is allowed to do that. It can open the navigation settings so you can hide the three-button bar. [docs/hyperos-navigation.md](docs/hyperos-navigation.md) has the details, and [docs/development.md](docs/development.md) covers working on the code.
+It can't switch on HyperOS's own gesture navigation, since only the system is allowed to do that. It can open the navigation settings so you can hide the three-button bar. If HyperOS resets your navigation mode after a reboot, the optional Shizuku recovery can restore its two settings when enabled and Shizuku is running with permission. [docs/hyperos-navigation.md](docs/hyperos-navigation.md) has the details, and [docs/development.md](docs/development.md) covers working on the code.
+
+## Navigation setting recovery
+
+This is an opt-in recovery for `force_fsg_nav_bar=1` and `navigation_mode=2`. It uses Shizuku's shell/root identity to write those two settings and reads both back. It runs shell commands directly instead of a Shizuku UserService, which avoids a UserService startup crash on some MediaTek builds. It does not change overlays, accessibility settings, or any other values, and it does not turn on HyperOS's native gesture engine. HyperGesture's own gestures remain responsible for Back, Home and Recents.
+
+Install and start [Shizuku](https://shizuku.rikka.app/download/), then grant HyperGesture Shizuku permission and turn on **Navigation setting recovery (Shizuku)**. It checks when HyperGesture resumes, when Shizuku becomes available, after boot, after package or preferred-home changes when Android delivers those broadcasts, through real-time ContentObserver settings monitoring, and an inexact 15-minute WorkManager fallback. The existing **Open navigation settings** action remains available as a manual route.
+
+On a non-rooted device, Shizuku must be started again after every reboot. HyperGesture reports when Shizuku is unavailable, permission is missing, or a write/readback fails. Setting writes are device/build dependent: the upstream navigation investigation reports that Shizuku writes were unavailable on a Redmi 14, so a verified result on one POCO or HyperOS build does not establish compatibility elsewhere. Turning recovery off cancels scheduled checks and leaves the current settings unchanged.
 
 ## Contributors
 

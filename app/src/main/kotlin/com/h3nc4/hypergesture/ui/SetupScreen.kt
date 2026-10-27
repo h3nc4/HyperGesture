@@ -28,6 +28,9 @@ internal fun SetupScreen(model: AppModel) {
     SetupRows(checklist.required, model)
     SectionHeader(stringResource(R.string.setup_group_recommended))
     SetupRows(checklist.recommended, model)
+    if (model.diagnostics.navigationIntegrationAvailable) {
+        NavigationRecoveryCard(model)
+    }
     FootNote(
         stringResource(
             if (model.diagnostics.navigationIntegrationAvailable) {

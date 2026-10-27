@@ -41,6 +41,7 @@ import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.gesture.PlatformDefaults
 import com.h3nc4.hypergesture.gesture.ScreenEdge
 import com.h3nc4.hypergesture.gesture.TouchSample
+import com.h3nc4.hypergesture.navigation.NavigationSettingsObserver
 import com.h3nc4.hypergesture.settings.GestureSettingsRepository
 import com.h3nc4.hypergesture.setup.GestureTileService
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -78,6 +79,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     private var overlay: EdgeTouchOverlay? = null
     private var configuration: GestureConfiguration = GestureConfiguration()
     private var lastGeometry: ScreenGeometry? = null
+    private var navigationObserver: NavigationSettingsObserver? = null
 
     /**
      * Rotation reaches the display *after* the configuration change lands, so
@@ -121,6 +123,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
         (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
             .registerDisplayListener(displayListener, handler)
+
+        navigationObserver = NavigationSettingsObserver(this, handler).also { it.register() }
 
         scope.launch {
             settings.configuration.collect { updated ->
@@ -185,6 +189,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
                 .unregisterDisplayListener(displayListener)
         }
+        navigationObserver?.unregister()
+        navigationObserver = null
         overlay?.remove()
         overlay = null
         handler.removeCallbacksAndMessages(null)

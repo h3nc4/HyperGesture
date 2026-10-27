@@ -23,16 +23,28 @@ import android.content.Intent
 import android.util.Log
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.navigation.NavigationMode
+import com.h3nc4.hypergesture.navigation.NavigationRecoveryScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
- * Android rebinds the accessibility service on boot by itself, so this exists only for the
- * navigation subsystem — and since a normal APK cannot restore the state HyperOS resets
- * across a reboot, it only observes it and lets the UI report it.
+ * Checks the post-boot navigation state and queues recovery only when the opt-in is enabled.
+ * Android rebinds the accessibility service on boot by itself.
  */
 class BootCompletedReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                NavigationRecoveryScheduler.checkIfEnabled(context)
+            } finally {
+                pending.finish()
+            }
+        }
 
         val status = NavigationIntegrationFactory.create(context).status()
         if (status.available && status.currentMode != NavigationMode.GESTURAL) {
