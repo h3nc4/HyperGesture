@@ -44,13 +44,13 @@ class NavigationRecoveryReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Immediate check
-                NavigationRecoveryScheduler.checkIfEnabled(context)
+                // Immediate direct check via Shizuku (<50ms)
+                NavigationRecoveryScheduler.runDirectIfEnabled(context)
                 // Watchdog debounce: HyperOS SystemUI PhoneStateMonitor posts an asynchronous
                 // runnable when default home or packages change, which resets force_fsg_nav_bar=0.
-                // Delay 1.5 seconds and trigger a second check to guarantee the setting sticks.
+                // Delay 1.5 seconds and trigger a direct second check to guarantee the setting sticks.
                 delay(1500)
-                NavigationRecoveryScheduler.checkIfEnabled(context)
+                NavigationRecoveryScheduler.runDirectIfEnabled(context)
             } finally {
                 pending.finish()
             }

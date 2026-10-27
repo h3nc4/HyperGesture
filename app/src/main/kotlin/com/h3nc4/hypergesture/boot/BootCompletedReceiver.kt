@@ -40,7 +40,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                NavigationRecoveryScheduler.checkIfEnabled(context)
+                NavigationRecoveryScheduler.runDirectIfEnabled(context)
             } finally {
                 pending.finish()
             }

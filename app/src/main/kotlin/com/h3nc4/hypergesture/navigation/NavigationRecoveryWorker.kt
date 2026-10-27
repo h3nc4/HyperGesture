@@ -24,10 +24,7 @@ class NavigationRecoveryWorker(context: Context, parameters: WorkerParameters) :
     CoroutineWorker(context, parameters) {
 
     override suspend fun doWork(): Result {
-        val repository = NavigationRecoveryRepository(applicationContext)
-        if (!repository.isEnabled()) return Result.success()
-        val status = ShizukuNavigationRecovery.run(applicationContext)
-        if (repository.isEnabled()) repository.setStatus(status)
+        NavigationRecoveryScheduler.runDirectIfEnabled(applicationContext)
         return Result.success()
     }
 }

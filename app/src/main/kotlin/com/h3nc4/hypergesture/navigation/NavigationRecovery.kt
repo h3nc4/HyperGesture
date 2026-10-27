@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 import java.lang.reflect.Method
@@ -71,10 +73,9 @@ class NavigationRecoveryRepository(private val context: Context) {
         context.navigationRecoveryStore.edit { it[ENABLED] = enabled }
         if (enabled) {
             NavigationRecoveryScheduler.schedulePeriodic(context)
-            NavigationRecoveryScheduler.checkNow(context)
+            NavigationRecoveryScheduler.runDirectIfEnabled(context)
         } else {
             WorkManager.getInstance(context).cancelUniqueWork(NavigationRecoveryScheduler.PERIODIC_WORK)
-            WorkManager.getInstance(context).cancelUniqueWork(NavigationRecoveryScheduler.CHECK_WORK)
             setStatus(RecoveryStatus.DISABLED)
         }
     }
@@ -91,7 +92,7 @@ class NavigationRecoveryRepository(private val context: Context) {
 
 object NavigationRecoveryScheduler {
     const val PERIODIC_WORK = "navigation-recovery-periodic"
-    const val CHECK_WORK = "navigation-recovery-check"
+    private val executionMutex = Mutex()
 
     fun schedulePeriodic(context: Context) {
         val request = PeriodicWorkRequestBuilder<NavigationRecoveryWorker>(15, TimeUnit.MINUTES).build()
@@ -102,22 +103,25 @@ object NavigationRecoveryScheduler {
         )
     }
 
-    fun checkNow(context: Context) {
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            CHECK_WORK,
-            androidx.work.ExistingWorkPolicy.REPLACE,
-            androidx.work.OneTimeWorkRequestBuilder<NavigationRecoveryWorker>().build(),
-        )
-    }
-
-    suspend fun checkIfEnabled(context: Context) {
-        if (NavigationRecoveryRepository(context).isEnabled()) checkNow(context)
+    /**
+     * Executes Shizuku recovery directly without waiting for asynchronous WorkManager queues.
+     * Guarded by a Mutex to prevent overlapping shell executions.
+     */
+    suspend fun runDirectIfEnabled(context: Context): RecoveryStatus? {
+        val repository = NavigationRecoveryRepository(context)
+        if (!repository.isEnabled()) return null
+        return executionMutex.withLock {
+            if (!repository.isEnabled()) return@withLock null
+            val status = ShizukuNavigationRecovery.run(context)
+            repository.setStatus(status)
+            status
+        }
     }
 }
 
 /**
  * Monitors navigation settings in real time via ContentObserver.
- * Immediately triggers recovery when HyperOS or SystemUI resets force_fsg_nav_bar or navigation_mode.
+ * Immediately triggers direct recovery when HyperOS or SystemUI resets force_fsg_nav_bar or navigation_mode.
  */
 class NavigationSettingsObserver(
     private val context: Context,
@@ -129,7 +133,7 @@ class NavigationSettingsObserver(
         val nav = Settings.Secure.getString(cr, "navigation_mode")
         if (fsg != "1" || nav != "2") {
             CoroutineScope(Dispatchers.IO).launch {
-                NavigationRecoveryScheduler.checkIfEnabled(context)
+                NavigationRecoveryScheduler.runDirectIfEnabled(context)
             }
         }
     }
@@ -212,7 +216,8 @@ object ShizukuNavigationRecovery {
     fun buildRecoveryScript(packageName: String): String = """
         settings put global force_fsg_nav_bar 1
         settings put secure navigation_mode 2
-        settings put secure --user 0 navigation_mode 2 2>/dev/null || true
+        settings --user 0 put secure navigation_mode 2 2>/dev/null || true
+        settings --user 0 put global force_fsg_nav_bar 1 2>/dev/null || true
         settings put global use_gesture_version_three 1 2>/dev/null || true
         if cmd overlay list 2>/dev/null | grep -q '\[x\] com.android.internal.systemui.navbar.threebutton'; then
             cmd overlay disable com.android.internal.systemui.navbar.threebutton 2>/dev/null || true

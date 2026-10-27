@@ -40,9 +40,9 @@ import com.h3nc4.hypergesture.navigation.NavigationIntegration
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.navigation.NavigationMode
 import com.h3nc4.hypergesture.navigation.NavigationRecoveryRepository
+import com.h3nc4.hypergesture.navigation.NavigationRecoveryScheduler
 import com.h3nc4.hypergesture.navigation.RecoveryState
 import com.h3nc4.hypergesture.navigation.RecoveryStatus
-import com.h3nc4.hypergesture.navigation.ShizukuNavigationRecovery
 import com.h3nc4.hypergesture.service.HyperGestureAccessibilityService
 import com.h3nc4.hypergesture.settings.GestureSettingsRepository
 import com.h3nc4.hypergesture.setup.SetupChecklist
@@ -52,6 +52,7 @@ import com.h3nc4.hypergesture.setup.SetupRecord
 import com.h3nc4.hypergesture.setup.SetupStateRepository
 import com.h3nc4.hypergesture.setup.setupState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -132,10 +133,8 @@ internal class AppModel(
     }
 
     fun checkRecovery() {
-        scope.launch {
-            if (navigationRecovery.isEnabled()) {
-                navigationRecovery.setStatus(ShizukuNavigationRecovery.run(context))
-            }
+        scope.launch(Dispatchers.IO) {
+            NavigationRecoveryScheduler.runDirectIfEnabled(context)
         }
     }
 
