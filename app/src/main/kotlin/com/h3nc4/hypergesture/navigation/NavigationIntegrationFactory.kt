@@ -18,13 +18,25 @@
 package com.h3nc4.hypergesture.navigation
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.provider.Settings
 
 object NavigationIntegrationFactory {
 
-    fun create(context: Context): NavigationIntegration =
-        if (NavigationModeReader.isHyperOsDevice()) {
-            HyperOSNavigationIntegration(context)
-        } else {
-            GenericAndroidNavigationIntegration(context)
-        }
+    fun create(context: Context): NavigationIntegration = when {
+        NavigationModeReader.isHyperOsDevice() -> HyperOSNavigationIntegration(context)
+        debugHyperOs(context) -> HyperOSNavigationIntegration(context, supported = true)
+        else -> GenericAndroidNavigationIntegration(context)
+    }
+
+    /** Test seam that lets the emulator suite reach the HyperOS integration. Debug only. */
+    private fun debugHyperOs(context: Context): Boolean {
+        if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return false
+        return runCatching {
+            Settings.Global.getString(context.contentResolver, INTEGRATION_OVERRIDE) ==
+                HyperOSNavigationIntegration.ID
+        }.getOrDefault(false)
+    }
+
+    private const val INTEGRATION_OVERRIDE = "hypergesture_integration"
 }

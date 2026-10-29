@@ -38,6 +38,11 @@
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- Opt-in, for keeping the bar hidden. Only `adb shell pm grant` can give it. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
     <!--
       Package visibility, not a permission: since Android 11 getLaunchIntentForPackage returns
       null for an app we have not declared an interest in, which silently reduced the app

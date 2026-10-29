@@ -21,10 +21,7 @@ import android.content.Context
 import android.os.Build
 import android.provider.Settings
 
-/**
- * Reading `Settings.Secure` needs no permission; *writing* it needs `WRITE_SECURE_SETTINGS`
- * (adb or root only) — which is why this app can report the mode but never change it.
- */
+/** Reading needs no permission. Writing is [NavigationKeeper]'s, with a grant only adb gives. */
 internal object NavigationModeReader {
 
     private const val NAVIGATION_MODE = "navigation_mode"

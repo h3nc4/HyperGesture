@@ -46,4 +46,7 @@ interface NavigationIntegration {
 
     /** Tag the vendor's own launcher starts the assistant with, tried before the app's own. */
     val assistantAttributionTag: String? get() = null
+
+    /** Restores the hidden bar when the vendor resets it, given a permission granted over adb. */
+    val keeper: NavigationKeeper? get() = null
 }

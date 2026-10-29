@@ -32,7 +32,7 @@ Gestures need an accessibility service. This one watches thin strips along the s
 
 ## What it can't do
 
-It can't switch on HyperOS's own gesture navigation, since only the system is allowed to do that. It can open the navigation settings so you can hide the three-button bar. [docs/hyperos-navigation.md](docs/hyperos-navigation.md) has the details, and [docs/development.md](docs/development.md) covers working on the code.
+It can't switch on HyperOS's own gesture navigation, since only the system is allowed to do that. It can open the navigation settings so you can hide the three-button bar. HyperOS brings the bar back after a reboot or a launcher change, and the optional **Keep the bar hidden** switch hides it again once you grant one permission over adb. [docs/hyperos-navigation.md](docs/hyperos-navigation.md) has the details, and [docs/development.md](docs/development.md) covers working on the code.
 
 ## Contributors
 

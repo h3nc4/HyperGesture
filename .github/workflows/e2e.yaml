@@ -85,7 +85,7 @@ jobs:
           - shard: 1
             suites: status-refresh app-switch
           - shard: 2
-            suites: navigation back-revert
+            suites: navigation back-revert navigation-keeper
           - shard: 3
             suites: circle-to-search landscape-confirm
     steps:

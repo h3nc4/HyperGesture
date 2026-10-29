@@ -24,11 +24,7 @@ import android.util.Log
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.navigation.NavigationMode
 
-/**
- * Android rebinds the accessibility service on boot by itself, so this exists only for the
- * navigation subsystem — and since a normal APK cannot restore the state HyperOS resets
- * across a reboot, it only observes it and lets the UI report it.
- */
+/** Only logs the mode HyperOS resets on boot. The service's keeper restores it, given the grant. */
 class BootCompletedReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
