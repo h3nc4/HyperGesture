@@ -102,6 +102,12 @@ Every bug found on a real device so far was in the Android integration, not the 
 
 None of that is reachable from a JVM test.
 
+The strips can still be left held by a touch stream that never ends, as seen on the Redmi 14. `service/StreamHold.kt` releases them after 5065 ms without a touch event, the longest replay hold plus one second. Each release appends a report with the recent overlay events to `stuck_streams.txt`, and Troubleshooting shows the latest one. The file is in app-specific external storage. `adb pull` reads it from a release build, where `run-as` cannot:
+
+```sh
+adb pull /sdcard/Android/data/com.h3nc4.hypergesture/files/stuck_streams.txt
+```
+
 ## Releasing
 
 Signing material lives outside git:

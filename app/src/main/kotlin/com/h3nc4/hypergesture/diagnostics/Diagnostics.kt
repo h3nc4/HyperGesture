@@ -53,6 +53,8 @@ data class Diagnostics(
     val lastCircleToSearchFailure: String?,
     /** Shown in-app because release builds cannot be read with `adb run-as`. */
     val lastRecordedFailure: String?,
+    /** The latest touch stream released by the overlay's timer, with the events before it. */
+    val lastStuckStream: String?,
     val appVersionName: String?,
 ) {
     val serviceStatus: ServiceStatus
@@ -85,6 +87,7 @@ object DiagnosticsCollector {
             lastAppSwitchFailure = AppSwitcher.lastFailure,
             lastCircleToSearchFailure = GestureActionPerformer.lastCircleToSearchFailure,
             lastRecordedFailure = FailureLog.read(context),
+            lastStuckStream = StuckStreamLog.latest(context),
             appVersionName = appVersionName(context),
         )
     }

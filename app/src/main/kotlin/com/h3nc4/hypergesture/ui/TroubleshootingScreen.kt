@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.diagnostics.Diagnostics
+import com.h3nc4.hypergesture.diagnostics.StuckStreamLog
 import com.h3nc4.hypergesture.navigation.GenericAndroidNavigationIntegration
 import com.h3nc4.hypergesture.navigation.HyperOSNavigationIntegration
 import com.h3nc4.hypergesture.navigation.NavigationMode
@@ -72,19 +73,35 @@ internal fun TroubleshootingScreen(model: AppModel) {
         value = diagnostics.lastCircleToSearchFailure ?: none,
         valueTag = TestTags.DIAG_CIRCLE_TO_SEARCH_FAILURE,
     )
+    val stuck = diagnostics.lastStuckStream
+    ValueRow(
+        label = stringResource(R.string.diag_last_stuck_stream),
+        value = stuck?.lineSequence()?.first()?.removePrefix(StuckStreamLog.MARKER)?.trim() ?: none,
+        valueTag = TestTags.DIAG_STUCK_STREAM,
+    )
+    // The newest events are at the end, right before the release.
+    stuck?.let { report ->
+        val tail = report.takeLast(MAX_FAILURE_CHARS)
+        MonospaceBlock(if (tail.length < report.length) tail.substringAfter('\n') else tail)
+    }
     diagnostics.lastRecordedFailure?.let { failure ->
         InfoRow(title = stringResource(R.string.diag_recorded_failure))
-        Text(
-            text = failure.take(MAX_FAILURE_CHARS),
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
+        MonospaceBlock(failure.take(MAX_FAILURE_CHARS))
     }
     TextButton(onClick = model::refresh, modifier = Modifier.padding(horizontal = 4.dp)) {
         Text(stringResource(R.string.action_refresh_diagnostics))
     }
     FootNote(stringResource(R.string.diag_local_only))
+}
+
+@Composable
+private fun MonospaceBlock(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        fontFamily = FontFamily.Monospace,
+        modifier = Modifier.padding(horizontal = 16.dp),
+    )
 }
 
 @Composable

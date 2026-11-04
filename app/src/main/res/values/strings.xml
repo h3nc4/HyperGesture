@@ -236,6 +236,7 @@
     <string name="diag_last_failure">Last failure</string>
     <string name="label_last_app_switch_failure">Last app switch problem</string>
     <string name="diag_last_circle_to_search_failure">Last Circle to Search problem</string>
+    <string name="diag_last_stuck_stream">Last stuck touch</string>
     <string name="diag_recorded_failure">Recorded failure</string>
     <string name="diag_none">None</string>
     <string name="diag_unknown">Unknown</string>

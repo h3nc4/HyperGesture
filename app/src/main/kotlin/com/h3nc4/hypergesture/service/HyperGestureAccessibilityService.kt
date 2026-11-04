@@ -313,6 +313,9 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
         private const val FINISH_GRACE_MS = 1_000L
 
+        /** An upper bound on how long a replay holds the strips past its UP, safety net included. */
+        internal const val LONGEST_REPLAY_HOLD_MS = MAX_REPLAY_MS + WINDOW_SETTLE_MS + FINISH_GRACE_MS
+
         @Volatile
         private var instance: HyperGestureAccessibilityService? = null
 
