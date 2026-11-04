@@ -44,11 +44,11 @@ jobs:
       # build-mode "none" avoids provisioning the Android SDK on the runner. Switch to
       # "manual" with a Gradle build if coverage proves insufficient.
       - name: Run github/codeql-action/init
-        uses: github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           languages: java-kotlin
           build-mode: none
       - name: Run github/codeql-action/analyze
-        uses: github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           category: "/language:java-kotlin"
