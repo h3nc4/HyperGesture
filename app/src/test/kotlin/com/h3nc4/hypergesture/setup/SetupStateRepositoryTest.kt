@@ -42,6 +42,7 @@ class SetupStateRepositoryTest {
             SetupFlag.RESTRICTED_SETTINGS_CONFIRMED to SetupRecord::restrictedSettingsConfirmed,
             SetupFlag.BATTERY_CONFIRMED to SetupRecord::batteryConfirmed,
             SetupFlag.AUTOSTART_CONFIRMED to SetupRecord::autostartConfirmed,
+            SetupFlag.STOP_NOTICE_POSTED to SetupRecord::stopNoticePosted,
         )
         assertEquals(SetupFlag.entries.toSet(), expected.keys)
         for ((flag, field) in expected) {

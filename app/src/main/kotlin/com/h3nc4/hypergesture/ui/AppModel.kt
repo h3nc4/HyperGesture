@@ -45,6 +45,7 @@ import com.h3nc4.hypergesture.setup.SetupFacts
 import com.h3nc4.hypergesture.setup.SetupFlag
 import com.h3nc4.hypergesture.setup.SetupRecord
 import com.h3nc4.hypergesture.setup.SetupStateRepository
+import com.h3nc4.hypergesture.setup.StopNotifier
 import com.h3nc4.hypergesture.setup.setupState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -73,6 +74,7 @@ internal class AppModel(
     var assistant by mutableStateOf(readAssistant(context))
         private set
     private var batteryUnrestricted by mutableStateOf(batteryUnrestricted(context))
+    private var notificationsAllowed by mutableStateOf(notificationsAllowed(context))
 
     val status: ServiceStatus get() = diagnostics.serviceStatus
 
@@ -88,6 +90,8 @@ internal class AppModel(
                 autostartApplies = diagnostics.navigationIntegrationAvailable,
                 autostartConfirmed = record.autostartConfirmed,
                 tileAdded = record.tileAdded,
+                notificationsApply = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
+                notificationsAllowed = notificationsAllowed,
                 navigationBarChangeable = diagnostics.navigationIntegrationAvailable,
                 navigationBarHidden = diagnostics.navigationMode == NavigationMode.GESTURAL,
             ),
@@ -98,9 +102,11 @@ internal class AppModel(
         usageAccess = hasUsageAccess(context)
         assistant = readAssistant(context)
         batteryUnrestricted = batteryUnrestricted(context)
+        notificationsAllowed = notificationsAllowed(context)
         if (status != ServiceStatus.OFF && !record.serviceEverEnabled) {
             setFlag(SetupFlag.SERVICE_EVER_ENABLED, true)
         }
+        StopNotifier.sync(context)
     }
 
     fun update(transform: (GestureConfiguration) -> GestureConfiguration) {

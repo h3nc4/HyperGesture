@@ -100,6 +100,17 @@
     <string name="tile_add_failed">Could not ask to add the tile: %1$s. Add it by editing Control Center.</string>
     <string name="tile_add_unsupported">This Android version cannot offer to add the tile. Add it by editing Control Center.</string>
 
+    <!-- The stop notice in the shade, a second way back beside the tile. -->
+    <string name="step_notifications">Notifications</string>
+    <string name="step_notifications_body">Tells you if gestures stop</string>
+    <string name="step_notifications_done">Allowed</string>
+    <string name="action_allow">Allow</string>
+    <string name="action_open_notification_settings">Notification settings</string>
+    <string name="notifications_refused">Not allowed. Gestures work without it.</string>
+    <string name="notice_channel">Gestures stopped</string>
+    <string name="notice_stopped_title">Gestures stopped</string>
+    <string name="notice_stopped_body">Tap to turn them back on in Accessibility.</string>
+
     <!-- Home. -->
     <string name="section_features">Features</string>
     <string name="section_more">More</string>

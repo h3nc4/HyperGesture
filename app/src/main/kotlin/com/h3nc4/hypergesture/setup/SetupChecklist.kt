@@ -19,7 +19,15 @@ package com.h3nc4.hypergesture.setup
 
 import com.h3nc4.hypergesture.diagnostics.ServiceStatus
 
-enum class SetupStep { RESTRICTED_SETTINGS, ACCESSIBILITY, BATTERY, AUTOSTART, TILE, NAVIGATION_BAR }
+enum class SetupStep {
+    RESTRICTED_SETTINGS,
+    ACCESSIBILITY,
+    BATTERY,
+    AUTOSTART,
+    TILE,
+    NOTIFICATIONS,
+    NAVIGATION_BAR,
+}
 
 enum class SetupGroup { REQUIRED, RECOMMENDED }
 
@@ -48,6 +56,8 @@ data class SetupFacts(
     val autostartApplies: Boolean,
     val autostartConfirmed: Boolean,
     val tileAdded: Boolean,
+    val notificationsApply: Boolean,
+    val notificationsAllowed: Boolean,
     val navigationBarChangeable: Boolean,
     val navigationBarHidden: Boolean,
 )
@@ -84,12 +94,7 @@ data class SetupChecklist(val items: List<SetupItem>) {
             }
             val accessibilityDone = accessibility == StepState.DONE
             val items = buildList {
-                if (facts.restrictedSettingsApply) {
-                    // The switch only turns on once restricted settings are allowed.
-                    val done = facts.restrictedSettingsConfirmed || facts.serviceEverEnabled ||
-                        facts.service != ServiceStatus.OFF
-                    add(required(SetupStep.RESTRICTED_SETTINGS, if (done) StepState.DONE else StepState.UNVERIFIED))
-                }
+                if (facts.restrictedSettingsApply) add(restrictedSettings(facts))
                 add(required(SetupStep.ACCESSIBILITY, accessibility))
                 add(
                     afterAccessibility(
@@ -101,13 +106,9 @@ data class SetupChecklist(val items: List<SetupItem>) {
                 if (facts.autostartApplies) {
                     add(afterAccessibility(SetupStep.AUTOSTART, facts.autostartConfirmed, accessibilityDone))
                 }
-                add(
-                    SetupItem(
-                        SetupStep.TILE,
-                        SetupGroup.RECOMMENDED,
-                        if (facts.tileAdded) StepState.DONE else StepState.TO_DO,
-                    ),
-                )
+                add(recommended(SetupStep.TILE, facts.tileAdded))
+                // Android 13 asks at runtime. Earlier versions allow notifications from install.
+                if (facts.notificationsApply) add(recommended(SetupStep.NOTIFICATIONS, facts.notificationsAllowed))
                 add(navigationBar(facts, accessibilityDone))
             }
             return SetupChecklist(items)
@@ -115,6 +116,16 @@ data class SetupChecklist(val items: List<SetupItem>) {
 
         private fun required(step: SetupStep, state: StepState) =
             SetupItem(step, SetupGroup.REQUIRED, state)
+
+        private fun recommended(step: SetupStep, done: Boolean) =
+            SetupItem(step, SetupGroup.RECOMMENDED, if (done) StepState.DONE else StepState.TO_DO)
+
+        // The switch only turns on once restricted settings are allowed.
+        private fun restrictedSettings(facts: SetupFacts): SetupItem {
+            val done = facts.restrictedSettingsConfirmed || facts.serviceEverEnabled ||
+                facts.service != ServiceStatus.OFF
+            return required(SetupStep.RESTRICTED_SETTINGS, if (done) StepState.DONE else StepState.UNVERIFIED)
+        }
 
         private fun afterAccessibility(step: SetupStep, done: Boolean, accessibilityDone: Boolean) =
             when {

@@ -23,16 +23,23 @@ import android.content.Intent
 import android.util.Log
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.navigation.NavigationMode
+import com.h3nc4.hypergesture.setup.StopNotifier
 
 /**
  * Android rebinds the accessibility service on boot by itself, so this exists only for the
  * navigation subsystem — and since a normal APK cannot restore the state HyperOS resets
  * across a reboot, it only observes it and lets the UI report it.
+ *
+ * A service HyperOS switched off across the reboot never binds, so this is also where the
+ * stop notice gets posted.
  */
 class BootCompletedReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+
+        val pending = goAsync()
+        StopNotifier.sync(context) { pending.finish() }
 
         val status = NavigationIntegrationFactory.create(context).status()
         if (status.available && status.currentMode != NavigationMode.GESTURAL) {

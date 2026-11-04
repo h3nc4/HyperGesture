@@ -43,6 +43,7 @@ import com.h3nc4.hypergesture.gesture.ScreenEdge
 import com.h3nc4.hypergesture.gesture.TouchSample
 import com.h3nc4.hypergesture.settings.GestureSettingsRepository
 import com.h3nc4.hypergesture.setup.GestureTileService
+import com.h3nc4.hypergesture.setup.StopNotifier
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -106,6 +107,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             FailureLog.record(this, "onServiceConnected", t)
         }
         GestureTileService.requestRefresh(this)
+        StopNotifier.sync(this)
     }
 
     private fun setUp() {
@@ -133,6 +135,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     override fun onUnbind(intent: Intent?): Boolean {
         teardown()
         GestureTileService.requestRefresh(this)
+        StopNotifier.sync(this)
         return super.onUnbind(intent)
     }
 
