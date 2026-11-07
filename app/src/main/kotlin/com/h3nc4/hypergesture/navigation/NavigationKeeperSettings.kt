@@ -22,13 +22,13 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.preferencesDataStore
+import com.h3nc4.hypergesture.settings.resettingPreferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 private val Context.navigationKeeperDataStore: DataStore<Preferences> by
-    preferencesDataStore(name = "navigation_keeper")
+    resettingPreferencesDataStore("navigation_keeper")
 
 /** Off until the user turns it on, and only read on a device whose integration has a keeper. */
 class NavigationKeeperSettings(private val store: DataStore<Preferences>) {
