@@ -4,6 +4,8 @@
 
 HyperOS ties its gesture navigation to the stock launcher. Switch to Nova, Niagara or Lawnchair and the phone drops you back to three buttons. HyperGesture brings the gestures back with one app, without root, ADB, Shizuku or a computer. It works on any phone with Android 11 or newer.
 
+If you do have ADB or Shizuku, one optional permission lets HyperGesture also keep the navigation bar hidden after HyperOS brings it back. Grant it with `pm grant com.h3nc4.hypergesture android.permission.WRITE_SECURE_SETTINGS` from `adb shell` or from a Shizuku shell such as `rish`.
+
 **[Download the latest release](https://github.com/h3nc4/HyperGesture/releases/latest)** · [hypergesture.h3nc4.com](https://hypergesture.h3nc4.com), the install guide in English and Português
 
 ## Gestures
@@ -32,7 +34,7 @@ Gestures need an accessibility service. This one watches thin strips along the s
 
 ## What it can't do
 
-It can't switch on HyperOS's own gesture navigation, since only the system is allowed to do that. It can open the navigation settings so you can hide the three-button bar. HyperOS brings the bar back after a reboot or a launcher change, and the optional **Keep the bar hidden** switch hides it again once you grant one permission over adb. [docs/hyperos-navigation.md](docs/hyperos-navigation.md) has the details, and [docs/development.md](docs/development.md) covers working on the code.
+It can't switch on HyperOS's own gesture navigation, since only the system is allowed to do that. It can open the navigation settings so you can hide the three-button bar. HyperOS brings the bar back after a reboot or a launcher change, and the optional **Keep the bar hidden** switch hides it again once the permission above is granted. [docs/hyperos-navigation.md](docs/hyperos-navigation.md) has the details, and [docs/development.md](docs/development.md) covers working on the code.
 
 ## Contributors
 
