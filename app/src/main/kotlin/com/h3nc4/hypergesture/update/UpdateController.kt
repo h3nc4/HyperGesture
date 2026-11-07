@@ -18,6 +18,7 @@
 package com.h3nc4.hypergesture.update
 
 import android.content.pm.PackageInstaller
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,6 +32,7 @@ internal sealed interface FetchResult {
     data class RateLimited(val resetEpochSeconds: Long?) : FetchResult
     data class HttpError(val code: Int) : FetchResult
     data class NoNetwork(val reason: String) : FetchResult
+    data class Unreadable(val reason: String) : FetchResult
 
     companion object {
         /** GitHub answers an exhausted quota with 403 or 429 and a zero remaining header. */
@@ -48,6 +50,7 @@ internal sealed interface FetchResult {
 internal sealed interface DownloadResult {
     data class Ok(val file: File, val verified: Boolean) : DownloadResult
     data object ChecksumMismatch : DownloadResult
+    data object Unverified : DownloadResult
     data class BlockedHost(val host: String) : DownloadResult
     data class Failed(val reason: String) : DownloadResult
 }
@@ -94,7 +97,7 @@ internal interface ApkInstaller {
     fun canInstall(): Boolean
 
     /** Hands the file to the system, which answers later through [UpdateController.onInstallOutcome]. */
-    fun install(file: File): String?
+    suspend fun install(file: File): String?
 }
 
 internal interface UpdateStore {
@@ -112,6 +115,7 @@ internal sealed interface CheckFailure {
     data class RateLimited(val resetEpochSeconds: Long?) : CheckFailure
     data class Http(val code: Int) : CheckFailure
     data class BadResponse(val reason: String) : CheckFailure
+    data class Unexpected(val reason: String) : CheckFailure
 }
 
 internal sealed interface UpdatePhase {
@@ -180,10 +184,16 @@ internal class UpdateController(
 
     private suspend fun check() {
         update { it.copy(phase = UpdatePhase.Checking) }
-        val now = clock()
-        val fetched = source.latest()
-        store.recordAttempt(now, (fetched as? FetchResult.Ok)?.body)
-        update { it.copy(lastCheckedMs = now) }
+        recovering({ fail(CheckFailure.Unexpected(it)) }) {
+            val now = clock()
+            val fetched = source.latest()
+            store.recordAttempt(now, (fetched as? FetchResult.Ok)?.body)
+            update { it.copy(lastCheckedMs = now) }
+            decide(fetched)
+        }
+    }
+
+    private fun decide(fetched: FetchResult) {
         when (fetched) {
             is FetchResult.Ok -> {
                 val release = try {
@@ -198,6 +208,7 @@ internal class UpdateController(
             is FetchResult.RateLimited -> fail(CheckFailure.RateLimited(fetched.resetEpochSeconds))
             is FetchResult.HttpError -> fail(CheckFailure.Http(fetched.code))
             is FetchResult.NoNetwork -> fail(CheckFailure.NoNetwork(fetched.reason))
+            is FetchResult.Unreadable -> fail(CheckFailure.BadResponse(fetched.reason))
         }
     }
 
@@ -222,15 +233,23 @@ internal class UpdateController(
             update { it.copy(phase = UpdatePhase.PermissionNeeded) }
             return
         }
-        update { it.copy(phase = UpdatePhase.Downloading(null)) }
-        val downloaded = downloader.download(offer.asset) { percent ->
-            update { it.copy(phase = UpdatePhase.Downloading(percent)) }
-        }
-        if (downloaded !is DownloadResult.Ok) {
-            update { it.copy(phase = UpdatePhase.DownloadFailed(downloaded)) }
+        // A digest is the only proof the APK is the one GitHub holds, so none means no install.
+        if (offer.asset.sha256 == null) {
+            update { it.copy(phase = UpdatePhase.DownloadFailed(DownloadResult.Unverified)) }
             return
         }
-        val refusal = installer.install(downloaded.file)
+        update { it.copy(phase = UpdatePhase.Downloading(null)) }
+        val downloaded = recovering(DownloadResult::Failed) {
+            downloader.download(offer.asset) { percent ->
+                update { it.copy(phase = UpdatePhase.Downloading(percent)) }
+            }
+        }
+        if (downloaded !is DownloadResult.Ok || !downloaded.verified) {
+            val failure = if (downloaded is DownloadResult.Ok) DownloadResult.Unverified else downloaded
+            update { it.copy(phase = UpdatePhase.DownloadFailed(failure)) }
+            return
+        }
+        val refusal = recovering({ it }) { installer.install(downloaded.file) }
         update {
             it.copy(phase = refusal?.let(UpdatePhase::InstallNotStarted) ?: UpdatePhase.Confirming)
         }
@@ -246,6 +265,15 @@ internal class UpdateController(
 
     fun onInstallOutcome(outcome: InstallOutcome) = update {
         it.copy(phase = UpdatePhase.InstallEnded(outcome))
+    }
+
+    /** Ends an unforeseen error as [fallback], so the screen never stays busy. */
+    private inline fun <T> recovering(fallback: (String) -> T, block: () -> T): T = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        fallback(e.reason())
     }
 
     private inline fun update(transform: (UpdateState) -> UpdateState) {

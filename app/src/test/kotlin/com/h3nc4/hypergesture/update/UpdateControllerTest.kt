@@ -17,11 +17,13 @@
 
 package com.h3nc4.hypergesture.update
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -52,8 +54,10 @@ class UpdateControllerTest {
 
     private class FakeInstaller(var allowed: Boolean, var refusal: String? = null) : ApkInstaller {
         val installed = mutableListOf<File>()
+        var crash: Exception? = null
         override fun canInstall() = allowed
-        override fun install(file: File): String? {
+        override suspend fun install(file: File): String? {
+            crash?.let { throw it }
             installed += file
             return refusal
         }
@@ -169,6 +173,7 @@ class UpdateControllerTest {
             FetchResult.NoNetwork("timeout") to CheckFailure.NoNetwork("timeout"),
             FetchResult.RateLimited(7) to CheckFailure.RateLimited(7),
             FetchResult.HttpError(502) to CheckFailure.Http(502),
+            FetchResult.Unreadable("too long") to CheckFailure.BadResponse("too long"),
         )
         for ((answer, failure) in cases) {
             source.answer = answer
@@ -301,5 +306,59 @@ class UpdateControllerTest {
         val received = async(start = CoroutineStart.UNDISPATCHED) { InstallEvents.outcomes.first() }
         InstallEvents.emit(InstallOutcome.Installed)
         assertEquals(InstallOutcome.Installed, received.await())
+    }
+
+    @Test
+    fun `an asset without a digest is refused before any download`() = runBlocking {
+        source.answer = FetchResult.Ok(release.replace(Regex("\"digest\":\"[^\"]*\","), ""))
+        val controller = controller(FakeStore(on = true))
+        controller.onAppOpen()
+        controller.downloadAndInstall()
+        assertEquals(UpdatePhase.DownloadFailed(DownloadResult.Unverified), controller.phase)
+        assertEquals(0, downloader.calls)
+        assertTrue(installer.installed.isEmpty())
+    }
+
+    @Test
+    fun `an unverified download never reaches the installer`() = runBlocking {
+        downloader.answer = DownloadResult.Ok(apk, verified = false)
+        val controller = controller(FakeStore(on = true))
+        controller.onAppOpen()
+        controller.downloadAndInstall()
+        assertEquals(UpdatePhase.DownloadFailed(DownloadResult.Unverified), controller.phase)
+        assertTrue(installer.installed.isEmpty())
+    }
+
+    @Test
+    fun `an unexpected error during a check ends it as failed`() = runBlocking {
+        source.whileFetching = { throw IllegalStateException("boom") }
+        val controller = controller(FakeStore(on = true))
+        controller.onAppOpen()
+        assertEquals(UpdatePhase.CheckFailed(CheckFailure.Unexpected("boom")), controller.phase)
+        assertFalse(controller.state.value.busy)
+    }
+
+    @Test
+    fun `an unexpected error while downloading or installing ends the attempt`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        controller.onAppOpen()
+        downloader.whileDownloading = { throw IllegalStateException("disk gone") }
+        controller.downloadAndInstall()
+        assertEquals(UpdatePhase.DownloadFailed(DownloadResult.Failed("disk gone")), controller.phase)
+
+        downloader.whileDownloading = {}
+        installer.crash = SecurityException("denied")
+        controller.downloadAndInstall()
+        assertEquals(UpdatePhase.InstallNotStarted("denied"), controller.phase)
+        assertFalse(controller.state.value.busy)
+    }
+
+    @Test
+    fun `cancelling a check is not reported as a failure`() = runBlocking {
+        source.whileFetching = { throw CancellationException("switched off") }
+        val controller = controller(FakeStore(on = true))
+        val thrown = runCatching { controller.onAppOpen() }.exceptionOrNull()
+        assertTrue(thrown is CancellationException)
+        assertEquals(UpdatePhase.Checking, controller.phase)
     }
 }

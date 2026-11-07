@@ -172,6 +172,21 @@ class UpdateNetworkTest {
     }
 
     @Test
+    fun `a release answer longer than the cap is refused as unreadable`() = runBlocking {
+        val full = ByteArray(MAX_RELEASE_BYTES) { 'a'.code.toByte() }
+        val atCap = FakeTransport(mapOf(LATEST_RELEASE_URL to { FakeResponse(200, full) }))
+        assertEquals(FetchResult.Ok(full.decodeToString()), GitHubReleaseSource(atCap).latest())
+
+        val endless = FakeResponse(200, full + 'a'.code.toByte())
+        val over = FakeTransport(mapOf(LATEST_RELEASE_URL to { endless }))
+        assertEquals(
+            FetchResult.Unreadable("answer over $MAX_RELEASE_BYTES bytes"),
+            GitHubReleaseSource(over).latest(),
+        )
+        assertTrue(endless.closed)
+    }
+
+    @Test
     fun `an error is reported by its message, else by its type`() {
         assertEquals("timeout", IOException("timeout").reason())
         assertEquals("java.io.IOException", IOException().reason())
