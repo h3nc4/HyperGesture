@@ -83,7 +83,7 @@ jobs:
       matrix:
         include:
           - shard: 1
-            suites: status-refresh app-switch
+            suites: status-refresh app-switch stop-notice
           - shard: 2
             suites: navigation back-revert
           - shard: 3

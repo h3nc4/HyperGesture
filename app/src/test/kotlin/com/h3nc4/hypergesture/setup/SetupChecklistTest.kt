@@ -36,6 +36,8 @@ class SetupChecklistTest {
         autostartApplies = true,
         autostartConfirmed = false,
         tileAdded = false,
+        notificationsApply = false,
+        notificationsAllowed = false,
         navigationBarChangeable = true,
         navigationBarHidden = false,
     )
@@ -137,6 +139,15 @@ class SetupChecklistTest {
         val generic = SetupChecklist.evaluate(allSet.copy(navigationBarChangeable = false, navigationBarHidden = false))
         assertEquals(StepState.UNAVAILABLE, generic[SetupStep.NAVIGATION_BAR]?.state)
         assertEquals(0, generic.recommendedLeft)
+    }
+
+    @Test
+    fun `notifications are a recommended step from Android 13`() {
+        assertNull(SetupChecklist.evaluate(firstRun)[SetupStep.NOTIFICATIONS])
+        val asked = firstRun.copy(notificationsApply = true)
+        assertEquals(SetupGroup.RECOMMENDED, SetupChecklist.evaluate(asked)[SetupStep.NOTIFICATIONS]?.group)
+        assertEquals(StepState.TO_DO, state(asked, SetupStep.NOTIFICATIONS))
+        assertEquals(StepState.DONE, state(asked.copy(notificationsAllowed = true), SetupStep.NOTIFICATIONS))
     }
 
     @Test

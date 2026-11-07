@@ -31,6 +31,7 @@ data class SetupRecord(
     val restrictedSettingsConfirmed: Boolean = false,
     val batteryConfirmed: Boolean = false,
     val autostartConfirmed: Boolean = false,
+    val stopNoticePosted: Boolean = false,
 )
 
 enum class SetupFlag(internal val key: Preferences.Key<Boolean>) {
@@ -39,6 +40,7 @@ enum class SetupFlag(internal val key: Preferences.Key<Boolean>) {
     RESTRICTED_SETTINGS_CONFIRMED(booleanPreferencesKey("restricted_settings_confirmed")),
     BATTERY_CONFIRMED(booleanPreferencesKey("battery_confirmed")),
     AUTOSTART_CONFIRMED(booleanPreferencesKey("autostart_confirmed")),
+    STOP_NOTICE_POSTED(booleanPreferencesKey("stop_notice_posted")),
 }
 
 class SetupStateRepository(private val store: DataStore<Preferences>) {
@@ -51,6 +53,7 @@ class SetupStateRepository(private val store: DataStore<Preferences>) {
             restrictedSettingsConfirmed = flag(SetupFlag.RESTRICTED_SETTINGS_CONFIRMED),
             batteryConfirmed = flag(SetupFlag.BATTERY_CONFIRMED),
             autostartConfirmed = flag(SetupFlag.AUTOSTART_CONFIRMED),
+            stopNoticePosted = flag(SetupFlag.STOP_NOTICE_POSTED),
         )
     }
 
