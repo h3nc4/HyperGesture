@@ -116,13 +116,14 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
     private fun setUp() {
         settings = GestureSettingsRepository(applicationContext)
-        performer = GestureActionPerformer(this)
+        performer = GestureActionPerformer(this, scope)
         windowManager = getSystemService(WindowManager::class.java)
         overlay = EdgeTouchOverlay(
             context = this,
             windowManager = windowManager,
             replayer = this,
             onGestureAction = ::onGestureAction,
+            onAppSwitchArmed = ::onAppSwitchArmed,
         )
 
         (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
@@ -213,9 +214,13 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         runningState.value = false
     }
 
-    private fun onGestureAction(action: GestureAction, edge: ScreenEdge) {
+    private fun onGestureAction(action: GestureAction, edge: ScreenEdge, stream: Long) {
         Log.v(TAG, "Gesture from $edge -> $action")
-        performer.perform(action)
+        performer.perform(action, stream)
+    }
+
+    private fun onAppSwitchArmed(stream: Long) {
+        if (configuration.appSwitchEnabled) performer.prepareAppSwitch(stream)
     }
 
     /**

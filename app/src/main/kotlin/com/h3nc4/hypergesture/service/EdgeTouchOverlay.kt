@@ -64,7 +64,8 @@ internal class EdgeTouchOverlay(
     private val context: Context,
     private val windowManager: WindowManager,
     private val replayer: TouchReplayer,
-    private val onGestureAction: (GestureAction, ScreenEdge) -> Unit,
+    private val onGestureAction: (GestureAction, ScreenEdge, Long) -> Unit,
+    private val onAppSwitchArmed: (Long) -> Unit,
     private val layout: OverlayLayout = OverlayLayout(),
 ) {
 
@@ -155,8 +156,9 @@ internal class EdgeTouchOverlay(
             journal = journal,
             onStreamStart = { onStreamStart(edge) },
             onActivity = ::onActivity,
+            onAppSwitchArmed = { stream -> if (hold.isCurrent(stream)) onAppSwitchArmed(stream) },
             admit = { stream, action -> hold.isCurrent(stream) && admit(action, edge) },
-            onFire = { stream, action -> if (hold.isCurrent(stream)) onFire(action, edge) },
+            onFire = { stream, action -> if (hold.isCurrent(stream)) onFire(action, edge, stream) },
             onUnused = { stream, samples -> onUnused(edge, stream, samples) },
             onStreamEnd = { stream -> endStream(edge, stream) },
         )
@@ -240,8 +242,8 @@ internal class EdgeTouchOverlay(
         return verdict is ConfirmVerdict.Perform
     }
 
-    private fun onFire(action: GestureAction, edge: ScreenEdge) {
-        onGestureAction(action, edge)
+    private fun onFire(action: GestureAction, edge: ScreenEdge, stream: Long) {
+        onGestureAction(action, edge, stream)
     }
 
     private fun onUnused(edge: ScreenEdge, stream: Long, samples: List<TouchSample>) {
@@ -358,6 +360,7 @@ internal class EdgeTouchOverlay(
         private val journal: StreamJournal,
         private val onStreamStart: () -> Long,
         private val onActivity: (Long) -> Unit,
+        private val onAppSwitchArmed: (Long) -> Unit,
         private val admit: (Long, GestureAction) -> Boolean,
         private val onFire: (Long, GestureAction) -> Unit,
         private val onUnused: (Long, List<TouchSample>) -> Unit,
@@ -488,6 +491,7 @@ internal class EdgeTouchOverlay(
                     removeCallbacks(longPressRunnable)
                     note("$edge armed (hold=${action.scheduleHoldMs})")
                     action.scheduleHoldMs?.let { postDelayed(holdRunnable, it) }
+                    if (action.appSwitch != null) onAppSwitchArmed(stream)
                 }
                 is TrackerAction.RearmHold -> {
                     removeCallbacks(holdRunnable)

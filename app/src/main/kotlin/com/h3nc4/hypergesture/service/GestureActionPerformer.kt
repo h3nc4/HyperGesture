@@ -24,28 +24,32 @@ import android.widget.Toast
 import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.gesture.GestureAction
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * MIUI/HyperOS occasionally returns `false` from
  * [AccessibilityService.performGlobalAction] for no clear reason, so failures are
  * recorded for the diagnostics panel instead of looking like a recognizer bug.
  */
-class GestureActionPerformer(private val service: AccessibilityService) {
+class GestureActionPerformer(private val service: AccessibilityService, scope: CoroutineScope) {
 
-    private val switcher = AppSwitcher(service)
+    private val switcher = AppSwitcher(service, scope)
 
     private val assistantTag: String? by lazy {
         NavigationIntegrationFactory.create(service).assistantAttributionTag
     }
 
-    fun perform(action: GestureAction): Boolean {
+    /** Starts reading the app order for [stream] once it arms as a switch. */
+    fun prepareAppSwitch(stream: Long) = switcher.prepare(stream)
+
+    fun perform(action: GestureAction, stream: Long): Boolean {
         val globalAction = when (action) {
             GestureAction.Back -> AccessibilityService.GLOBAL_ACTION_BACK
             GestureAction.Home -> AccessibilityService.GLOBAL_ACTION_HOME
             GestureAction.Recents -> AccessibilityService.GLOBAL_ACTION_RECENTS
             // Android exposes no global action for these, so they launch instead.
-            GestureAction.PreviousApp -> return switcher.step(toPrevious = true)
-            GestureAction.NextApp -> return switcher.step(toPrevious = false)
+            GestureAction.PreviousApp -> return switcher.step(toPrevious = true, stream)
+            GestureAction.NextApp -> return switcher.step(toPrevious = false, stream)
             GestureAction.CircleToSearch -> return circleToSearch()
         }
 

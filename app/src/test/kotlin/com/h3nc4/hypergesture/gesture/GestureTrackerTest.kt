@@ -18,6 +18,7 @@
 package com.h3nc4.hypergesture.gesture
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -331,8 +332,10 @@ class GestureTrackerTest {
         t.onDown(sample(300f, 2395f, 0L))
         // 200px sideways is past the 27.5px bottom threshold, with no upward travel.
         val armed = t.onMove(sample(500f, 2395f, 60L))
-        assertTrue("expected arming, got $armed", armed is TrackerAction.Armed)
-        assertEquals(null, (armed as TrackerAction.Armed).scheduleHoldMs)
+        assertEquals(
+            TrackerAction.Armed(scheduleHoldMs = null, appSwitch = GestureAction.PreviousApp),
+            armed,
+        )
         assertEquals(
             TrackerAction.Fire(GestureAction.PreviousApp, ScreenEdge.BOTTOM),
             t.onUp(sample(500f, 2395f, 80L)),
@@ -343,7 +346,10 @@ class GestureTrackerTest {
     fun `swiping left along the bottom edge goes to the next app`() {
         val t = switchingTracker()
         t.onDown(sample(500f, 2395f, 0L))
-        assertTrue(t.onMove(sample(300f, 2395f, 60L)) is TrackerAction.Armed)
+        assertEquals(
+            TrackerAction.Armed(scheduleHoldMs = null, appSwitch = GestureAction.NextApp),
+            t.onMove(sample(300f, 2395f, 60L)),
+        )
         assertEquals(
             TrackerAction.Fire(GestureAction.NextApp, ScreenEdge.BOTTOM),
             t.onUp(sample(300f, 2395f, 80L)),
@@ -376,10 +382,19 @@ class GestureTrackerTest {
         // upward reading arms Home instead.
         val armed = t.onMove(sample(500f, 2095f, 60L))
         assertTrue(armed is TrackerAction.Armed)
+        assertNull((armed as TrackerAction.Armed).appSwitch)
         assertEquals(
             TrackerAction.Fire(GestureAction.Home, ScreenEdge.BOTTOM),
             t.onUp(sample(500f, 2095f, 80L)),
         )
+    }
+
+    @Test
+    fun `with switching off a sideways bottom stroke never arms as a switch`() {
+        val t = tracker(ScreenEdge.BOTTOM)
+        t.onDown(sample(300f, 2395f, 0L))
+        val moved = t.onMove(sample(500f, 2395f, 60L))
+        assertNull((moved as? TrackerAction.Armed)?.appSwitch)
     }
 
     @Test
@@ -397,7 +412,7 @@ class GestureTrackerTest {
     fun `a sideways swipe on a side edge is still Back, not a switch`() {
         val t = switchingTracker(ScreenEdge.LEFT)
         t.onDown(sample(5f, 1200f, 0L))
-        assertTrue(t.onMove(sample(105f, 1200f, 60L)) is TrackerAction.Armed)
+        assertEquals(TrackerAction.Armed(scheduleHoldMs = null), t.onMove(sample(105f, 1200f, 60L)))
         assertEquals(
             TrackerAction.Fire(GestureAction.Back, ScreenEdge.LEFT),
             t.onUp(sample(105f, 1200f, 80L)),
@@ -412,10 +427,12 @@ class GestureTrackerTest {
         val armedUp = t.onMove(sample(305f, 2365f, 30L))
         assertTrue("expected arming, got $armedUp", armedUp is TrackerAction.Armed)
         assertEquals(100L, (armedUp as TrackerAction.Armed).scheduleHoldMs)
+        assertNull(armedUp.appSwitch)
         // Then the finger carries on sideways, which re-arms with no hold.
-        val armedSideways = t.onMove(sample(600f, 2370f, 80L))
-        assertTrue("expected re-arming, got $armedSideways", armedSideways is TrackerAction.Armed)
-        assertEquals(null, (armedSideways as TrackerAction.Armed).scheduleHoldMs)
+        assertEquals(
+            TrackerAction.Armed(scheduleHoldMs = null, appSwitch = GestureAction.PreviousApp),
+            t.onMove(sample(600f, 2370f, 80L)),
+        )
         assertEquals(TrackerAction.None, t.onHoldElapsed())
         assertEquals(
             TrackerAction.Fire(GestureAction.PreviousApp, ScreenEdge.BOTTOM),
