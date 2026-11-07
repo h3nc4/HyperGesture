@@ -41,6 +41,7 @@ import com.h3nc4.hypergesture.gesture.GestureTracker
 import com.h3nc4.hypergesture.gesture.HapticGate
 import com.h3nc4.hypergesture.gesture.LandscapeConfirm
 import com.h3nc4.hypergesture.gesture.ScreenEdge
+import com.h3nc4.hypergesture.gesture.TouchRecording
 import com.h3nc4.hypergesture.gesture.TouchSample
 import com.h3nc4.hypergesture.gesture.TrackerAction
 
@@ -364,7 +365,7 @@ internal class EdgeTouchOverlay(
         private val onStreamEnd: (Long) -> Unit,
     ) : View(context) {
 
-        private val samples = ArrayList<TouchSample>(MAX_SAMPLES)
+        private val samples = TouchRecording(MAX_SAMPLES)
         private var abandoned = false
         private val haptics = HapticGate()
 
@@ -403,14 +404,14 @@ internal class EdgeTouchOverlay(
                     samples.clear()
                     abandoned = false
                     haptics.reset()
-                    samples += sample
+                    samples.add(sample)
                     note("$edge DOWN at ${sample.xPx.toInt()},${sample.yPx.toInt()}")
                     stream = onStreamStart()
                     track(tracker.onDown(sample), sample, replayable = false)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (samples.size < MAX_SAMPLES) samples += sample
+                    samples.add(sample)
                     track(tracker.onMove(sample), sample, replayable = false)
                     true
                 }
@@ -433,7 +434,7 @@ internal class EdgeTouchOverlay(
                     val releaseDeferred = if (abandoned) {
                         false
                     } else {
-                        if (samples.size < MAX_SAMPLES) samples += sample
+                        samples.add(sample)
                         track(tracker.onUp(sample), sample, replayable = true)
                     }
                     samples.clear()
@@ -508,8 +509,8 @@ internal class EdgeTouchOverlay(
                 is TrackerAction.Unused -> {
                     cancelHold()
                     note("$edge unused (${action.reason})")
-                    if (replayable && samples.isNotEmpty()) {
-                        onUnused(stream, samples.toList())
+                    if (replayable && !samples.isEmpty()) {
+                        onUnused(stream, samples.snapshot())
                         return true
                     }
                 }
@@ -519,7 +520,7 @@ internal class EdgeTouchOverlay(
 
         // The belly moves first. A replay must never land under a visible window.
         private fun track(action: TrackerAction, sample: TouchSample, replayable: Boolean): Boolean {
-            belly?.follow(action, samples.firstOrNull()?.yPx ?: sample.yPx, inwardPx(sample))
+            belly?.follow(action, samples.first?.yPx ?: sample.yPx, inwardPx(sample))
             return handle(action, replayable)
         }
 
@@ -534,7 +535,7 @@ internal class EdgeTouchOverlay(
         }
 
         private fun inwardPx(sample: TouchSample): Float {
-            val down = samples.firstOrNull() ?: return 0f
+            val down = samples.first ?: return 0f
             return if (edge == ScreenEdge.RIGHT) down.xPx - sample.xPx else sample.xPx - down.xPx
         }
 
