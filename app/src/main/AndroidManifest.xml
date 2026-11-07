@@ -22,8 +22,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- No storage or overlay permission, since the edge strips use TYPE_ACCESSIBILITY_OVERLAY.
-         This one is for the navigation subsystem, as Android rebinds the service after boot. -->
+         This one is for the navigation subsystem and the stop notice, as Android rebinds the
+         service after boot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- The notice posted when gestures stop, asked for in setup and optional. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- The opt-in update check, the app's only network use. Installing goes through
          PackageInstaller, which shows the system confirmation every time. -->

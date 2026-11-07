@@ -28,6 +28,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.setup.GestureTileService
@@ -70,6 +71,16 @@ private fun appDetails(context: Context) = Intent(
     Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
     "package:${context.packageName}".toUri(),
 )
+
+internal fun openNotificationSettings(context: Context) = context.startFirst(
+    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+    appDetails(context),
+)
+
+/** Covers both the Android 13 permission and notifications blocked for the whole app. */
+internal fun notificationsAllowed(context: Context): Boolean =
+    NotificationManagerCompat.from(context).areNotificationsEnabled()
 
 internal fun openUsageAccess(context: Context) =
     context.startFirst(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))

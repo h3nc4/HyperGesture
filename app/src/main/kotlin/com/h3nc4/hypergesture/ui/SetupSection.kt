@@ -17,7 +17,10 @@
 
 package com.h3nc4.hypergesture.ui
 
+import android.Manifest
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -46,6 +50,12 @@ internal fun SetupRows(items: List<SetupItem>, model: AppModel) {
         )
     }
     var navigationOutcome by remember { mutableStateOf<EnableRequestOutcome?>(null) }
+    // The system may stop showing the prompt after a refusal. The button then opens Settings.
+    var notificationsRefused by rememberSaveable { mutableStateOf(false) }
+    val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        notificationsRefused = !it
+        model.refresh()
+    }
     val context = LocalContext.current
     items.forEach { item ->
         when (item.step) {
@@ -94,6 +104,23 @@ internal fun SetupRows(items: List<SetupItem>, model: AppModel) {
                 open = (R.string.action_add_tile to {
                     requestTile(context) { tileOutcome = it }
                 }).takeIf { TileAddOutcome.promptAvailable(Build.VERSION.SDK_INT) },
+            )
+            SetupStep.NOTIFICATIONS -> StepRow(
+                item = item,
+                title = R.string.step_notifications,
+                pending = R.string.step_notifications_body,
+                done = R.string.step_notifications_done,
+                outcome = stringResource(R.string.notifications_refused)
+                    .takeIf { notificationsRefused && item.state != StepState.DONE },
+                open = if (notificationsRefused) {
+                    R.string.action_open_notification_settings to { openNotificationSettings(context) }
+                } else {
+                    R.string.action_allow to {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                },
             )
             SetupStep.NAVIGATION_BAR -> StepRow(
                 item = item,

@@ -46,6 +46,7 @@ import com.h3nc4.hypergesture.navigation.NavigationKeeperSettings
 import com.h3nc4.hypergesture.navigation.NavigationKeeperWatch
 import com.h3nc4.hypergesture.settings.GestureSettingsRepository
 import com.h3nc4.hypergesture.setup.GestureTileService
+import com.h3nc4.hypergesture.setup.StopNotifier
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -110,6 +111,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             FailureLog.record(this, "onServiceConnected", t)
         }
         GestureTileService.requestRefresh(this)
+        StopNotifier.sync(this)
     }
 
     private fun setUp() {
@@ -148,6 +150,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     override fun onUnbind(intent: Intent?): Boolean {
         teardown()
         GestureTileService.requestRefresh(this)
+        StopNotifier.sync(this)
         return super.onUnbind(intent)
     }
 
@@ -329,6 +332,9 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         private const val WINDOW_SETTLE_MS = 65L
 
         private const val FINISH_GRACE_MS = 1_000L
+
+        /** An upper bound on how long a replay holds the strips past its UP, safety net included. */
+        internal const val LONGEST_REPLAY_HOLD_MS = MAX_REPLAY_MS + WINDOW_SETTLE_MS + FINISH_GRACE_MS
 
         @Volatile
         private var instance: HyperGestureAccessibilityService? = null

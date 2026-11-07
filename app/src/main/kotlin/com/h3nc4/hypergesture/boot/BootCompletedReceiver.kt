@@ -23,12 +23,17 @@ import android.content.Intent
 import android.util.Log
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.navigation.NavigationMode
+import com.h3nc4.hypergesture.setup.StopNotifier
 
-/** Only logs the mode HyperOS resets on boot. The service's keeper restores it, given the grant. */
+// Logs the mode HyperOS resets on boot, which the service's keeper restores given the grant.
+// A service HyperOS switched off never binds, so the stop notice is posted from here.
 class BootCompletedReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+
+        val pending = goAsync()
+        StopNotifier.sync(context) { pending.finish() }
 
         val status = NavigationIntegrationFactory.create(context).status()
         if (status.available && status.currentMode != NavigationMode.GESTURAL) {
