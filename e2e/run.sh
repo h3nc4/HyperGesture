@@ -57,7 +57,7 @@ while getopts 'a:p:kh' opt; do
 done
 shift $((OPTIND - 1))
 
-all_suites='navigation app-switch back-revert status-refresh circle-to-search landscape-confirm stop-notice'
+all_suites='navigation app-switch back-revert status-refresh circle-to-search landscape-confirm stop-notice navigation-keeper'
 suites="${all_suites}"
 if [ "$#" -gt 0 ]; then
   suites="$*"

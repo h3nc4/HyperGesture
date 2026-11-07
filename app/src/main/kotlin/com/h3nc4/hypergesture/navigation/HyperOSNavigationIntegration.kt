@@ -32,14 +32,19 @@ import android.util.Log
  * gestures on the owner's device, so HyperGesture's own recognizer still does the real
  * work. See docs/hyperos-navigation.md.
  */
-class HyperOSNavigationIntegration(private val context: Context) : NavigationIntegration {
+class HyperOSNavigationIntegration(
+    private val context: Context,
+    private val supported: Boolean = NavigationModeReader.isHyperOsDevice(),
+) : NavigationIntegration {
 
     override val id: String = ID
 
     // MiCTS sends the HyperOS launcher's tag, and with it Circle to Search starts without root.
     override val assistantAttributionTag: String = HYPEROS_HOME_TAG
 
-    override fun isSupported(): Boolean = NavigationModeReader.isHyperOsDevice()
+    override val keeper: NavigationKeeper get() = NavigationKeeper.forDevice(context)
+
+    override fun isSupported(): Boolean = supported
 
     override fun status(): NavigationIntegrationStatus {
         val version = NavigationModeReader.hyperOsVersion()

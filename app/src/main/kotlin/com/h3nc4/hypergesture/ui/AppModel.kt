@@ -37,6 +37,7 @@ import com.h3nc4.hypergesture.diagnostics.ServiceStatus
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.navigation.NavigationIntegration
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
+import com.h3nc4.hypergesture.navigation.NavigationKeeperSettings
 import com.h3nc4.hypergesture.navigation.NavigationMode
 import com.h3nc4.hypergesture.service.HyperGestureAccessibilityService
 import com.h3nc4.hypergesture.settings.GestureSettingsRepository
@@ -60,8 +61,15 @@ internal class AppModel(
     private val setupState: SetupStateRepository,
     private val scope: CoroutineScope,
 ) {
-    val integration: NavigationIntegration = NavigationIntegrationFactory.create(context)
+    val integration: NavigationIntegration get() = NavigationIntegrationFactory.create(context)
+    private val keeperSettings = NavigationKeeperSettings(context)
     val snackbar = SnackbarHostState()
+
+    /** Null where the integration has no keeper, so the screen leaves the row out. */
+    var keeperGranted: Boolean? by mutableStateOf(integration.keeper?.granted)
+        private set
+    var keeperEnabled by mutableStateOf(false)
+        private set
 
     var configuration by mutableStateOf(GestureConfiguration())
         private set
@@ -103,6 +111,7 @@ internal class AppModel(
         assistant = readAssistant(context)
         batteryUnrestricted = batteryUnrestricted(context)
         notificationsAllowed = notificationsAllowed(context)
+        keeperGranted = integration.keeper?.granted
         if (status != ServiceStatus.OFF && !record.serviceEverEnabled) {
             setFlag(SetupFlag.SERVICE_EVER_ENABLED, true)
         }
@@ -115,6 +124,10 @@ internal class AppModel(
 
     fun setFlag(flag: SetupFlag, value: Boolean) {
         scope.launch { setupState.set(flag, value) }
+    }
+
+    fun switchKeeper(enabled: Boolean) {
+        scope.launch { keeperSettings.setEnabled(enabled) }
     }
 
     /** Reset has no confirmation, so the snackbar offers the old values back instead. */
@@ -130,6 +143,7 @@ internal class AppModel(
     internal suspend fun observe() {
         scope.launch { settings.configuration.collect { configuration = it } }
         scope.launch { setupState.record.collect { record = it } }
+        scope.launch { keeperSettings.enabled.collect { keeperEnabled = it } }
         // UiAutomation, which uiautomator and screen readers use, unbinds the service for a moment.
         // So a stop shows only once it outlasts that, and a return shows at once.
         HyperGestureAccessibilityService.running.collectLatest { running ->

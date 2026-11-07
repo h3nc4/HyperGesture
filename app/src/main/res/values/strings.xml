@@ -87,6 +87,10 @@
     <string name="outcome_launched">Opened navigation settings. Choose gesture navigation to hide the bar.</string>
     <string name="outcome_unsupported">Not supported on this device. This is a platform restriction, not a HyperGesture problem.</string>
     <string name="outcome_failed">Could not open the screen: %1$s</string>
+    <string name="label_keep_navigation">Keep the bar hidden</string>
+    <string name="keep_navigation_body">HyperOS shows the bar again after a reboot or a launcher change. This hides it again each time, while the service runs.</string>
+    <string name="keep_navigation_grant_body">HyperOS shows the bar again after a reboot or a launcher change. To let HyperGesture hide it again, run this once from a computer with USB debugging on. Xiaomi also needs USB debugging (Security settings) on.</string>
+    <string name="keep_navigation_grant_command" translatable="false">adb shell pm grant %1$s android.permission.WRITE_SECURE_SETTINGS</string>
 
     <!-- Control Center tile. -->
     <string name="step_tile">Control Center tile</string>

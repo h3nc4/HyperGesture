@@ -41,6 +41,9 @@ import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.gesture.PlatformDefaults
 import com.h3nc4.hypergesture.gesture.ScreenEdge
 import com.h3nc4.hypergesture.gesture.TouchSample
+import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
+import com.h3nc4.hypergesture.navigation.NavigationKeeperSettings
+import com.h3nc4.hypergesture.navigation.NavigationKeeperWatch
 import com.h3nc4.hypergesture.settings.GestureSettingsRepository
 import com.h3nc4.hypergesture.setup.GestureTileService
 import com.h3nc4.hypergesture.setup.StopNotifier
@@ -77,6 +80,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     private lateinit var performer: GestureActionPerformer
     private lateinit var windowManager: WindowManager
     private var overlay: EdgeTouchOverlay? = null
+    private var keeperWatch: NavigationKeeperWatch? = null
     private var configuration: GestureConfiguration = GestureConfiguration()
     private var lastGeometry: ScreenGeometry? = null
 
@@ -130,6 +134,17 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
                 installOverlay()
             }
         }
+        scope.launch {
+            NavigationKeeperSettings(applicationContext).enabled.collect(::watchNavigation)
+        }
+    }
+
+    // Reads the integration again on each change. Turning the switch off unregisters the observer.
+    private fun watchNavigation(enabled: Boolean) {
+        keeperWatch?.stop()
+        keeperWatch = null
+        val keeper = NavigationIntegrationFactory.create(this).keeper?.takeIf { enabled } ?: return
+        keeperWatch = NavigationKeeperWatch(this, handler, keeper).also { it.start() }
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -190,6 +205,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         }
         overlay?.remove()
         overlay = null
+        keeperWatch?.stop()
+        keeperWatch = null
         handler.removeCallbacksAndMessages(null)
         scope.cancel()
         instance = null
