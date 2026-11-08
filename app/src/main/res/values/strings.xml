@@ -197,6 +197,7 @@
     <string name="update_summary_rate_limited">GitHub is limiting requests</string>
     <string name="update_summary_http_error">GitHub answered HTTP %1$d</string>
     <string name="update_summary_bad_response">Unreadable answer from GitHub</string>
+    <string name="update_summary_check_failed">Check failed</string>
     <string name="update_summary_no_apk">%1$s has no APK yet</string>
     <string name="update_summary_nothing_published">No release yet</string>
     <string name="update_summary_unreadable_version">Could not compare versions</string>
@@ -217,10 +218,12 @@
     <string name="update_rate_limited_until">GitHub is limiting requests from this network. Try again after %1$s.</string>
     <string name="update_http_error">GitHub answered with HTTP %1$d. Try again later.</string>
     <string name="update_bad_response">GitHub sent an answer this app could not read (%1$s).</string>
+    <string name="update_check_failed">The check failed (%1$s). Try again.</string>
     <string name="update_downloading">Downloading %1$s…</string>
     <string name="update_permission_needed">Android needs your permission before HyperGesture can install an update. Allow it, come back here, and the download starts.</string>
     <string name="update_confirming">Confirm the update in the system prompt.</string>
     <string name="update_checksum_mismatch">The download did not match the checksum GitHub published, so it was deleted and nothing was installed.</string>
+    <string name="update_unverified">GitHub published no checksum for this APK, so it could not be verified and nothing was installed.</string>
     <string name="update_blocked_host">The download was redirected to %1$s, which is not a GitHub host, so it was stopped.</string>
     <string name="update_download_failed">The download failed (%1$s). Try again.</string>
     <string name="update_install_failed">The update did not install (%1$s).</string>

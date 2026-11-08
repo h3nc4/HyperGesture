@@ -29,6 +29,7 @@ import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.h3nc4.hypergesture.settings.resettingPreferencesDataStore
+import kotlinx.coroutines.Dispatchers
 import java.io.File
 
 private const val TAG = "HyperGesture"
@@ -38,15 +39,24 @@ internal class SessionApkInstaller(private val context: Context) : ApkInstaller 
 
     override fun canInstall(): Boolean = context.packageManager.canRequestPackageInstalls()
 
-    override fun install(file: File): String? = runCatching {
-        val installer = context.packageManager.packageInstaller
+    override suspend fun install(file: File): String? =
+        installInSession(PlatformInstallSessions(context), file, Dispatchers.IO)
+}
+
+private class PlatformInstallSessions(private val context: Context) : InstallSessions {
+    private val installer get() = context.packageManager.packageInstaller
+
+    override fun create(size: Long): Int {
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         params.setAppPackageName(context.packageName)
-        params.setSize(file.length())
+        params.setSize(size)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
         }
-        val sessionId = installer.createSession(params)
+        return installer.createSession(params)
+    }
+
+    override fun writeAndCommit(sessionId: Int, file: File) {
         installer.openSession(sessionId).use { session ->
             session.openWrite(ReleaseParser.APK_NAME, 0, file.length()).use { output ->
                 file.inputStream().use { it.copyTo(output) }
@@ -61,7 +71,9 @@ internal class SessionApkInstaller(private val context: Context) : ApkInstaller 
             )
             session.commit(callback.intentSender)
         }
-    }.exceptionOrNull()?.reason()
+    }
+
+    override fun abandon(sessionId: Int) = installer.abandonSession(sessionId)
 }
 
 class InstallResultReceiver : BroadcastReceiver() {

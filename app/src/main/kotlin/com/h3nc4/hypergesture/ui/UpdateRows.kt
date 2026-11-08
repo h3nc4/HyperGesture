@@ -138,6 +138,8 @@ private fun updateMessage(state: UpdateState): String? {
             is CheckFailure.Http -> stringResource(R.string.update_http_error, failure.code)
             is CheckFailure.BadResponse ->
                 stringResource(R.string.update_bad_response, failure.reason)
+            is CheckFailure.Unexpected ->
+                stringResource(R.string.update_check_failed, failure.reason)
         }
         is UpdatePhase.Downloading -> stringResource(
             R.string.update_downloading,
@@ -147,6 +149,7 @@ private fun updateMessage(state: UpdateState): String? {
         UpdatePhase.Confirming -> stringResource(R.string.update_confirming)
         is UpdatePhase.DownloadFailed -> when (val result = phase.result) {
             DownloadResult.ChecksumMismatch -> stringResource(R.string.update_checksum_mismatch)
+            DownloadResult.Unverified -> stringResource(R.string.update_unverified)
             is DownloadResult.BlockedHost ->
                 stringResource(R.string.update_blocked_host, result.host)
             is DownloadResult.Failed ->
@@ -192,6 +195,7 @@ internal fun updatesSummary(state: UpdateState): String {
                 is CheckFailure.RateLimited -> stringResource(R.string.update_summary_rate_limited)
                 is CheckFailure.Http -> stringResource(R.string.update_summary_http_error, failure.code)
                 is CheckFailure.BadResponse -> stringResource(R.string.update_summary_bad_response)
+                is CheckFailure.Unexpected -> stringResource(R.string.update_summary_check_failed)
             }
             else -> stringResource(R.string.update_not_checked)
         }

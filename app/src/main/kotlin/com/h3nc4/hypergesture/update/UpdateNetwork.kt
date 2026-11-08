@@ -20,6 +20,7 @@ package com.h3nc4.hypergesture.update
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -35,6 +36,9 @@ private const val TAG = "HyperGesture"
 private const val TIMEOUT_MS = 15_000
 private const val MAX_REDIRECTS = 5
 private const val BUFFER_BYTES = 64 * 1024
+
+// A real answer runs to tens of KiB, so this only stops a body that never ends.
+internal const val MAX_RELEASE_BYTES = 1024 * 1024
 
 internal const val LATEST_RELEASE_URL =
     "https://api.github.com/repos/h3nc4/HyperGesture/releases/latest"
@@ -105,13 +109,29 @@ internal class GitHubReleaseSource(private val transport: HttpTransport) : Relea
                     code = it.code,
                     remaining = it.header("x-ratelimit-remaining"),
                     reset = it.header("x-ratelimit-reset"),
-                ) { it.body().use { body -> body.readBytes().decodeToString() } }
+                ) { it.body().use { body -> body.readAtMost(MAX_RELEASE_BYTES).decodeToString() } }
             }
+        } catch (e: OversizedBodyException) {
+            FetchResult.Unreadable(e.reason())
         } catch (e: IOException) {
             Log.i(TAG, "update check failed: ${e.javaClass.simpleName}")
             FetchResult.NoNetwork(e.reason())
         }
     }
+}
+
+internal class OversizedBodyException(limit: Int) : IOException("answer over $limit bytes")
+
+internal fun InputStream.readAtMost(limit: Int): ByteArray {
+    val output = ByteArrayOutputStream()
+    val buffer = ByteArray(BUFFER_BYTES)
+    var read = read(buffer)
+    while (read >= 0) {
+        output.write(buffer, 0, read)
+        if (output.size() > limit) throw OversizedBodyException(limit)
+        read = read(buffer)
+    }
+    return output.toByteArray()
 }
 
 /** Reports a change of whole percent, or null throughout when the size is unknown. */
