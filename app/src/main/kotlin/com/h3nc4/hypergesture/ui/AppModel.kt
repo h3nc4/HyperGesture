@@ -52,9 +52,11 @@ import com.h3nc4.hypergesture.setup.StopNotifier
 import com.h3nc4.hypergesture.setup.setupState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Everything the screens show, read once per resume and kept current by the two flows. */
 @Stable
@@ -108,18 +110,24 @@ internal class AppModel(
             ),
         )
 
+    private var collecting: Job? = null
+
     fun refresh() {
-        diagnostics = DiagnosticsCollector.collect(context)
         usageAccess = hasUsageAccess(context)
         assistant = readAssistant(context)
         batteryUnrestricted = batteryUnrestricted(context)
         notificationsAllowed = notificationsAllowed(context)
         keeperGranted = integration.keeper?.granted
         restoreButtonsIfStopped()
-        if (status != ServiceStatus.OFF && !record.serviceEverEnabled) {
-            setFlag(SetupFlag.SERVICE_EVER_ENABLED, true)
+        // The collection reads two log files, so it runs off the main thread. A newer refresh cancels an older one.
+        collecting?.cancel()
+        collecting = scope.launch {
+            diagnostics = withContext(Dispatchers.IO) { DiagnosticsCollector.collect(context) }
+            if (status != ServiceStatus.OFF && !record.serviceEverEnabled) {
+                setFlag(SetupFlag.SERVICE_EVER_ENABLED, true)
+            }
+            StopNotifier.sync(context)
         }
-        StopNotifier.sync(context)
     }
 
     // Catches a kill that skipped the service's unbind, which would leave neither gestures nor buttons.
