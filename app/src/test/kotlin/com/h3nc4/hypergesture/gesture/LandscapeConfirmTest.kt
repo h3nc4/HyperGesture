@@ -78,6 +78,19 @@ class LandscapeConfirmTest {
             up(CENTRE_X, BOTTOM_Y - 150f)
         }
 
+        fun longPress() {
+            down(CENTRE_X)
+            time += 600L
+            feed(tracker.onLongPressElapsed())
+            up(CENTRE_X, BOTTOM_Y)
+        }
+
+        fun sideBack() {
+            confirm.onDown(ScreenEdge.LEFT, time)
+            feed(TrackerAction.Fire(GestureAction.Back, ScreenEdge.LEFT))
+            confirm.onStreamEnd(ScreenEdge.LEFT, time)
+        }
+
         fun swipeRight() {
             down(CENTRE_X)
             move(CENTRE_X + 300f, BOTTOM_Y)
@@ -248,6 +261,34 @@ class LandscapeConfirmTest {
             confirm.onFire(GestureAction.CircleToSearch, ScreenEdge.BOTTOM, 0L),
         )
         assertFalse(confirm.pillShown)
+    }
+
+    @Test
+    fun `a side Back after the pill drops it and the next swipe asks again`() {
+        val screen = Screen()
+        screen.swipeUp()
+        screen.pause(300L)
+        screen.sideBack()
+        assertEquals(listOf(GestureAction.Back), screen.performed)
+        assertFalse(screen.confirm.pillShown)
+        screen.pause(300L)
+        screen.swipeUp()
+        assertEquals(listOf(GestureAction.Back), screen.performed)
+        assertEquals(listOf(GestureAction.Home, GestureAction.Home), screen.pills)
+    }
+
+    @Test
+    fun `a Circle to Search hold after the pill drops it and the next swipe asks again`() {
+        val screen = Screen(GestureConfiguration(circleToSearchEnabled = true))
+        screen.swipeUp()
+        screen.pause(300L)
+        screen.longPress()
+        assertEquals(listOf(GestureAction.CircleToSearch), screen.performed)
+        assertFalse(screen.confirm.pillShown)
+        screen.pause(300L)
+        screen.swipeUp()
+        assertEquals(listOf(GestureAction.CircleToSearch), screen.performed)
+        assertEquals(listOf(GestureAction.Home, GestureAction.Home), screen.pills)
     }
 
     @Test

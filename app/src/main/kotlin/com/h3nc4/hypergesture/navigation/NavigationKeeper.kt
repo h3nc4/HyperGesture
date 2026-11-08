@@ -48,8 +48,13 @@ class NavigationKeeper(private val access: SettingsAccess) {
 
     val granted: Boolean get() = access.granted
 
-    fun keep(): KeepOutcome {
-        val drifted = KEPT.filter { access.read(it) != it.value }
+    fun keep(): KeepOutcome = apply(KEPT)
+
+    /** Writes the buttons back, which is safe whatever the system's own navigation setting was. */
+    fun release(): KeepOutcome = apply(RELEASED)
+
+    private fun apply(target: List<KeptSetting>): KeepOutcome {
+        val drifted = target.filter { access.read(it) != it.value }
         if (drifted.isEmpty()) return KeepOutcome.AlreadyKept
         if (!access.granted) return KeepOutcome.NotGranted
         try {
@@ -70,6 +75,11 @@ class NavigationKeeper(private val access: SettingsAccess) {
         val KEPT = listOf(
             KeptSetting(SettingsTable.GLOBAL, "force_fsg_nav_bar", "1"),
             KeptSetting(SettingsTable.SECURE, "navigation_mode", "2"),
+        )
+
+        val RELEASED = listOf(
+            KeptSetting(SettingsTable.GLOBAL, "force_fsg_nav_bar", "0"),
+            KeptSetting(SettingsTable.SECURE, "navigation_mode", "0"),
         )
 
         fun forDevice(context: Context) = NavigationKeeper(AndroidSettingsAccess(context))

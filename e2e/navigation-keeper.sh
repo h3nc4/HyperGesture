@@ -18,6 +18,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # The switch to keep the bar hidden shows once the permission is granted, and a reset is undone while it is on.
+# Gestures stopping, by an unbind or a kill, writes the buttons back.
 # Needs a debug build from e2e/device.sh, since it borrows the HyperOS integration.
 
 set -e
@@ -99,6 +100,17 @@ service_enabled() {
     grep -q "Enabled services:.*${PKG}"
 }
 
+turn_on_service() {
+  "${ADB_BIN}" shell settings put secure accessibility_enabled 1 >/dev/null
+  "${ADB_BIN}" shell settings put secure enabled_accessibility_services "${SERVICE}" >/dev/null
+  bound=1
+  # shellcheck disable=SC2310 # a false predicate is the retry signal, not an error
+  while [ "${bound}" -le 10 ] && ! service_enabled; do
+    sleep 1
+    bound=$((bound + 1))
+  done
+}
+
 original_fsg="$(setting global force_fsg_nav_bar)"
 original_mode="$(setting secure navigation_mode)"
 
@@ -171,21 +183,32 @@ put global force_fsg_nav_bar 0
 expect_settings "force_fsg_nav_bar is put back" 1 2
 
 echo >&2
-echo "== a reset while the service was away is undone when it binds again ==" >&2
+echo "== the service switched off brings the buttons back ==" >&2
+expect_settings "the bar is hidden while the service runs" 1 2
+reset_log
 "${ADB_BIN}" shell settings delete secure enabled_accessibility_services >/dev/null
+expect_settings "both settings read 0 once the service stops" 0 0
+assert_log "the restore of the buttons is logged" 'NAVIGATION_BUTTONS_BACK'
+
+echo >&2
+echo "== a reset while the service was away is undone when it binds again ==" >&2
+put global force_fsg_nav_bar 1
+put secure navigation_mode 0
 sleep 3
-reset_bar
-sleep 3
-expect_settings "nothing restores while the service is off" 0 0
-"${ADB_BIN}" shell settings put secure accessibility_enabled 1 >/dev/null
-"${ADB_BIN}" shell settings put secure enabled_accessibility_services "${SERVICE}" >/dev/null
-bound=1
-# shellcheck disable=SC2310 # a false predicate is the retry signal, not an error
-while [ "${bound}" -le 10 ] && ! service_enabled; do
-  sleep 1
-  bound=$((bound + 1))
-done
+expect_settings "nothing is written while the service is off" 1 0
+turn_on_service
 expect_settings "the service restores on bind" 1 2
+
+echo >&2
+echo "== a kill with no unbind is caught when the app resumes ==" >&2
+# A force stop kills the process with no callback, and the system drops the service from the enabled list.
+"${ADB_BIN}" shell am force-stop "${PKG}"
+sleep 3
+expect_settings "the kill leaves the bar hidden" 1 2
+open_test_app
+expect_settings "the app resuming brings the buttons back" 0 0
+turn_on_service
+expect_settings "the service hides the bar again on bind" 1 2
 
 echo >&2
 echo "== switching off stops the keeper ==" >&2

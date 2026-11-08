@@ -66,9 +66,10 @@ class LandscapeConfirm(private val windowMs: Long = ConfirmPill.WINDOW_MS) {
         confirming = pillShown
     }
 
+    /** Any other gesture drops the pill, so it never confirms a later bottom swipe. */
     fun onFire(action: GestureAction, edge: ScreenEdge, nowMs: Long): ConfirmVerdict {
-        if (edge != ScreenEdge.BOTTOM || action !in GUARDED) return ConfirmVerdict.Perform
-        if (!required || confirming) {
+        val guarded = edge == ScreenEdge.BOTTOM && action in GUARDED
+        if (!guarded || !required || confirming) {
             dismiss()
             return ConfirmVerdict.Perform
         }

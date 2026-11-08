@@ -454,6 +454,59 @@ class GestureTrackerTest {
     }
 
     @Test
+    fun `a swipe that drifts sideways first still becomes Home once it goes up`() {
+        val t = switchingTracker()
+        t.onDown(sample(540f, 2395f, 0L))
+        // 40px sideways against 10px up arms a switch before the upward travel builds.
+        val armedSideways = t.onMove(sample(580f, 2385f, 30L))
+        assertEquals(TrackerAction.Armed(scheduleHoldMs = null, appSwitch = GestureAction.PreviousApp), armedSideways)
+        // 200px up against 50px sideways is outside the sideways cone.
+        assertEquals(TrackerAction.RearmHold(100L), t.onMove(sample(590f, 2195f, 80L)))
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Home, ScreenEdge.BOTTOM),
+            t.onUp(sample(590f, 2095f, 100L)),
+        )
+    }
+
+    @Test
+    fun `a sideways start that turns up and holds fires Recents`() {
+        val t = switchingTracker()
+        t.onDown(sample(540f, 2395f, 0L))
+        t.onMove(sample(580f, 2385f, 30L))
+        t.onMove(sample(590f, 2195f, 80L))
+        assertEquals(
+            TrackerAction.Fire(GestureAction.Recents, ScreenEdge.BOTTOM),
+            t.onHoldElapsed(),
+        )
+    }
+
+    @Test
+    fun `a sideways swipe that rises less than it travels still switches`() {
+        val t = switchingTracker()
+        t.onDown(sample(300f, 2395f, 0L))
+        assertTrue(t.onMove(sample(400f, 2390f, 30L)) is TrackerAction.Armed)
+        // 150px up against 200px sideways stays inside the sideways cone.
+        assertEquals(TrackerAction.None, t.onMove(sample(500f, 2245f, 80L)))
+        assertEquals(
+            TrackerAction.Fire(GestureAction.PreviousApp, ScreenEdge.BOTTOM),
+            t.onUp(sample(500f, 2245f, 100L)),
+        )
+    }
+
+    @Test
+    fun `a sideways swipe that dips back toward the edge still switches`() {
+        val t = switchingTracker()
+        t.onDown(sample(300f, 2300f, 0L))
+        assertTrue(t.onMove(sample(400f, 2295f, 30L)) is TrackerAction.Armed)
+        // 150px down against 120px sideways leaves the sideways cone without meeting the Home rule.
+        assertEquals(TrackerAction.None, t.onMove(sample(420f, 2450f, 80L)))
+        assertEquals(
+            TrackerAction.Fire(GestureAction.PreviousApp, ScreenEdge.BOTTOM),
+            t.onUp(sample(420f, 2450f, 100L)),
+        )
+    }
+
+    @Test
     fun `with app switching off a sideways swipe stays unused`() {
         val t = tracker(ScreenEdge.BOTTOM)
         t.onDown(sample(300f, 2395f, 0L))

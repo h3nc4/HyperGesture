@@ -28,7 +28,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.preferencesDataStore
+import com.h3nc4.hypergesture.settings.resettingPreferencesDataStore
 import java.io.File
 
 private const val TAG = "HyperGesture"
@@ -91,7 +91,7 @@ class InstallResultReceiver : BroadcastReceiver() {
 }
 
 private val Context.updateDataStore: DataStore<Preferences> by
-    preferencesDataStore(name = "update_check")
+    resettingPreferencesDataStore("update_check")
 
 internal fun updateStore(context: Context): UpdateStore = DataStoreUpdateStore(context.updateDataStore)
 

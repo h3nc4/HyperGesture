@@ -41,6 +41,7 @@ import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.gesture.PlatformDefaults
 import com.h3nc4.hypergesture.gesture.ScreenEdge
 import com.h3nc4.hypergesture.gesture.TouchSample
+import com.h3nc4.hypergesture.navigation.ButtonRestore
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.navigation.NavigationKeeperSettings
 import com.h3nc4.hypergesture.navigation.NavigationKeeperWatch
@@ -56,6 +57,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlin.math.hypot
 
 /**
@@ -136,16 +138,28 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             }
         }
         scope.launch {
-            NavigationKeeperSettings(applicationContext).enabled.collect(::watchNavigation)
+            NavigationKeeperSettings(applicationContext).enabled.collect { watchNavigation(it) }
         }
     }
 
     // Reads the integration again on each change. Turning the switch off unregisters the observer.
-    private fun watchNavigation(enabled: Boolean) {
+    private suspend fun watchNavigation(enabled: Boolean) {
         keeperWatch?.stop()
         keeperWatch = null
         val keeper = NavigationIntegrationFactory.create(this).keeper?.takeIf { enabled } ?: return
+        ButtonRestore(keeper, NavigationKeeperSettings(applicationContext)).hiding()
         keeperWatch = NavigationKeeperWatch(this, handler, keeper).also { it.start() }
+    }
+
+    // Blocks the unbind for one DataStore write, because the system can kill the process once it returns.
+    private fun restoreButtons() {
+        runCatching {
+            runBlocking { ButtonRestore.forDevice(applicationContext)?.gesturesStopped(serviceRunning = false) }
+        }.onSuccess { outcome ->
+            outcome?.let { Log.i(TAG, ButtonRestore.logLine(it)) }
+        }.onFailure {
+            FailureLog.record(this, "restoreButtons", it)
+        }
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -208,6 +222,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         overlay = null
         keeperWatch?.stop()
         keeperWatch = null
+        restoreButtons()
         handler.removeCallbacksAndMessages(null)
         scope.cancel()
         instance = null
