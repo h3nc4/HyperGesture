@@ -140,12 +140,27 @@ class GestureTracker(
 
     private fun whileArmed(origin: TouchSample, state: Arm, sample: TouchSample): TrackerAction {
         if (holdAction == null) return followSide(origin, state, sample)
-        // A fired hold owns the release, and a sideways arm is already decided.
-        if (state !is Arm.Holding) return TrackerAction.None
-        // An upward drift can arm Home before the sideways travel accumulates, so a gesture
-        // may still become a sideways one until the hold fires.
-        sidewaysAction(origin, sample)?.let { return armSideways(it) }
-        return reanchorHold(state.anchor, sample)
+        return when (state) {
+            is Arm.Holding -> {
+                // An upward drift can arm Home before the sideways travel accumulates, so a
+                // gesture may still become a sideways one until the hold fires.
+                sidewaysAction(origin, sample)?.let { return armSideways(it) }
+                reanchorHold(state.anchor, sample)
+            }
+            is Arm.Sideways -> leaveSideways(origin, sample)
+            // A fired hold leaves nothing for later samples to decide.
+            else -> TrackerAction.None
+        }
+    }
+
+    // A sideways drift can arm before the upward travel builds. A finger that then leaves the
+    // sideways cone and meets the Home rule becomes Home, with a fresh hold for Recents.
+    private fun leaveSideways(origin: TouchSample, sample: TouchSample): TrackerAction {
+        if (sidewaysAction(origin, sample) != null || !hasArmed(origin, sample)) {
+            return TrackerAction.None
+        }
+        arm = Arm.Holding(sample)
+        return TrackerAction.RearmHold(configuration.recentsHoldMs)
     }
 
     // A back swipe is judged by where the finger is, against the same distance that armed it,

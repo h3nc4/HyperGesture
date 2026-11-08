@@ -36,7 +36,9 @@ On a Xiaomi phone that grant also needs the Mi-account "USB debugging (Security 
 
 It runs inside the accessibility service. It writes once when the service binds, which also covers boot, and again whenever a `ContentObserver` sees either setting change. It never polls. Turning the switch off unregisters the observer. Without the grant the screen shows the command in place of the switch.
 
-The emulator suite `e2e/navigation-keeper.sh` covers the grant, the switch, a reset of each key and a rebind. The emulator is not HyperOS. The suite sets the debug-only `hypergesture_integration` global setting to `hyperos` to reach the HyperOS integration. Whether these two keys alone hide the bar on HyperOS, or the three-button overlay also has to go, is still to be confirmed on the Redmi 14.
+The buttons come back whenever gestures stop, because a phone with neither gestures nor buttons has no way home. The service writes `0` to both keys as it unbinds, and a kill that skips the unbind is caught at the next boot or app resume, through a flag the keeper sets before it hides the bar.
+
+The emulator suite `e2e/navigation-keeper.sh` covers the grant, the switch, a reset of each key, the buttons coming back on an unbind and on a kill, and a rebind. The emulator is not HyperOS. The suite sets the debug-only `hypergesture_integration` global setting to `hyperos` to reach the HyperOS integration. Whether these two keys alone hide the bar on HyperOS, or the three-button overlay also has to go, is still to be confirmed on the Redmi 14.
 
 ## TODO: apply the overlay directly
 

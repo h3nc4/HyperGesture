@@ -8,6 +8,8 @@ If you do have ADB or Shizuku, one optional permission lets HyperGesture also ke
 
 **[Download the latest release](https://github.com/h3nc4/HyperGesture/releases/latest)** · [hypergesture.h3nc4.com](https://hypergesture.h3nc4.com), the install guide in English and Português
 
+⚠️ If Play Protect blocks the install, the site's [install steps](https://hypergesture.h3nc4.com/#install) explain it. If the gestures stop, a notification leads back to the Accessibility switch, and the app's Troubleshooting screen has the fixes.
+
 ## Gestures
 
 | Gesture | Does |
@@ -25,8 +27,6 @@ In landscape the first bottom swipe only shows a pill, and a second one within 2
 1. Install `hypergesture.apk` from [the latest release](https://github.com/h3nc4/HyperGesture/releases/latest).
 2. Allow restricted settings under Settings › Apps › HyperGesture › ⋮ › **Allow restricted settings**.
 3. Turn it on under Settings › Accessibility › **HyperGesture**, then open the app. Its setup checklist covers the rest.
-
-If Play Protect blocks the install, the site's [install steps](https://hypergesture.h3nc4.com/#install) explain it. If the gestures stop, a notification leads back to the Accessibility switch, and the app's Troubleshooting screen has the fixes.
 
 ## Privacy
 

@@ -19,6 +19,7 @@ package com.h3nc4.hypergesture.ui
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
@@ -35,6 +36,7 @@ import com.h3nc4.hypergesture.diagnostics.Diagnostics
 import com.h3nc4.hypergesture.diagnostics.DiagnosticsCollector
 import com.h3nc4.hypergesture.diagnostics.ServiceStatus
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
+import com.h3nc4.hypergesture.navigation.ButtonRestore
 import com.h3nc4.hypergesture.navigation.NavigationIntegration
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.navigation.NavigationKeeperSettings
@@ -49,6 +51,7 @@ import com.h3nc4.hypergesture.setup.SetupStateRepository
 import com.h3nc4.hypergesture.setup.StopNotifier
 import com.h3nc4.hypergesture.setup.setupState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -112,10 +115,20 @@ internal class AppModel(
         batteryUnrestricted = batteryUnrestricted(context)
         notificationsAllowed = notificationsAllowed(context)
         keeperGranted = integration.keeper?.granted
+        restoreButtonsIfStopped()
         if (status != ServiceStatus.OFF && !record.serviceEverEnabled) {
             setFlag(SetupFlag.SERVICE_EVER_ENABLED, true)
         }
         StopNotifier.sync(context)
+    }
+
+    // Catches a kill that skipped the service's unbind, which would leave neither gestures nor buttons.
+    private fun restoreButtonsIfStopped() {
+        val restore = integration.keeper?.let { ButtonRestore(it, keeperSettings) } ?: return
+        scope.launch(Dispatchers.IO) {
+            restore.gesturesStopped(HyperGestureAccessibilityService.isRunning())
+                ?.let { Log.i(TAG, ButtonRestore.logLine(it)) }
+        }
     }
 
     fun update(transform: (GestureConfiguration) -> GestureConfiguration) {
@@ -154,6 +167,7 @@ internal class AppModel(
 }
 
 private const val STOP_GRACE_MS = 3_000L
+private const val TAG = "HyperGesture"
 
 @Composable
 internal fun rememberAppModel(): AppModel {
