@@ -44,7 +44,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -83,11 +82,6 @@ internal enum class Screen(@param:StringRes val title: Int) {
     TROUBLESHOOTING(R.string.section_troubleshooting),
     ABOUT(R.string.section_about),
 }
-
-private val BackStackSaver = Saver<List<Screen>, ArrayList<String>>(
-    save = { stack -> ArrayList(stack.map { it.name }) },
-    restore = { names -> names.map(Screen::valueOf) },
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -139,7 +133,7 @@ private fun HyperGestureApp() {
                     .padding(bottom = 16.dp),
             ) {
                 when (screen) {
-                    Screen.HOME -> HomeScreen(model, updates) { stack = stack + it }
+                    Screen.HOME -> HomeScreen(model, updates) { stack = stack.opening(it) }
                     Screen.SETUP -> SetupScreen(model)
                     Screen.APP_SWITCHING -> AppSwitchingScreen(model)
                     Screen.CIRCLE_TO_SEARCH -> CircleToSearchScreen(model)
