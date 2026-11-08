@@ -139,7 +139,11 @@ enum class RejectionReason {
 sealed interface TrackerAction {
     data object None : TrackerAction
 
-    data class Armed(val scheduleHoldMs: Long?) : TrackerAction
+    /** [appSwitch] names the switch a sideways bottom stroke armed for, and is null otherwise. */
+    data class Armed(
+        val scheduleHoldMs: Long?,
+        val appSwitch: GestureAction? = null,
+    ) : TrackerAction
 
     data class RearmHold(val delayMs: Long) : TrackerAction
 

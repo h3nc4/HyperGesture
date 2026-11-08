@@ -23,6 +23,10 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Walks the apps the user came from, which Android exposes to nobody: there is no global
@@ -35,7 +39,7 @@ import android.util.Log
  * Needs the usage access the user grants in Settings, and reports [lastFailure] when it is
  * missing so the diagnostics panel can say so rather than the gesture looking broken.
  */
-class AppSwitcher(private val context: Context) {
+class AppSwitcher(private val context: Context, private val scope: CoroutineScope) {
 
     // The order this walk started from, newest first, and where in it the last step landed.
     // Kept rather than re-read because usage events lag by seconds: right after a launch the
@@ -45,11 +49,24 @@ class AppSwitcher(private val context: Context) {
     private var position = 0
     private var lastStepAt = 0L
 
-    fun step(toPrevious: Boolean): Boolean {
+    private val prefetch = OrderPrefetch(PREPARED_MAX_AGE_MS)
+
+    /** Reads the order off the main thread once [stream] arms as a switch, before it fires. */
+    fun prepare(stream: Long) {
+        val startedAt = SystemClock.elapsedRealtime()
+        if (!walkRestarts(startedAt)) return
+        prefetch.request(stream)
+        scope.launch {
+            val apps = withContext(Dispatchers.IO) { runCatching { recentApps() }.getOrNull() }
+                ?: return@launch
+            prefetch.deliver(PreparedOrder(stream, startedAt, apps))
+        }
+    }
+
+    fun step(toPrevious: Boolean, stream: Long): Boolean {
         val now = SystemClock.elapsedRealtime()
-        // A pause long enough means the user went somewhere by hand, so the walk restarts.
-        if (walk.isEmpty() || now - lastStepAt > CHAIN_WINDOW_MS) {
-            walk = recentApps()
+        if (walkRestarts(now)) {
+            walk = prefetch.take(stream, now) ?: recentApps()
             position = 0
         }
         if (walk.isEmpty()) {
@@ -88,6 +105,10 @@ class AppSwitcher(private val context: Context) {
             .isSuccess
     }
 
+    // A long enough pause means the user went somewhere by hand. The walk then starts over.
+    private fun walkRestarts(now: Long): Boolean =
+        walk.isEmpty() || now - lastStepAt > CHAIN_WINDOW_MS
+
     /**
      * Apps by when each was last in front, newest first, every package once. Our own package
      * is dropped, and so is anything with no launcher entry: the home screen resumes between
@@ -125,6 +146,9 @@ class AppSwitcher(private val context: Context) {
 
         /** How long a chain of swipes keeps walking one order before it restarts. */
         private const val CHAIN_WINDOW_MS = 5_000L
+
+        /** How old an order read at touch-down may be when its gesture fires. */
+        private const val PREPARED_MAX_AGE_MS = 3_000L
 
         @Volatile
         var lastFailure: String? = null

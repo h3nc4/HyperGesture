@@ -181,7 +181,7 @@ class GestureTracker(
 
     private fun armSideways(action: GestureAction): TrackerAction {
         arm = Arm.Sideways(action)
-        return TrackerAction.Armed(scheduleHoldMs = null)
+        return TrackerAction.Armed(scheduleHoldMs = null, appSwitch = action)
     }
 
     // The hold may come anywhere along the swipe, so movement re-anchors, not cancels.
