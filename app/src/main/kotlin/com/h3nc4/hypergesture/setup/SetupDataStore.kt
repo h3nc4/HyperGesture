@@ -20,10 +20,10 @@ package com.h3nc4.hypergesture.setup
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.preferencesDataStore
+import com.h3nc4.hypergesture.settings.resettingPreferencesDataStore
 
 private val Context.setupDataStore: DataStore<Preferences> by
-    preferencesDataStore(name = "setup_state")
+    resettingPreferencesDataStore("setup_state")
 
 internal val Context.setupState: SetupStateRepository
     get() = SetupStateRepository(setupDataStore)

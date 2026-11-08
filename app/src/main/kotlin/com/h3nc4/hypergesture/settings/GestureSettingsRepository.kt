@@ -27,26 +27,27 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.gestureDataStore: DataStore<Preferences> by
-    preferencesDataStore(name = "gesture_configuration")
+    resettingPreferencesDataStore("gesture_configuration")
 
 /** Defaults are never duplicated here: a missing key falls back to [GestureConfiguration]. */
-class GestureSettingsRepository(private val context: Context) {
+class GestureSettingsRepository(
+    private val context: Context,
+    private val store: DataStore<Preferences> = context.gestureDataStore,
+) {
 
-    val configuration: Flow<GestureConfiguration> =
-        context.gestureDataStore.data.map(::toConfiguration)
+    val configuration: Flow<GestureConfiguration> = store.data.map(::toConfiguration)
 
     suspend fun read(): GestureConfiguration = configuration.first()
 
     suspend fun update(transform: (GestureConfiguration) -> GestureConfiguration) {
-        val updated = transform(read())
-        context.gestureDataStore.edit { preferences ->
+        store.edit { preferences ->
+            val updated = transform(toConfiguration(preferences))
             preferences[EDGE_WIDTH_DP] = updated.edgeWidthDp
             preferences[SIDE_MIN_DISTANCE_DP] = updated.sideMinimumSwipeDistanceDp
             preferences[BOTTOM_MIN_DISTANCE_DP] = updated.bottomMinimumSwipeDistanceDp
