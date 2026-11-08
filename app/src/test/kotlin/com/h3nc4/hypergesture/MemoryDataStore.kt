@@ -22,13 +22,21 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.yield
 
 /** Keeps preferences in memory for repository tests. */
 internal class MemoryDataStore(initial: Preferences = emptyPreferences()) : DataStore<Preferences> {
     private val state = MutableStateFlow(initial)
+    private val writes = Mutex()
 
     override val data: Flow<Preferences> = state
 
+    // Serial like the real store, and yields as its disk write would, so callers can interleave.
     override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
-        transform(state.value).also { state.value = it }
+        writes.withLock {
+            yield()
+            transform(state.value).also { state.value = it }
+        }
 }
