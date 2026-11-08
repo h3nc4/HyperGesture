@@ -41,7 +41,15 @@ class NavigationKeeperSettings(private val store: DataStore<Preferences>) {
         store.edit { it[ENABLED] = enabled }
     }
 
+    /** Set while the keeper may have left the bar hidden, so a kill with no callback is caught later. */
+    val barHidden: Flow<Boolean> = store.data.map { it[BAR_HIDDEN] ?: false }.distinctUntilChanged()
+
+    suspend fun setBarHidden(hidden: Boolean) {
+        store.edit { it[BAR_HIDDEN] = hidden }
+    }
+
     private companion object {
         val ENABLED = booleanPreferencesKey("enabled")
+        val BAR_HIDDEN = booleanPreferencesKey("bar_hidden")
     }
 }

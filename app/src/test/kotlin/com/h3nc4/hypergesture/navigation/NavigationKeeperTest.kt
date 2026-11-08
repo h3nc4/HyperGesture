@@ -92,6 +92,92 @@ class NavigationKeeperTest {
     }
 
     @Test
+    fun `release writes both buttons back`() {
+        val settings = FakeSettings(values = hidden)
+        assertEquals(
+            KeepOutcome.Restored(listOf("force_fsg_nav_bar", "navigation_mode")),
+            NavigationKeeper(settings).release(),
+        )
+        assertEquals("0", settings.values["force_fsg_nav_bar"])
+        assertEquals("0", settings.values["navigation_mode"])
+    }
+
+    @Test
+    fun `buttons come back only once the keeper hid the bar and the service is gone`() {
+        assertTrue(ButtonRestore.shouldRestore(hidByKeeper = true, serviceRunning = false))
+        assertFalse(ButtonRestore.shouldRestore(hidByKeeper = true, serviceRunning = true))
+        assertFalse(ButtonRestore.shouldRestore(hidByKeeper = false, serviceRunning = false))
+        assertFalse(ButtonRestore.shouldRestore(hidByKeeper = false, serviceRunning = true))
+    }
+
+    @Test
+    fun `gestures stopping after the keeper hid the bar restores the buttons and clears the flag`() = runBlocking {
+        val settings = FakeSettings(values = hidden)
+        val store = NavigationKeeperSettings(MemoryDataStore())
+        val restore = ButtonRestore(NavigationKeeper(settings), store)
+        restore.hiding()
+        assertTrue(store.barHidden.first())
+        assertTrue(restore.gesturesStopped(serviceRunning = false) is KeepOutcome.Restored)
+        assertEquals("0", settings.values["force_fsg_nav_bar"])
+        assertEquals("0", settings.values["navigation_mode"])
+        assertFalse(store.barHidden.first())
+        assertEquals(null, restore.gesturesStopped(serviceRunning = false))
+    }
+
+    @Test
+    fun `a running service keeps the bar hidden`() = runBlocking {
+        val settings = FakeSettings(values = hidden)
+        val store = NavigationKeeperSettings(MemoryDataStore())
+        val restore = ButtonRestore(NavigationKeeper(settings), store)
+        restore.hiding()
+        assertEquals(null, restore.gesturesStopped(serviceRunning = true))
+        assertEquals(0, settings.writes)
+        assertTrue(store.barHidden.first())
+    }
+
+    @Test
+    fun `a bar the keeper never hid is left to the system`() = runBlocking {
+        val settings = FakeSettings(values = hidden)
+        val restore = ButtonRestore(NavigationKeeper(settings), NavigationKeeperSettings(MemoryDataStore()))
+        assertEquals(null, restore.gesturesStopped(serviceRunning = false))
+        assertEquals(0, settings.writes)
+    }
+
+    @Test
+    fun `buttons already back still clear the flag`() = runBlocking {
+        val settings = FakeSettings(values = mutableMapOf("force_fsg_nav_bar" to "0", "navigation_mode" to "0"))
+        val store = NavigationKeeperSettings(MemoryDataStore())
+        val restore = ButtonRestore(NavigationKeeper(settings), store)
+        restore.hiding()
+        assertEquals(KeepOutcome.AlreadyKept, restore.gesturesStopped(serviceRunning = false))
+        assertFalse(store.barHidden.first())
+    }
+
+    @Test
+    fun `a restore that cannot write keeps the flag for the next chance`() = runBlocking {
+        val store = NavigationKeeperSettings(MemoryDataStore())
+        val withoutGrant = ButtonRestore(NavigationKeeper(FakeSettings(granted = false, values = hidden)), store)
+        withoutGrant.hiding()
+        assertEquals(KeepOutcome.NotGranted, withoutGrant.gesturesStopped(serviceRunning = false))
+        assertTrue(store.barHidden.first())
+        val revoked = FakeSettings(values = hidden).apply { refuseWrites = true }
+        val failed = ButtonRestore(NavigationKeeper(revoked), store).gesturesStopped(serviceRunning = false)
+        assertTrue(failed is KeepOutcome.Failed)
+        assertTrue(store.barHidden.first())
+    }
+
+    @Test
+    fun `each restore outcome has a log line`() {
+        assertTrue(ButtonRestore.logLine(KeepOutcome.AlreadyKept).startsWith("NAVIGATION_BUTTONS_BACK"))
+        assertTrue(ButtonRestore.logLine(KeepOutcome.NotGranted).startsWith("NAVIGATION_BUTTONS_NOT_BACK"))
+        assertEquals(
+            "NAVIGATION_BUTTONS_BACK force_fsg_nav_bar, navigation_mode",
+            ButtonRestore.logLine(KeepOutcome.Restored(listOf("force_fsg_nav_bar", "navigation_mode"))),
+        )
+        assertEquals("NAVIGATION_BUTTONS_NOT_BACK revoked", ButtonRestore.logLine(KeepOutcome.Failed("revoked")))
+    }
+
+    @Test
     fun `the switch starts off and remembers being turned on`() = runBlocking {
         val store = NavigationKeeperSettings(MemoryDataStore())
         assertFalse(store.enabled.first())
