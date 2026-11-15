@@ -94,18 +94,6 @@
       ],
       "datasourceTemplate": "npm",
       "depNameTemplate": "wrangler"
-    },
-    {
-      "description": "Update the registry the dev image is shared through",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^\\.github/workflows/e2e\\.yaml$/",
-        "/^\\.github/actions/dev-image/action\\.yml$/"
-      ],
-      "matchStrings": [
-        "\\b(?<depName>registry):(?<currentValue>[0-9][^@\\s]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
-      ],
-      "datasourceTemplate": "docker"
     }
   ]
 }
