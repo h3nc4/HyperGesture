@@ -33,11 +33,55 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  dev-image:
+    name: Resolve the dev image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      image: ${{ steps.share.outputs.image || steps.dev_image.outputs.ref }}
+      shared: ${{ steps.share.outputs.image != '' }}
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # dev-image diffs against the base to spot image changes
+      - name: Name the dev image
+        id: dev_image
+        run: echo "ref=$(./scripts/devcontainer-image.sh)" >>"${GITHUB_OUTPUT}"
+      - name: Run h3nc4/dev-image-action
+        id: resolve
+        uses: h3nc4/dev-image-action@1e296b26a16b3e20db153e32b963d953a41ef1a1 # v2
+      - name: Push the candidate into a local registry
+        id: share
+        if: steps.resolve.outputs.image != steps.dev_image.outputs.ref
+        run: |
+          docker run -d --name dev-registry -p 127.0.0.1:5000:5000 \
+            -v "${RUNNER_TEMP}/registry:/var/lib/registry" \
+            registry:3@sha256:82f6ff4a7f982960c8aa51617fea3aabc485df6e55cce80d22deb1de36f1bc3c
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:5000/v2/ >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          local_image="localhost:5000/${{ steps.dev_image.outputs.ref }}"
+          docker tag "${DEV_IMAGE:?}" "${local_image}"
+          docker push -q "${local_image}"
+          echo "image=${local_image}" >>"${GITHUB_OUTPUT}"
+      - name: Run actions/upload-artifact
+        if: steps.share.outputs.image != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: dev-image
+          path: ${{ runner.temp }}/registry
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
   build:
     name: Build the debug APK
+    needs: [dev-image]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -45,11 +89,11 @@ jobs:
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Use the dev image
+        uses: ./.github/actions/dev-image
         with:
-          fetch-depth: 0 # dev-image diffs against the base to spot image changes
-      - name: Run h3nc4/dev-image-action
-        uses: h3nc4/dev-image-action@1e296b26a16b3e20db153e32b963d953a41ef1a1 # v2
-        with:
+          image: ${{ needs.dev-image.outputs.image }}
+          shared: ${{ needs.dev-image.outputs.shared }}
           docker-args: ${{ env.DEV_DOCKER_ARGS }}
       - name: Run actions/cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -75,7 +119,7 @@ jobs:
 
   shards:
     name: Gesture suites ${{ matrix.shard }} (${{ matrix.suites }})
-    needs: [build]
+    needs: [dev-image, build]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -91,11 +135,11 @@ jobs:
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Use the dev image
+        uses: ./.github/actions/dev-image
         with:
-          fetch-depth: 0
-      - name: Run h3nc4/dev-image-action
-        uses: h3nc4/dev-image-action@1e296b26a16b3e20db153e32b963d953a41ef1a1 # v2
-        with:
+          image: ${{ needs.dev-image.outputs.image }}
+          shared: ${{ needs.dev-image.outputs.shared }}
           docker-args: --device /dev/kvm
       - name: Enable KVM
         run: |
@@ -121,7 +165,7 @@ jobs:
 
   gestures:
     name: Gesture end-to-end
-    needs: [build, shards]
+    needs: [dev-image, build, shards]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -133,4 +177,24 @@ jobs:
           echo "results: ${RESULTS}"
           for result in ${RESULTS}; do
             [ "${result}" = success ] || exit 1
+          done
+
+  dev-image-cleanup:
+    name: Delete the shared dev image
+    needs: [dev-image, build, shards]
+    if: always() && needs.dev-image.outputs.shared == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Delete the dev-image artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.name == "dev-image") | .id')"
+          for id in ${ids}; do
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}" ||
+              echo "::warning::could not delete artifact ${id}, it expires after a day"
           done
