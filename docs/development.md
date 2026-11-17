@@ -121,7 +121,7 @@ Signing material lives outside git:
 
 `scripts/build-apk.sh` passes the keystore and the password to Docker as BuildKit secrets, mounted for the one `RUN` that signs, so no layer and no build arg holds either. `.dockerignore` keeps every keystore out of the build context. With either piece missing, the release build degrades to unsigned rather than failing, so CI can still verify that `assembleRelease` compiles.
 
-The release build runs with `--dependency-verification=strict` against the checksums in `gradle/verification-metadata.xml`, while every other build only warns on a mismatch. After a dependency bump, regenerate that file inside the dev container and review the diff before committing it:
+CI and the release build run with `--dependency-verification=strict` against the checksums in `gradle/verification-metadata.xml`, while a local build only warns on a mismatch. On a Renovate pull request, CI regenerates that file and pushes it to the branch before the checks run. After any other dependency bump, regenerate it inside the dev container and review the diff before committing it:
 
 ```sh
 gradle --no-daemon --write-verification-metadata sha256 lint test jacocoTestReport assembleDebug assembleRelease
