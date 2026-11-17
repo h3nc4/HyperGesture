@@ -69,9 +69,16 @@ internal object StopNotifier {
         val state = context.setupState
         val record = state.record.first()
         val notifications = NotificationManagerCompat.from(context)
+        val running = HyperGestureAccessibilityService.isRunning()
+        val restore = ServiceRestore.forDevice(context)
+        // Before the notice reads the switch, so a service put back posts nothing.
+        ServiceRestore.report(
+            context,
+            restore.afterStop(running, record.serviceEverEnabled, System.currentTimeMillis()),
+        )
         val action = StopNotice.decide(
             StopNoticeFacts(
-                running = HyperGestureAccessibilityService.isRunning(),
+                running = running,
                 switchedOn = DiagnosticsCollector.isAccessibilityServiceSwitchedOn(context),
                 serviceEverEnabled = record.serviceEverEnabled,
                 alreadyPosted = record.stopNoticePosted,
@@ -84,6 +91,7 @@ internal object StopNotifier {
             }
             StopNoticeAction.CLEAR -> {
                 notifications.cancel(NOTIFICATION_ID)
+                restore.serviceRunning()
                 if (!record.serviceEverEnabled) state.set(SetupFlag.SERVICE_EVER_ENABLED, true)
                 if (record.stopNoticePosted) state.set(SetupFlag.STOP_NOTICE_POSTED, false)
             }

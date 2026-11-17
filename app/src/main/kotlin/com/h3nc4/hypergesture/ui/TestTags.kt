@@ -31,6 +31,7 @@ internal object TestTags {
     const val SWITCH_APP_SWITCH = "switch_app_switch"
     const val SWITCH_CIRCLE_TO_SEARCH = "switch_circle_to_search"
     const val SWITCH_LANDSCAPE_CONFIRM = "switch_landscape_confirm"
+    const val SWITCH_RESTORE_SERVICE = "switch_restore_service"
     const val USAGE_ACCESS = "usage_access"
     const val DIAG_CIRCLE_TO_SEARCH_FAILURE = "diag_circle_to_search_failure"
     const val DIAG_STUCK_STREAM = "diag_stuck_stream"
