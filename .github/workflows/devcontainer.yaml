@@ -28,7 +28,8 @@ on:
     paths:
       - "docker/dev.Dockerfile"
       - ".devcontainer.json"
-  workflow_dispatch:
+
+permissions: {}
 
 jobs:
   bump:
@@ -51,6 +52,7 @@ jobs:
         with:
           client-id: "4811373" # the automerge app, whose key is already a secret here
           private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          permission-contents: write
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -64,7 +66,7 @@ jobs:
 
   release:
     name: Publish the pinned dev container
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency:
       group: ${{ github.workflow }}-release
