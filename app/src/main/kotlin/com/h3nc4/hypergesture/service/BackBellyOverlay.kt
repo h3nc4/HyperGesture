@@ -80,7 +80,7 @@ internal class BackBellyOverlay(
 
     fun remove() {
         hide()
-        if (attached) runCatching { windowManager.removeView(view) }
+        if (attached) runCatching { windowManager.removeViewImmediate(view) }
         attached = false
     }
 

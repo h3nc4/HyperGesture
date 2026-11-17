@@ -455,7 +455,7 @@ display_rotation() {
 }
 
 # wait_strip <rotation 0|1> - waits for that rotation and a bottom strip as wide as it, unmoved
-# across two reads, and sets STRIP_TOP. The strip from before the turn lingers for seconds.
+# across two reads, and sets STRIP_TOP.
 wait_strip() {
   last=''
   strip_try=1
