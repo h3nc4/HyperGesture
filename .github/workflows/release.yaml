@@ -35,7 +35,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Verify tag is on main branch
-        run: git merge-base --is-ancestor ${{ github.sha }} origin/main
+        run: git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
 
   prepare:
     name: Prepare environment
@@ -44,13 +44,30 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       dev-image: ${{ steps.dev_image.outputs.ref }}
+      dev-image-tag: ${{ steps.dev_image.outputs.tag }}
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >>"${GITHUB_OUTPUT}"
-      - id: dev_image
-        run: echo "ref=$(./scripts/devcontainer-image.sh)" >>"${GITHUB_OUTPUT}"
+        with:
+          fetch-depth: 0
+      - name: Check the tag is vMAJOR.MINOR.PATCH
+        id: version
+        run: |
+          version="$(./scripts/check-release.sh tag "${GITHUB_REF_NAME}")"
+          echo "version=${version}" >>"${GITHUB_OUTPUT}"
+      - name: Check versionCode is above the previous release
+        run: ./scripts/check-release.sh version-code "${GITHUB_REF_NAME}"
+      - name: Pin the dev image by digest
+        id: dev_image
+        run: |
+          ref="$(./scripts/devcontainer-image.sh)"
+          digest="$(docker buildx imagetools inspect "${ref}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          case "${digest}" in
+            sha256:*) ;;
+            *) echo "::error::${ref} resolved to no digest" && exit 1 ;;
+          esac
+          echo "ref=${ref}@${digest}" >>"${GITHUB_OUTPUT}"
+          echo "tag=${ref##*:}@${digest}" >>"${GITHUB_OUTPUT}"
 
   build-apk:
     name: Build Android APK
@@ -70,7 +87,9 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Restore keystore
-        run: echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 --decode >android.keystore
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: printf '%s' "${ANDROID_KEYSTORE_B64}" | base64 --decode >android.keystore
       - name: Verify signing material is present
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -84,19 +103,22 @@ jobs:
       - name: Build signed APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        run: ./scripts/build-apk.sh "${{ needs.prepare.outputs.version }}"
-      - name: Verify the APK is signed
+          VERSION: ${{ needs.prepare.outputs.version }}
+          DEV_IMAGE_TAG: ${{ needs.prepare.outputs.dev-image-tag }}
+        run: ./scripts/build-apk.sh "${VERSION}"
+      - name: Verify the APK is signed with the pinned certificate
         id: verify
+        env:
+          DEV_IMAGE: ${{ needs.prepare.outputs.dev-image }}
         run: |
-          certs="$(docker run --rm --entrypoint bash \
+          docker run --rm --entrypoint bash \
             -v "${PWD}:/apk:ro" \
-            "${{ needs.prepare.outputs.dev-image }}" \
+            "${DEV_IMAGE}" \
             -c 'set -e
               apksigner="$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort | tail -n1)"
-              "${apksigner}" verify --print-certs /apk/hypergesture.apk')"
-          printf '%s\n' "${certs}"
-          sha="$(printf '%s\n' "${certs}" | grep -m1 -oE 'certificate SHA-256 digest: [0-9a-f]{64}' | cut -d' ' -f4)"
-          test -n "${sha}" || { echo '::error::apksigner printed no SHA-256 certificate digest' && exit 1; }
+              "${apksigner}" verify --print-certs /apk/hypergesture.apk' >"${RUNNER_TEMP}/certs.txt"
+          cat "${RUNNER_TEMP}/certs.txt"
+          sha="$(./scripts/check-release.sh cert "${RUNNER_TEMP}/certs.txt")"
           echo "cert-sha256=${sha}" >>"${GITHUB_OUTPUT}"
           echo "apk-size=$(stat -c %s hypergesture.apk)" >>"${GITHUB_OUTPUT}"
       - name: Run actions/upload-artifact

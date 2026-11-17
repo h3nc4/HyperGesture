@@ -302,6 +302,30 @@ class UpdateControllerTest {
     }
 
     @Test
+    fun `returning without an answer to the prompt frees the offer for another try`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        controller.onAppOpen()
+        controller.downloadAndInstall()
+        assertEquals(UpdatePhase.Confirming, controller.phase)
+        controller.onResume()
+        assertEquals(UpdatePhase.Idle, controller.phase)
+        assertFalse(controller.state.value.busy)
+        assertEquals(tag, controller.state.value.offer?.tag)
+        controller.downloadAndInstall()
+        assertEquals(2, downloader.calls)
+    }
+
+    @Test
+    fun `an answer arriving after the resume still ends the install`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        controller.onAppOpen()
+        controller.downloadAndInstall()
+        controller.onResume()
+        controller.onInstallOutcome(InstallOutcome.Declined)
+        assertEquals(UpdatePhase.InstallEnded(InstallOutcome.Declined), controller.phase)
+    }
+
+    @Test
     fun `an install answer broadcast by the system reaches the screen`() = runBlocking {
         val received = async(start = CoroutineStart.UNDISPATCHED) { InstallEvents.outcomes.first() }
         InstallEvents.emit(InstallOutcome.Installed)

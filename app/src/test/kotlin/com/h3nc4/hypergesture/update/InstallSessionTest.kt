@@ -21,14 +21,20 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executors
 
 class InstallSessionTest {
+
+    @get:Rule
+    val temp = TemporaryFolder()
 
     private class FakeSessions : InstallSessions {
         val threads = mutableListOf<String>()
@@ -57,7 +63,7 @@ class InstallSessionTest {
     private val executor = Executors.newSingleThreadExecutor { Thread(it, "install-io") }
     private val io = executor.asCoroutineDispatcher()
     private val sessions = FakeSessions()
-    private val apk = File("hypergesture.apk")
+    private val apk by lazy { temp.newFile(ReleaseParser.APK_NAME).apply { writeText("apk") } }
 
     @After
     fun stop() = executor.shutdown()
@@ -92,5 +98,23 @@ class InstallSessionTest {
         sessions.createFailure = IOException("too many sessions")
         assertEquals("too many sessions", install())
         assertTrue(sessions.abandoned.isEmpty())
+    }
+
+    @Test
+    fun `a committed session leaves no apk behind`() {
+        assertNull(install())
+        assertFalse(apk.exists())
+    }
+
+    @Test
+    fun `a failed write or create leaves no apk behind either`() {
+        sessions.writeFailure = IOException("no space")
+        install()
+        assertFalse(apk.exists())
+
+        apk.writeText("apk")
+        sessions.createFailure = IOException("too many sessions")
+        install()
+        assertFalse(apk.exists())
     }
 }

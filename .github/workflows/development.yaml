@@ -102,7 +102,7 @@ jobs:
           esac
           echo "SCAN_IMAGE=${image}" >>"${GITHUB_ENV}"
       - name: Run h3nc4/sonar-action
-        uses: h3nc4/sonar-action@dd96e84ef26cb1caf7c80413e36b67dc21e092a8 # v1
+        uses: h3nc4/sonar-action@efa7d146702949d6d6a3220163dae60b5a9b408d # v1
         with:
           host-url: ${{ vars.SONAR_HOST_URL }}
           token: ${{ secrets.SONAR_TOKEN }}
