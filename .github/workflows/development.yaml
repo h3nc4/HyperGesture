@@ -135,6 +135,7 @@ jobs:
   sonarqube:
     name: SonarQube Scan
     needs: [checks]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Run actions/checkout
