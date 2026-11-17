@@ -36,6 +36,7 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import com.h3nc4.hypergesture.diagnostics.FailureLog
+import com.h3nc4.hypergesture.diagnostics.StopLog
 import com.h3nc4.hypergesture.gesture.GestureAction
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.gesture.PlatformDefaults
@@ -119,6 +120,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         instance = this
         stripsState.value = null
         runningState.value = true
+        StopLog.serviceStarted(this)
         try {
             setUp()
         } catch (t: Throwable) {
@@ -160,12 +162,12 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         }
     }
 
-    // Reads the integration again on each change. Turning the switch off unregisters the observer.
+    // Reads the integration again on each change. With the switch off the observer only feeds the stop log.
     private suspend fun watchNavigation(enabled: Boolean) {
         keeperWatch?.stop()
         keeperWatch = null
-        val keeper = NavigationIntegrationFactory.create(this).keeper?.takeIf { enabled } ?: return
-        ButtonRestore(keeper, NavigationKeeperSettings(applicationContext)).hiding()
+        val keeper = NavigationIntegrationFactory.create(this).keeper?.takeIf { enabled }
+        keeper?.let { ButtonRestore(it, NavigationKeeperSettings(applicationContext)).hiding() }
         keeperWatch = NavigationKeeperWatch(this, handler, keeper).also { it.start() }
     }
 
@@ -174,7 +176,10 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         runCatching {
             runBlocking { ButtonRestore.forDevice(applicationContext)?.gesturesStopped(serviceRunning = false) }
         }.onSuccess { outcome ->
-            outcome?.let { Log.i(TAG, ButtonRestore.logLine(it)) }
+            outcome?.let {
+                Log.i(TAG, ButtonRestore.logLine(it))
+                StopLog.recordNavigation(this, StopLog.WRITTEN_BY_APP)
+            }
         }.onFailure {
             FailureLog.record(this, "restoreButtons", it)
         }
@@ -182,6 +187,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
     override fun onUnbind(intent: Intent?): Boolean {
         Log.i(TAG, "SERVICE_UNBIND ${System.identityHashCode(this)}")
+        StopLog.serviceUnbound(this)
         teardown()
         GestureTileService.requestRefresh(this)
         StopNotifier.sync(this)
