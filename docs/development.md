@@ -56,7 +56,7 @@ gradle assembleDebug   # build
 gradle test            # unit tests (GestureTracker decision logic)
 gradle lint            # Android lint
 gradle jacocoTestReport
-shellcheck -o all scripts/*.sh scripts/hooks/*
+shellcheck -o all -x e2e/lib e2e/*.sh scripts/*.sh scripts/hooks/*
 ./e2e/run.sh              # gesture tests against a headless emulator
 ./scripts/emulator-vnc.sh # emulator on a browser-viewable display, installs the APK
 ./scripts/build-apk.sh    # signed release APK via docker/apk.Dockerfile
@@ -167,4 +167,4 @@ The link preview cards in `site/public/og/` are committed PNGs, rendered from `s
 
 The version, the APK size and the signing certificate come from the `VERSION`, `APK_SIZE` and `CERT_SHA256` environment variables, read by `site/src/facts.ts` at build time. Unset, they fall back to v1.0.0. `MIN_ANDROID` sets the Android version and defaults to 11. The QR code for the APK link is generated during the build as inline SVG.
 
-The site deploys as an assets-only Cloudflare Worker named `hypergesture-site`, with no script, on the custom domain in `site/wrangler.toml`. The `HyperGesture Site` workflow builds and checks it on every pull request touching `site/`, and deploys on a push to main touching `site/`, reading the version and size of the latest release from the GitHub API. The release workflow calls the same workflow after publishing, with the version, size and certificate of the APK it built. Both deploys need the repository secret `CLOUDFLARE_API_TOKEN`. To deploy by hand, build first, then run `npx wrangler@4.151.2 deploy` in `site/` with that token in the environment.
+The site deploys as an assets-only Cloudflare Worker named `hypergesture-site`, with no script, on the custom domain in `site/wrangler.toml`. The `HyperGesture Site` workflow builds and checks it on every pull request touching `site/`, and deploys on a push to main touching `site/`, reading the version and size of the latest release from the GitHub API. The release workflow calls the same workflow after publishing, with the version, size and certificate of the APK it built. Both deploys need the repository secret `CLOUDFLARE_API_TOKEN`. To deploy by hand, build first, then run `npx wrangler@<version> deploy` in `site/` with that token in the environment, taking the version from `wranglerVersion` in `.github/workflows/site.yaml`.

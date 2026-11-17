@@ -82,8 +82,9 @@ cleanup() {
   fi
 }
 
-e2e/emulator.sh
+# Set before the boot, so a boot that times out still takes its emulator down.
 trap cleanup INT TERM EXIT
+e2e/emulator.sh
 
 # shellcheck disable=SC2086 # an empty apk argument must vanish, not become an empty string
 e2e/device.sh ${apk_arg:+-p "${apk_arg}"}

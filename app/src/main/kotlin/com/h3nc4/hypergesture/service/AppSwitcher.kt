@@ -41,88 +41,99 @@ import kotlinx.coroutines.withContext
  */
 class AppSwitcher(private val context: Context, private val scope: CoroutineScope) {
 
-    // The order this walk started from, newest first, and where in it the last step landed.
-    // Kept rather than re-read because usage events lag by seconds: right after a launch the
-    // event stream still names the previous app, so re-reading would keep resetting the walk
-    // to the newest entry and the gesture would bounce between two apps.
-    private var walk: List<String> = emptyList()
-    private var position = 0
-    private var lastStepAt = 0L
+    private class LaunchTarget(val packageName: String, val intent: Intent)
 
-    private val prefetch = OrderPrefetch(PREPARED_MAX_AGE_MS)
+    private val walk = AppWalk<LaunchTarget>(CHAIN_WINDOW_MS)
+
+    private val prefetch = OrderPrefetch<LaunchTarget>(PREPARED_MAX_AGE_MS)
+
+    // Steps that arrived while an order is still being read, applied in order once it arrives.
+    private var waitingSteps: MutableList<Boolean>? = null
 
     /** Reads the order off the main thread once [stream] arms as a switch, before it fires. */
     fun prepare(stream: Long) {
         val startedAt = SystemClock.elapsedRealtime()
-        if (!walkRestarts(startedAt)) return
+        if (!walk.restartsAt(startedAt)) return
         prefetch.request(stream)
         scope.launch {
-            val apps = withContext(Dispatchers.IO) { runCatching { recentApps() }.getOrNull() }
-                ?: return@launch
+            val apps = withContext(Dispatchers.IO) { readOrder() }
             prefetch.deliver(PreparedOrder(stream, startedAt, apps))
         }
     }
 
+    /** False when the step failed at once, true when it landed or waits for its order. */
     fun step(toPrevious: Boolean, stream: Long): Boolean {
-        val now = SystemClock.elapsedRealtime()
-        if (walkRestarts(now)) {
-            walk = prefetch.take(stream, now) ?: recentApps()
-            position = 0
+        waitingSteps?.let { waiting ->
+            waiting.add(toPrevious)
+            return true
         }
-        if (walk.isEmpty()) {
+        val now = SystemClock.elapsedRealtime()
+        if (walk.restartsAt(now)) {
+            val prepared = prefetch.take(stream, now)
+            if (prepared == null) {
+                readThenStep(toPrevious)
+                return true
+            }
+            walk.begin(prepared)
+        }
+        return advance(toPrevious, now)
+    }
+
+    // On a prefetch miss the step waits for a read off the main thread.
+    private fun readThenStep(toPrevious: Boolean) {
+        val waiting = mutableListOf(toPrevious)
+        waitingSteps = waiting
+        scope.launch {
+            try {
+                walk.begin(withContext(Dispatchers.IO) { readOrder() })
+            } finally {
+                waitingSteps = null
+            }
+            waiting.forEach { advance(it, SystemClock.elapsedRealtime()) }
+        }
+    }
+
+    private fun advance(toPrevious: Boolean, now: Long): Boolean {
+        if (walk.isEmpty) {
             val message = "app switch: no usage events, so usage access is probably not granted"
             lastFailure = message
             Log.w(TAG, message)
             return false
         }
 
-        val next = position + if (toPrevious) 1 else -1
-        if (next !in walk.indices) {
+        val target = walk.target(toPrevious)
+        if (target == null) {
             lastFailure = "app switch: nothing ${if (toPrevious) "older" else "newer"} than this"
             return false
         }
 
-        val target = walk[next]
-        val intent = context.packageManager.getLaunchIntentForPackage(target)
-        if (intent == null) {
-            val message = "app switch: $target has no launcher entry"
-            lastFailure = message
-            Log.w(TAG, message)
-            return false
-        }
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
-        return runCatching { context.startActivity(intent) }
+        val name = target.packageName
+        return runCatching { context.startActivity(target.intent) }
             .onFailure { throwable ->
-                lastFailure = "app switch: starting $target threw ${throwable.javaClass.name}"
-                Log.w(TAG, "startActivity($target) threw", throwable)
+                lastFailure = "app switch: starting $name threw ${throwable.javaClass.name}"
+                Log.d(TAG, "startActivity($name) threw", throwable)
             }
             .onSuccess {
-                position = next
-                lastStepAt = now
+                walk.landed(toPrevious, now)
                 lastFailure = null
             }
             .isSuccess
     }
 
-    // A long enough pause means the user went somewhere by hand. The walk then starts over.
-    private fun walkRestarts(now: Long): Boolean =
-        walk.isEmpty() || now - lastStepAt > CHAIN_WINDOW_MS
-
-    /**
-     * Apps by when each was last in front, newest first, every package once. Our own package
-     * is dropped, and so is anything with no launcher entry: the home screen resumes between
-     * every pair of apps and advertises CATEGORY_HOME rather than CATEGORY_LAUNCHER, so
-     * leaving it in makes a step land on a package that cannot be started.
-     */
-    private fun recentApps(): List<String> {
+    // A short window answers in most cases. The long one is read only when it finds nothing
+    // to step back to, such as after an hour in one app.
+    private fun readOrder(): List<LaunchTarget> = runCatching {
         val usage = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            ?: return emptyList()
+            ?: return@runCatching emptyList()
+        recentApps(usage, RECENT_WINDOW_MS).takeIf { it.size > 1 }
+            ?: recentApps(usage, TRAIL_WINDOW_MS)
+    }.getOrDefault(emptyList())
+
+    // Apps by when each was last in front, with launch intents resolved here off the main
+    // thread. A step then only starts the activity.
+    private fun recentApps(usage: UsageStatsManager, windowMs: Long): List<LaunchTarget> {
         val now = System.currentTimeMillis()
-        val events = runCatching { usage.queryEvents(now - TRAIL_WINDOW_MS, now) }.getOrNull()
-            ?: return emptyList()
-        val newestFirst = ArrayDeque<String>()
-        val seen = mutableSetOf<String>()
+        val events = usage.queryEvents(now - windowMs, now) ?: return emptyList()
         val resumed = mutableListOf<String>()
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
@@ -130,18 +141,16 @@ class AppSwitcher(private val context: Context, private val scope: CoroutineScop
             if (event.eventType != UsageEvents.Event.ACTIVITY_RESUMED) continue
             resumed.add(event.packageName ?: continue)
         }
-        // Walked backwards so the first sighting of a package is its most recent one.
-        for (packageName in resumed.asReversed()) {
-            if (packageName == context.packageName) continue
-            if (!seen.add(packageName)) continue
-            if (context.packageManager.getLaunchIntentForPackage(packageName) == null) continue
-            newestFirst.addLast(packageName)
+        return newestFirst(resumed, context.packageName) { packageName ->
+            context.packageManager.getLaunchIntentForPackage(packageName)
+                ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ?.let { LaunchTarget(packageName, it) }
         }
-        return newestFirst.toList()
     }
 
     companion object {
         private const val TAG = "HyperGesture"
+        private const val RECENT_WINDOW_MS = 60L * 60L * 1000L
         private const val TRAIL_WINDOW_MS = 6L * 60L * 60L * 1000L
 
         /** How long a chain of swipes keeps walking one order before it restarts. */
