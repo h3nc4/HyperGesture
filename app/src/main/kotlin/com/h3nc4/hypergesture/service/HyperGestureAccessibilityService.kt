@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.math.hypot
@@ -150,6 +151,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
                     FailureLog.record(this@HyperGestureAccessibilityService, "settings collector", it)
                     emit(GestureConfiguration())
                 }
+                // A write that leaves the configuration equal, such as a key set to its default, rebuilds no window.
+                .distinctUntilChanged()
                 .collect { updated ->
                     configuration = updated
                     installer.run()
