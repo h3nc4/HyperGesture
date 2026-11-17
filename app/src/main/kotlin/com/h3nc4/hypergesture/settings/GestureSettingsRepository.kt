@@ -36,26 +36,34 @@ private val Context.gestureDataStore: DataStore<Preferences> by
     resettingPreferencesDataStore("gesture_configuration")
 
 /** Defaults are never duplicated here: a missing key falls back to [GestureConfiguration]. */
-class GestureSettingsRepository(
-    private val context: Context,
-    private val store: DataStore<Preferences> = context.gestureDataStore,
+class GestureSettingsRepository internal constructor(
+    private val store: DataStore<Preferences>,
+    private val debugOverrides: () -> DebugOverrides,
 ) {
 
-    val configuration: Flow<GestureConfiguration> = store.data.map(::toConfiguration)
+    constructor(
+        context: Context,
+        store: DataStore<Preferences> = context.gestureDataStore,
+    ) : this(store, { DebugOverrides.read(context) })
+
+    val configuration: Flow<GestureConfiguration> =
+        store.data.map { toConfiguration(it, debugOverrides()) }
 
     suspend fun read(): GestureConfiguration = configuration.first()
 
     suspend fun update(transform: (GestureConfiguration) -> GestureConfiguration) {
         store.edit { preferences ->
-            val updated = transform(toConfiguration(preferences))
+            val overrides = debugOverrides()
+            val updated = transform(toConfiguration(preferences, overrides))
             preferences[EDGE_WIDTH_DP] = updated.edgeWidthDp
             preferences[SIDE_MIN_DISTANCE_DP] = updated.sideMinimumSwipeDistanceDp
             preferences[BOTTOM_MIN_DISTANCE_DP] = updated.bottomMinimumSwipeDistanceDp
             preferences[MAX_ARM_DURATION_MS] = updated.maximumArmDurationMs
-            preferences[RECENTS_HOLD_MS] = updated.recentsHoldMs
+            // An overridden field keeps its stored value, so a debug run never persists the override.
+            if (overrides.recentsHoldMs == null) preferences[RECENTS_HOLD_MS] = updated.recentsHoldMs
             preferences[HOLD_STILLNESS_DP] = updated.holdStillnessDp
             preferences[OFF_AXIS_TOLERANCE] = updated.offAxisToleranceRatio
-            preferences[APP_SWITCH] = updated.appSwitchEnabled
+            if (overrides.appSwitchEnabled == null) preferences[APP_SWITCH] = updated.appSwitchEnabled
             preferences[LEFT_EDGE_BACK] = updated.leftEdgeBackEnabled
             preferences[RIGHT_EDGE_BACK] = updated.rightEdgeBackEnabled
             preferences[HAPTIC_FEEDBACK] = updated.hapticFeedbackEnabled
@@ -66,7 +74,7 @@ class GestureSettingsRepository(
         }
     }
 
-    private fun toConfiguration(preferences: Preferences): GestureConfiguration {
+    private fun toConfiguration(preferences: Preferences, overrides: DebugOverrides): GestureConfiguration {
         val defaults = GestureConfiguration()
         val storedHoldMs = preferences[RECENTS_HOLD_MS] ?: defaults.recentsHoldMs
         return GestureConfiguration(
@@ -77,11 +85,11 @@ class GestureSettingsRepository(
                 preferences[BOTTOM_MIN_DISTANCE_DP] ?: defaults.bottomMinimumSwipeDistanceDp,
             maximumArmDurationMs =
                 preferences[MAX_ARM_DURATION_MS] ?: defaults.maximumArmDurationMs,
-            recentsHoldMs = debugRecentsHoldMs() ?: storedHoldMs,
+            recentsHoldMs = overrides.recentsHoldMs ?: storedHoldMs,
             holdStillnessDp = preferences[HOLD_STILLNESS_DP] ?: defaults.holdStillnessDp,
             offAxisToleranceRatio =
                 preferences[OFF_AXIS_TOLERANCE] ?: defaults.offAxisToleranceRatio,
-            appSwitchEnabled = debugAppSwitchEnabled() ?: (preferences[APP_SWITCH] ?: defaults.appSwitchEnabled),
+            appSwitchEnabled = overrides.appSwitchEnabled ?: (preferences[APP_SWITCH] ?: defaults.appSwitchEnabled),
             leftEdgeBackEnabled = preferences[LEFT_EDGE_BACK] ?: defaults.leftEdgeBackEnabled,
             rightEdgeBackEnabled = preferences[RIGHT_EDGE_BACK] ?: defaults.rightEdgeBackEnabled,
             hapticFeedbackEnabled = preferences[HAPTIC_FEEDBACK] ?: defaults.hapticFeedbackEnabled,
@@ -96,32 +104,7 @@ class GestureSettingsRepository(
         )
     }
 
-    /** Test seam that spares the debug emulator run a tap on the toggle. Debug only. */
-    private fun debugAppSwitchEnabled(): Boolean? {
-        if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return null
-        return runCatching {
-            Settings.Global.getString(context.contentResolver, APP_SWITCH_OVERRIDE)?.let {
-                it == "1" || it.equals("true", ignoreCase = true)
-            }
-        }.getOrNull()
-    }
-
-    /**
-     * Test seam for the emulator suite, which cannot deliver a gap-free touch stream: on a
-     * loaded machine input stalls past the hold window and a continuous swipe is read as a
-     * hold. Only consulted in a debuggable build, so a release APK never reaches it.
-     */
-    private fun debugRecentsHoldMs(): Long? {
-        if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return null
-        return runCatching {
-            Settings.Global.getString(context.contentResolver, RECENTS_HOLD_OVERRIDE)?.toLong()
-        }.getOrNull()
-    }
-
     private companion object {
-        const val RECENTS_HOLD_OVERRIDE = "hypergesture_recents_hold_ms"
-        const val APP_SWITCH_OVERRIDE = "hypergesture_app_switch"
-
         val EDGE_WIDTH_DP = floatPreferencesKey("edge_width_dp")
         val SIDE_MIN_DISTANCE_DP = floatPreferencesKey("side_minimum_swipe_distance_dp")
         val BOTTOM_MIN_DISTANCE_DP = floatPreferencesKey("bottom_minimum_swipe_distance_dp")
@@ -138,5 +121,30 @@ class GestureSettingsRepository(
         val CIRCLE_TO_SEARCH_SYSTEM_TIMING =
             booleanPreferencesKey("circle_to_search_follows_system_timing")
         val CIRCLE_TO_SEARCH_HOLD_MS = longPreferencesKey("circle_to_search_hold_ms")
+    }
+}
+
+/** Values a debuggable build reads from `Settings.Global`, so the emulator suite needs no taps. */
+internal data class DebugOverrides(
+    val recentsHoldMs: Long? = null,
+    val appSwitchEnabled: Boolean? = null,
+) {
+    companion object {
+        private const val RECENTS_HOLD_OVERRIDE = "hypergesture_recents_hold_ms"
+        private const val APP_SWITCH_OVERRIDE = "hypergesture_app_switch"
+
+        // A loaded emulator stalls input past the hold window. The suite lengthens that window, or a swipe reads as a hold.
+        fun read(context: Context): DebugOverrides {
+            if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return DebugOverrides()
+            return DebugOverrides(
+                recentsHoldMs = global(context, RECENTS_HOLD_OVERRIDE)?.toLongOrNull(),
+                appSwitchEnabled = global(context, APP_SWITCH_OVERRIDE)?.let {
+                    it == "1" || it.equals("true", ignoreCase = true)
+                },
+            )
+        }
+
+        private fun global(context: Context, name: String): String? =
+            runCatching { Settings.Global.getString(context.contentResolver, name) }.getOrNull()
     }
 }
