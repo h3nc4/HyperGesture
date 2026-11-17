@@ -18,11 +18,11 @@
 package com.h3nc4.hypergesture.service
 
 /** An app order read ahead for one touch stream, newest first, and when the read started. */
-internal data class PreparedOrder(val stream: Long, val readAtMs: Long, val apps: List<String>)
+internal data class PreparedOrder<T>(val stream: Long, val readAtMs: Long, val apps: List<T>)
 
 // Null sends the caller to read the order itself. An empty read is never trusted, since a
 // failed read looks the same.
-internal fun PreparedOrder?.usableFor(stream: Long, nowMs: Long, maxAgeMs: Long): List<String>? {
+internal fun <T> PreparedOrder<T>?.usableFor(stream: Long, nowMs: Long, maxAgeMs: Long): List<T>? {
     val prepared = this ?: return null
     val age = nowMs - prepared.readAtMs
     val usable = prepared.stream == stream && age in 0..maxAgeMs && prepared.apps.isNotEmpty()
@@ -31,11 +31,11 @@ internal fun PreparedOrder?.usableFor(stream: Long, nowMs: Long, maxAgeMs: Long)
 
 // The order read off the main thread for the latest touch armed as a switch. Only the main
 // thread touches it, and a finished read is posted back there.
-internal class OrderPrefetch(private val maxAgeMs: Long) {
+internal class OrderPrefetch<T>(private val maxAgeMs: Long) {
 
     private var requested: Long? = null
 
-    private var prepared: PreparedOrder? = null
+    private var prepared: PreparedOrder<T>? = null
 
     /** Forgets any earlier read, so only [stream]'s own read can be taken. */
     fun request(stream: Long) {
@@ -44,14 +44,14 @@ internal class OrderPrefetch(private val maxAgeMs: Long) {
     }
 
     /** False when a newer stream asked since, and the late read is dropped. */
-    fun deliver(order: PreparedOrder): Boolean {
+    fun deliver(order: PreparedOrder<T>): Boolean {
         if (order.stream != requested) return false
         prepared = order
         return true
     }
 
     /** The order for [stream] when it is ready and fresh, consumed so no later touch reuses it. */
-    fun take(stream: Long, nowMs: Long): List<String>? {
+    fun take(stream: Long, nowMs: Long): List<T>? {
         val apps = prepared.usableFor(stream, nowMs, maxAgeMs)
         if (apps != null) prepared = null
         return apps
