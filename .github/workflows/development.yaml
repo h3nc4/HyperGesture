@@ -43,6 +43,39 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Look for a change outside the site and the prose
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - name: List the pull request's files
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          code=true
+          if [ "${EVENT}" = pull_request ]; then
+            files="$(gh api --paginate "repos/${REPO}/pulls/${PR}/files" --jq '.[].filename')"
+            if [ -n "${files}" ]; then
+              code=false
+              while IFS= read -r path; do
+                case "${path}" in
+                  site/* | *.md | LICENSE | .github/workflows/site.yaml) ;;
+                  *) code=true ;;
+                esac
+              done <<<"${files}"
+            fi
+          fi
+          echo "code: ${code}"
+          echo "code=${code}" >>"${GITHUB_OUTPUT}"
+
   verification-metadata:
     name: Regenerate Gradle verification metadata
     if: >-
@@ -99,8 +132,10 @@ jobs:
 
   checks:
     name: Lint, test and build
-    needs: [verification-metadata]
-    if: ${{ !failure() && !cancelled() }}
+    needs: [changes, verification-metadata]
+    if: >-
+      !cancelled() && needs.verification-metadata.result != 'failure' &&
+      needs.changes.outputs.code != 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -141,7 +176,7 @@ jobs:
   sonarqube:
     name: SonarQube Scan
     needs: [checks]
-    if: ${{ !failure() && !cancelled() }}
+    if: ${{ !cancelled() && needs.checks.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Run actions/checkout

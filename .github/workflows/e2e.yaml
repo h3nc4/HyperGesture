@@ -41,8 +41,43 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Look for a change outside the site and the prose
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - name: List the pull request's files
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          code=true
+          if [ "${EVENT}" = pull_request ]; then
+            files="$(gh api --paginate "repos/${REPO}/pulls/${PR}/files" --jq '.[].filename')"
+            if [ -n "${files}" ]; then
+              code=false
+              while IFS= read -r path; do
+                case "${path}" in
+                  site/* | *.md | LICENSE | .github/workflows/site.yaml) ;;
+                  *) code=true ;;
+                esac
+              done <<<"${files}"
+            fi
+          fi
+          echo "code: ${code}"
+          echo "code=${code}" >>"${GITHUB_OUTPUT}"
+
   dev-image:
     name: Resolve the dev image
+    needs: [changes]
+    if: needs.changes.outputs.code != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -177,16 +212,22 @@ jobs:
 
   gestures:
     name: Gesture end-to-end
-    needs: [dev-image, shards]
+    needs: [changes, dev-image, shards]
     if: always() && github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require every shard to pass
         env:
+          CODE: ${{ needs.changes.outputs.code }}
+          CHANGES: ${{ needs.changes.result }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "results: ${RESULTS}"
+          if [ "${CHANGES}" = success ] && [ "${CODE}" = false ]; then
+            echo "only the site or prose changed, so the shards did not run"
+            exit 0
+          fi
           for result in ${RESULTS}; do
             [ "${result}" = success ] || exit 1
           done
