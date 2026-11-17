@@ -19,6 +19,7 @@ package com.h3nc4.hypergesture.update
 
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.file.Files
 import kotlin.coroutines.CoroutineContext
 
 /** The PackageInstaller calls an install makes, kept apart so a JVM test can drive them. */
@@ -40,6 +41,6 @@ internal suspend fun installInSession(sessions: InstallSessions, file: File, io:
                 .exceptionOrNull()?.reason()
         } finally {
             // The session has copied the bytes by now, and a retry downloads afresh.
-            file.delete()
+            runCatching { Files.deleteIfExists(file.toPath()) }
         }
     }
