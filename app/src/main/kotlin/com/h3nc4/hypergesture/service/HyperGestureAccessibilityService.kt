@@ -49,10 +49,8 @@ import com.h3nc4.hypergesture.settings.GestureSettingsRepository
 import com.h3nc4.hypergesture.setup.GestureTileService
 import com.h3nc4.hypergesture.setup.StopNotifier
 import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,14 +68,14 @@ import kotlin.math.hypot
 class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
     /**
-     * An uncaught throw in [scope] - realistically DataStore on an unreadable file -
+     * An uncaught throw in [connectionScope] - realistically DataStore on an unreadable file -
      * kills the process and gets the service reported as malfunctioning.
      */
     private val coroutineFailures = CoroutineExceptionHandler { _, throwable ->
         FailureLog.record(this, "settings collector", throwable)
     }
-    private val scope =
-        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + coroutineFailures)
+    private val connectionScope =
+        ConnectionScope { SupervisorJob() + Dispatchers.Main.immediate + coroutineFailures }
     private val handler = Handler(Looper.getMainLooper())
 
     private lateinit var settings: GestureSettingsRepository
@@ -137,6 +135,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     }
 
     private fun setUp() {
+        val scope = connectionScope.open()
         settings = GestureSettingsRepository(applicationContext)
         performer = GestureActionPerformer(this, scope)
         windowManager = getSystemService(WindowManager::class.java)
@@ -269,7 +268,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         keeperWatch = null
         restoreButtons()
         handler.removeCallbacksAndMessages(null)
-        scope.cancel()
+        connectionScope.close()
         // A replaced instance can unbind after its successor connected, which must keep its state.
         if (instance === this) {
             instance = null
