@@ -17,13 +17,18 @@
 
 package com.h3nc4.hypergesture.settings
 
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.mutablePreferencesOf
 import com.h3nc4.hypergesture.FilesContext
 import com.h3nc4.hypergesture.MemoryDataStore
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -45,5 +50,56 @@ class GestureSettingsRepositoryTest {
         val stored = repository.read()
         assertEquals(40f, stored.edgeWidthDp)
         assertFalse(stored.hapticFeedbackEnabled)
+    }
+
+    @Test
+    fun `concurrent updates of one field each read the value the previous one wrote`() = runBlocking {
+        val repository = GestureSettingsRepository(FilesContext(folder.root), MemoryDataStore())
+
+        coroutineScope {
+            repeat(20) { launch { repository.update { it.copy(edgeWidthDp = it.edgeWidthDp + 1f) } } }
+        }
+
+        assertEquals(40f, repository.read().edgeWidthDp)
+    }
+
+    @Test
+    fun `an update under debug overrides leaves the overridden fields as stored`() = runBlocking {
+        val store = MemoryDataStore(mutablePreferencesOf(RECENTS_HOLD_MS to 250L, APP_SWITCH to false))
+        val overrides = DebugOverrides(recentsHoldMs = 400L, appSwitchEnabled = true)
+        val repository = GestureSettingsRepository(store) { overrides }
+
+        repository.update { it.copy(hapticFeedbackEnabled = false) }
+
+        val stored = store.data.first()
+        assertEquals(250L, stored[RECENTS_HOLD_MS])
+        assertEquals(false, stored[APP_SWITCH])
+        assertEquals(false, stored[HAPTIC_FEEDBACK])
+        val read = repository.read()
+        assertEquals(400L, read.recentsHoldMs)
+        assertTrue(read.appSwitchEnabled)
+    }
+
+    @Test
+    fun `without overrides an update stores every field it was given`() = runBlocking {
+        val store = MemoryDataStore()
+        val repository = GestureSettingsRepository(store) { DebugOverrides() }
+
+        repository.update { it.copy(recentsHoldMs = 300L, appSwitchEnabled = true) }
+
+        val stored = store.data.first()
+        assertEquals(300L, stored[RECENTS_HOLD_MS])
+        assertEquals(true, stored[APP_SWITCH])
+    }
+
+    @Test
+    fun `a release build ignores the overrides`() {
+        assertEquals(DebugOverrides(), DebugOverrides.read(FilesContext(folder.root)))
+    }
+
+    private companion object {
+        val RECENTS_HOLD_MS = longPreferencesKey("recents_hold_ms")
+        val APP_SWITCH = booleanPreferencesKey("app_switch_enabled")
+        val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback_enabled")
     }
 }
