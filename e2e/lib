@@ -45,6 +45,7 @@ EMULATOR_BIN="${ANDROID_HOME}/emulator/emulator"
 
 AVD="${AVD:-hypergesture}"
 PKG="com.h3nc4.hypergesture"
+# shellcheck disable=SC2034 # read by the suites that source this file
 SERVICE="${PKG}/${PKG}.service.HyperGestureAccessibilityService"
 LOG_DIR="build/e2e-logs"
 
@@ -221,6 +222,7 @@ geometry() {
   if [ -f "${LOG_DIR}/geometry" ]; then
     read -r WIDTH HEIGHT strip_h <"${LOG_DIR}/geometry"
     MID_Y=$((HEIGHT / 2))
+    # shellcheck disable=SC2034 # read by the suites that source this file
     RIGHT_X=$((WIDTH - 3))
     BOTTOM_Y=$((HEIGHT - strip_h + 8))
     return 0
@@ -233,6 +235,7 @@ geometry() {
     exit 1
   fi
   MID_Y=$((HEIGHT / 2))
+  # shellcheck disable=SC2034 # read by the suites that source this file
   RIGHT_X=$((WIDTH - 3))
 
   # Binding and installing are not the same moment: the strips go up when the settings
@@ -461,14 +464,15 @@ wait_strip() {
   strip_try=1
   while [ "${strip_try}" -le 30 ]; do
     frame=''
-    # shellcheck disable=SC2310 # a rotation still in flight is the retry signal
-    if [ "$(display_rotation)" = "$1" ]; then
+    rotation="$(display_rotation)"
+    if [ "${rotation}" = "$1" ]; then
       frame="$(bottom_strip_frame)"
     fi
     span="$(printf '%s\n' "${frame}" | awk '{print $3 - $1}')"
     if [ -n "${frame}" ] && [ "${frame}" = "${last}" ]; then
       if { [ "$1" = '1' ] && [ "${span}" -gt "${WIDTH}" ]; } ||
         { [ "$1" = '0' ] && [ "${span}" -le "${WIDTH}" ]; }; then
+        # shellcheck disable=SC2034 # read by the suites that source this file
         STRIP_TOP="$(printf '%s\n' "${frame}" | awk '{print $2}')"
         return 0
       fi

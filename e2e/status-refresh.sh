@@ -50,10 +50,20 @@ assert_shows() {
   fi
 }
 
-service_enabled() {
-  "${ADB_BIN}" shell dumpsys accessibility 2>/dev/null | tr -d '\r' |
-    grep -q "Enabled services:.*${PKG}"
+# Enabled is only the setting just written, so wait for the bind. dumpsys lists it by label.
+service_bound() {
+  accessibility="$("${ADB_BIN}" shell dumpsys accessibility 2>/dev/null | tr -d '\r')"
+  printf '%s\n' "${accessibility}" | grep -q "Bound services:.*HyperGesture" &&
+    ! printf '%s\n' "${accessibility}" | grep -q "Crashed services:.*HyperGesture"
 }
+
+# The suites after this one share the device, so usage access goes back to what it was.
+usage_before="$("${ADB_BIN}" shell appops get "${PKG}" GET_USAGE_STATS 2>/dev/null | tr -d '\r' |
+  sed -n 's/^GET_USAGE_STATS: \([a-z]*\).*/\1/p' | head -1)"
+restore_usage() {
+  "${ADB_BIN}" shell appops set "${PKG}" GET_USAGE_STATS "${usage_before:-default}" >/dev/null 2>&1 || true
+}
+trap restore_usage INT TERM EXIT
 
 echo >&2
 echo "== usage access granted in the background shows on return ==" >&2
@@ -89,10 +99,15 @@ leave_app
 "${ADB_BIN}" shell settings put secure enabled_accessibility_services "${SERVICE}" >/dev/null
 bound=1
 # shellcheck disable=SC2310 # a false predicate is the retry signal, not an error
-while [ "${bound}" -le 10 ] && ! service_enabled; do
+while [ "${bound}" -le 10 ] && ! service_bound; do
   sleep 1
   bound=$((bound + 1))
 done
+if [ "${bound}" -le 10 ]; then
+  pass "the service binds again and is not marked crashed"
+else
+  fail "the service did not bind again within 10 s, or is marked crashed"
+fi
 open_home
 assert_shows "the status reads working without a tap" service_status "${service_working}"
 
