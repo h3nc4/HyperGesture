@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -51,6 +52,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.h3nc4.hypergesture.R
@@ -69,7 +75,9 @@ internal fun SectionHeader(text: String, modifier: Modifier = Modifier) {
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.SemiBold,
-        modifier = modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
+        modifier = modifier
+            .semantics { heading() }
+            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
     )
 }
 
@@ -131,11 +139,11 @@ internal fun ToggleRow(
     ListItem(
         headlineContent = { Text(label) },
         supportingContent = supporting?.let { { SupportingText(it) } },
-        trailingContent = {
-            Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.tagged(tag))
-        },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
         colors = transparentItem,
-        modifier = Modifier.clickable { onChange(!checked) },
+        modifier = Modifier
+            .tagged(tag)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
     )
 }
 
@@ -166,7 +174,8 @@ internal fun SplitSwitchRow(
             onCheckedChange = onChange,
             modifier = Modifier
                 .padding(horizontal = 16.dp)
-                .testTag(switchTag),
+                .testTag(switchTag)
+                .semantics { contentDescription = title },
         )
     }
 }
@@ -260,6 +269,7 @@ internal fun ThresholdSlider(
     var dragging by remember { mutableStateOf(false) }
     var local by remember { mutableFloatStateOf(value) }
     LaunchedEffect(value) { if (!dragging) local = value }
+    val shown = formatter(local.roundToInt())
 
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -271,7 +281,7 @@ internal fun ThresholdSlider(
                     .padding(end = 12.dp),
             )
             Text(
-                text = formatter(local.roundToInt()),
+                text = shown,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Medium,
@@ -279,6 +289,10 @@ internal fun ThresholdSlider(
         }
         Slider(
             value = local,
+            modifier = Modifier.semantics {
+                contentDescription = label
+                stateDescription = shown
+            },
             valueRange = range,
             onValueChange = {
                 dragging = true
