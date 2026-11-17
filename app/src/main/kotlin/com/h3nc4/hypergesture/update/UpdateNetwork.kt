@@ -19,6 +19,8 @@ package com.h3nc4.hypergesture.update
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
@@ -213,6 +215,8 @@ internal class HttpApkDownloader(
                     output.write(buffer, 0, read)
                     digest.update(buffer, 0, read)
                     onChunk(read)
+                    // Progress suspends only when the percent moves, so cancel is checked per chunk.
+                    currentCoroutineContext().ensureActive()
                     read = source.read(buffer)
                 }
             }

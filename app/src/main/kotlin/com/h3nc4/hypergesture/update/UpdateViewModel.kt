@@ -22,6 +22,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
@@ -30,7 +32,9 @@ import java.io.File
 internal class UpdateViewModel(application: Application) : AndroidViewModel(application) {
 
     private val controller: UpdateController
-    private var work: Job? = null
+
+    // Parent of every request, so turning updates off cancels each check or download in flight.
+    private val work = SupervisorJob(viewModelScope.coroutineContext[Job])
 
     val state: StateFlow<UpdateState>
 
@@ -55,7 +59,7 @@ internal class UpdateViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun setEnabled(enabled: Boolean) {
-        if (!enabled) work?.cancel()
+        if (!enabled) work.cancelChildren()
         launchWork { controller.setEnabled(enabled) }
     }
 
@@ -66,6 +70,6 @@ internal class UpdateViewModel(application: Application) : AndroidViewModel(appl
     fun onResume() = launchWork { controller.onResume() }
 
     private fun launchWork(block: suspend () -> Unit) {
-        work = viewModelScope.launch { block() }
+        viewModelScope.launch(work) { block() }
     }
 }
