@@ -73,7 +73,7 @@ jobs:
           - shard: 3
             suites: circle-to-search landscape-confirm
           - shard: 4
-            suites: navigation back-revert stop-notice
+            suites: navigation back-revert stop-notice keyguard
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
