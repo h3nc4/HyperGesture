@@ -25,9 +25,7 @@
     <string name="accessibility_service_description">Recognises swipes from the screen edges and performs Back, Home and Recents. The service is for navigation alone, and it doesn\'t read screen content or keystrokes or send anything off your device. The app itself contacts GitHub only if you turn on its update check.</string>
     <string name="accessibility_service_summary">Edge gesture navigation</string>
 
-    <!-- Status, the first thing on home. The tile reuses the two short ones. -->
-    <string name="status_active">Active</string>
-    <string name="status_inactive">Not running</string>
+    <!-- Status, the first thing on home, and the tile's subtitle. -->
     <string name="status_off">Gestures are off</string>
     <string name="status_off_body">Turn HyperGesture on in Accessibility to start.</string>
     <string name="status_restricted_hint">Switch greyed out? Allow restricted settings in App info first.</string>
@@ -243,6 +241,7 @@
     <string name="section_this_device">This device</string>
     <string name="section_last_problems">Last problems</string>
     <string name="action_refresh_diagnostics">Refresh</string>
+    <string name="action_clear_failure">Clear</string>
     <string name="diag_android_version">Android version</string>
     <string name="diag_device">Device</string>
     <string name="diag_hyperos">HyperOS / MIUI build</string>
