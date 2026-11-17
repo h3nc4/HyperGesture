@@ -61,6 +61,9 @@ internal fun TroubleshootingScreen(model: AppModel) {
         },
     )
 
+    SectionHeader(stringResource(R.string.section_adb_grants))
+    AdbGrants { readAdbGrants(context) }
+
     SectionHeader(stringResource(R.string.section_this_device))
     DeviceRows(diagnostics)
 

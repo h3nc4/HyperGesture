@@ -42,4 +42,5 @@ internal object TestTags {
     const val UPDATE_ALLOW_INSTALLS = "update_allow_installs"
     const val SWITCH_KEEP_NAVIGATION = "switch_keep_navigation"
     const val KEEP_NAVIGATION_GRANT = "keep_navigation_grant"
+    const val GRANT_STATE = "grant_state"
 }
