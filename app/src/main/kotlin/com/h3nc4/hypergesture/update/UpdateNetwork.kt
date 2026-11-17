@@ -161,7 +161,7 @@ internal class HttpApkDownloader(
     private val directory: File,
     private val transport: HttpTransport,
     private val progressContext: CoroutineContext,
-    private val ceiling: Long = MAX_APK_BYTES,
+    private val ceiling: Long,
 ) : ApkDownloader {
 
     override suspend fun download(asset: ReleaseAsset, onProgress: (Int?) -> Unit): DownloadResult =

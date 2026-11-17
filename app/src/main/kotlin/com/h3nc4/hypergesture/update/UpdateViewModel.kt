@@ -42,6 +42,7 @@ internal class UpdateViewModel(application: Application) : AndroidViewModel(appl
                 File(application.noBackupFilesDir, "update"),
                 transport,
                 Dispatchers.Main,
+                MAX_APK_BYTES,
             ),
             installer = SessionApkInstaller(application),
             store = updateStore(application),
