@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://hypergesture.h3nc4.com/sitemap.xml

@@ -143,7 +143,7 @@ The last check time and answer sit in the `update_check` DataStore, so a second 
 
 ## Website
 
-`site/` builds hypergesture.h3nc4.com with Astro into static HTML and CSS, with no client JavaScript. The English strings are in `site/src/i18n/en.ts` and the Brazilian Portuguese ones in `site/src/i18n/pt.ts`, which render `/` and `/pt/` from the same components. Add a string to both files, since `pt.ts` is declared with the type of the English object.
+`site/` builds hypergesture.h3nc4.com with Astro into static HTML and CSS, with no client JavaScript. The English strings are in `site/src/i18n/en.ts` and the Brazilian Portuguese ones in `site/src/i18n/pt.ts`, which render `/` and `/pt/` from the same components. Add a string to both files, since `pt.ts` is declared with the type of the English object and `npm run build` runs `astro check` first, which fails on a string missing from `pt.ts`.
 
 The host has no Node, so run npm in the pinned image the site workflow uses:
 
@@ -155,10 +155,10 @@ docker run --rm -it -u "$(id -u):$(id -g)" -e HOME=/tmp -v "${PWD}/site:/site" -
 docker run --rm -it -u "$(id -u):$(id -g)" -e HOME=/tmp -v "${PWD}/site:/site" -w /site -p 4321:4321 "${node_image}" npx astro dev --host 0.0.0.0
 ```
 
-`npm run check` fails when a built page weighs more than 100 KB with the font and every file it loads, when a link points at an id or a page missing from `dist/`, or when a page lacks its `og:image` or the image file is missing.
+`npm run check` fails when a built page weighs more than 100 KB with the font and every file it loads, when a link points at an id or a page missing from `dist/`, when a page lacks its `og:image` or the image file is missing, when a page contains a `<script>`, an inline event handler or a `javascript:` URL, which the zone's `script-src 'none'` blocks, or when `robots.txt` or a page listed in `sitemap.xml` is missing.
 
 The link preview cards in `site/public/og/` are committed PNGs, rendered from `site/og/template.html` with the hero strings of each language. After changing that template or the hero strings, run `CHROME=<path to chrome-headless-shell> site/scripts/og-images.sh` after `npm ci` and commit both PNGs.
 
 The version, the APK size and the signing certificate come from the `VERSION`, `APK_SIZE` and `CERT_SHA256` environment variables, read by `site/src/facts.ts` at build time. Unset, they fall back to v1.0.0. `MIN_ANDROID` sets the Android version and defaults to 11. The QR code for the APK link is generated during the build as inline SVG.
 
-The site deploys as an assets-only Cloudflare Worker named `hypergesture-site`, with no script, on the custom domain in `site/wrangler.toml`. The `HyperGesture Site` workflow builds and checks it on every pull request touching `site/`, and deploys on a push to main touching `site/`, reading the version and size of the latest release from the GitHub API. The release workflow calls the same workflow after publishing, with the version, size and certificate of the APK it built. Both deploys need the repository secret `CLOUDFLARE_API_TOKEN`. To deploy by hand, build first, then run `npx wrangler@4.151.2 deploy` in `site/` with that token in the environment.
+The site deploys as an assets-only Cloudflare Worker named `hypergesture-site`, with no script, on the custom domain in `site/wrangler.toml`. The `HyperGesture Site` workflow builds and checks it on every pull request, where its `Site build gate` job fails unless the build passed, and deploys on a push to main touching `site/`, reading the version and size of the latest release from the GitHub API. The release workflow calls the same workflow after publishing, with the version, size and certificate of the APK it built. Both deploys need the repository secret `CLOUDFLARE_API_TOKEN`. To deploy by hand, build first, then run `npx wrangler@4.151.2 deploy` in `site/` with that token in the environment.
