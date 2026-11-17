@@ -78,7 +78,7 @@ jobs:
           - shard: 4
             suites: navigation landscape-confirm
           - shard: 5
-            suites: back-revert stop-notice
+            suites: back-revert stop-notice keyguard
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
