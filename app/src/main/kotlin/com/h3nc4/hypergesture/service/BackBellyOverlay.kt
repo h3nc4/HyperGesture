@@ -69,6 +69,7 @@ internal class BackBellyOverlay(
             gravity = Gravity.TOP or if (edge == ScreenEdge.LEFT) Gravity.START else Gravity.END
             // Full-display coordinates, so a touch's rawY is the belly's y as it stands.
             fitInsetsTypes = 0
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             alpha = 0f
         }
         runCatching {
