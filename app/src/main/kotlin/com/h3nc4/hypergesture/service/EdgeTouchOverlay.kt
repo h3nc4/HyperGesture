@@ -88,6 +88,9 @@ internal class EdgeTouchOverlay(
 
     private var pillVisible = false
 
+    // Kept across a reinstall, so a rotation over the lock screen brings no strip back.
+    private var armed = true
+
     private val handler = Handler(Looper.getMainLooper())
 
     private val pillExpiry = Runnable(::onPillTimeout)
@@ -338,9 +341,18 @@ internal class EdgeTouchOverlay(
         append(journal.dump())
     }
 
+    /** Disarmed strips let every touch through to the window below, as a held stream does. */
+    fun setArmed(armed: Boolean) {
+        if (this.armed == armed) return
+        this.armed = armed
+        Log.i(TAG, if (armed) "STRIPS_ARMED" else "STRIPS_DISARMED keyguard")
+        journal.add(if (armed) "strips armed" else "strips disarmed for the keyguard")
+        applyInteractivity()
+    }
+
     /** See the class comment for why this is alpha 0 as well as non-touchable. */
     private fun applyInteractivity() {
-        val interactive = !hold.held
+        val interactive = armed && !hold.held
         strips.values.forEach { view ->
             val params = view.layoutParams as? WindowManager.LayoutParams ?: return@forEach
             val flags = if (interactive) {
