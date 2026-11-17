@@ -27,9 +27,6 @@ on:
   pull_request:
     branches:
       - "main"
-    paths:
-      - "site/**"
-      - ".github/workflows/site.yaml"
   workflow_call:
     inputs:
       version:
@@ -79,6 +76,17 @@ jobs:
           name: site
           path: site/dist/
           retention-days: 1
+
+  gate:
+    name: Site build gate
+    needs: [build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless the site built and passed its checks
+        env:
+          RESULT: ${{ needs.build.result }}
+        run: test "${RESULT}" = success
 
   deploy:
     name: Deploy the site to Cloudflare Workers
