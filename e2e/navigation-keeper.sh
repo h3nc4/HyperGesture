@@ -45,31 +45,63 @@ put() {
 }
 
 # Pressing Home pauses the activity, so opening it again is a resume that rereads the grant.
+# The launcher takes focus once the pause is done, so that is what it waits for.
 leave_app() {
   "${ADB_BIN}" shell input keyevent KEYCODE_HOME >/dev/null
-  sleep 2
+  away_try=1
+  while [ "${away_try}" -le 10 ]; do
+    if ! "${ADB_BIN}" shell dumpsys window 2>/dev/null | tr -d '\r' |
+      grep -qE "mCurrentFocus.*${PKG}"; then
+      return 0
+    fi
+    sleep 0.5
+    away_try=$((away_try + 1))
+  done
 }
 
 # The HyperOS integration adds required steps the user confirms by hand, and home folds the
-# checklist into its Setup row only once they are done.
+# checklist into its Setup row only once they are done. It returns on home, with ROW_SETUP set.
 confirm_required_steps() {
   did_it="$(string_res action_i_did_it)"
+  ROW_SETUP=''
+  open_home
+  nodes="${HOME_NODES}"
   confirm_try=1
   while [ "${confirm_try}" -le 4 ]; do
-    open_home
-    nodes="$(ui_nodes)"
-    if printf '%s\n' "${nodes}" | grep -q 'resource-id="row_setup"'; then
+    ROW_SETUP="$(printf '%s\n' "${nodes}" | grep -m1 'resource-id="row_setup"' || true)"
+    if [ -n "${ROW_SETUP}" ]; then
       return 0
     fi
-    tap_node "$(printf '%s\n' "${nodes}" | grep -m1 "text=\"${did_it}\"" || true)"
-    sleep 2
+    did_it_node="$(printf '%s\n' "${nodes}" | grep -m1 "text=\"${did_it}\"" || true)"
+    if [ -n "${did_it_node}" ]; then
+      tap_node "${did_it_node}"
+      sleep 2
+      nodes="$(ui_nodes)"
+    else
+      open_home
+      nodes="${HOME_NODES}"
+    fi
     confirm_try=$((confirm_try + 1))
   done
 }
 
+# Taps the Setup row read off home when it is clear of the bottom strip, and falls back to
+# open_screen, which reopens home, when that tap does not reach the screen.
 open_setup() {
   leave_app
   confirm_required_steps
+  row_centre="$(printf '%s\n' "${ROW_SETUP}" |
+    sed -n 's/.*bounds="\[[0-9]*,\([0-9]*\)\]\[[0-9]*,\([0-9]*\)\]".*/\1 \2/p' |
+    awk '{print int(($1 + $2) / 2)}')"
+  size="$(screen_size)"
+  if [ -n "${row_centre}" ] && [ "${row_centre}" -lt $((${size#*x} - 260)) ]; then
+    tap_node "${ROW_SETUP}"
+    sleep 1
+    # shellcheck disable=SC2310 # a missing node sends it to the slower path below
+    if find_id "$1" >/dev/null; then
+      return 0
+    fi
+  fi
   open_screen row_setup "$1"
 }
 
