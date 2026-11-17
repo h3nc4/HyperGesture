@@ -29,7 +29,7 @@ class OrderPrefetchTest {
 
     private val apps = listOf("org.example.mail", "org.example.maps")
 
-    private val prefetch = OrderPrefetch(maxAgeMs)
+    private val prefetch = OrderPrefetch<String>(maxAgeMs)
 
     @Test
     fun `a fresh order read for this stream is used`() {
@@ -45,7 +45,8 @@ class OrderPrefetchTest {
 
     @Test
     fun `nothing prepared means a fresh read`() {
-        assertNull(null.usableFor(stream = 4L, nowMs = 0L, maxAgeMs = maxAgeMs))
+        val nothing: PreparedOrder<String>? = null
+        assertNull(nothing.usableFor(stream = 4L, nowMs = 0L, maxAgeMs = maxAgeMs))
     }
 
     @Test
@@ -68,7 +69,7 @@ class OrderPrefetchTest {
 
     @Test
     fun `an empty order means a fresh read, since a failed read is empty too`() {
-        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, apps = emptyList())
+        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, apps = emptyList<String>())
         assertNull(order.usableFor(stream = 4L, nowMs = 1_200L, maxAgeMs = maxAgeMs))
     }
 
