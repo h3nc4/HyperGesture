@@ -61,6 +61,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.math.hypot
@@ -98,6 +99,13 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         cancelRetry = { handler.removeCallbacksAndMessages(INSTALL_RETRY_TOKEN) },
         onFailure = { FailureLog.record(this, "installOverlay", it) },
         onAttached = { if (instance === this) stripsState.value = it },
+    )
+    private val settleCheck = InsetSettleCheck(
+        schedule = { delayMs, check ->
+            if (instance === this) handler.postDelayed(Runnable(check), SETTLE_CHECK_TOKEN, delayMs)
+        },
+        cancel = { handler.removeCallbacksAndMessages(SETTLE_CHECK_TOKEN) },
+        check = ::reinstallIfGeometryChanged,
     )
 
     /**
@@ -197,6 +205,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
                     FailureLog.record(this@HyperGestureAccessibilityService, "settings collector", it)
                     emit(GestureConfiguration())
                 }
+                // A write that leaves the configuration equal, such as a key set to its default, rebuilds no window.
+                .distinctUntilChanged()
                 .collect { updated ->
                     configuration = updated
                     installer.run()
@@ -259,6 +269,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         val geometry = ScreenGeometry.current(this, windowManager)
         lastGeometry = geometry
         return overlay.install(configuration.copy(platform = platformDefaults()), geometry)
+            .also { settleCheck.start() }
     }
 
     // Read on every install, so a changed touch and hold delay lands with the next settings
@@ -279,6 +290,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         val read = runCatching { ScreenGeometry.current(this, windowManager) }
         Log.i(TAG, "GEOMETRY_SIGNAL $source read=${read.getOrNull()} installed=$lastGeometry")
         reinstallIfGeometryChanged()
+        // A signal that changed nothing yet can still precede the inset it announces.
+        if (overlay != null) settleCheck.start()
     }
 
     /**
@@ -443,6 +456,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         private const val FINISH_GRACE_MS = 1_000L
 
         private val INSTALL_RETRY_TOKEN = Any()
+
+        private val SETTLE_CHECK_TOKEN = Any()
 
         /** An upper bound on how long a replay holds the strips past its UP, safety net included. */
         internal const val LONGEST_REPLAY_HOLD_MS = MAX_REPLAY_MS + WINDOW_SETTLE_MS + FINISH_GRACE_MS
