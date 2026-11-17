@@ -378,6 +378,35 @@ class UpdateControllerTest {
     }
 
     @Test
+    fun `turning updates off during a download never opens the installer`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        controller.onAppOpen()
+        downloader.whileDownloading = { controller.setEnabled(false) }
+        controller.downloadAndInstall()
+        assertTrue(installer.installed.isEmpty())
+        assertEquals(UpdateState(enabled = false), controller.state.value)
+    }
+
+    @Test
+    fun `turning updates off during the opening check leaves no offer`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        source.whileFetching = { controller.setEnabled(false) }
+        controller.onAppOpen()
+        assertEquals(UpdateState(enabled = false), controller.state.value)
+    }
+
+    @Test
+    fun `a check failing after updates were turned off reports nothing`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        source.whileFetching = {
+            controller.setEnabled(false)
+            throw IllegalStateException("boom")
+        }
+        controller.onAppOpen()
+        assertEquals(UpdateState(enabled = false), controller.state.value)
+    }
+
+    @Test
     fun `cancelling a check is not reported as a failure`() = runBlocking {
         source.whileFetching = { throw CancellationException("switched off") }
         val controller = controller(FakeStore(on = true))
