@@ -211,6 +211,8 @@ internal class EdgeTouchOverlay(
             this.gravity = gravity
             // Without this the strip is pushed inside the inset it was just extended across.
             fitInsetsTypes = 0
+            // A side strip on the camera side otherwise starts past the cutout, off the true edge.
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
         }
     }
 
