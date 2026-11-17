@@ -32,13 +32,19 @@ if [ -z "${version}" ]; then
   version="1.0.0"
 fi
 
-dev_image_tag="$(./scripts/devcontainer-image.sh -t)"
+# CI passes the tag with the digest it resolved, so the build and the verify share one image.
+dev_image_tag="${DEV_IMAGE_TAG:-$(./scripts/devcontainer-image.sh -t)}"
 
-# shellcheck disable=SC2154 # KEYSTORE_PASSWORD comes from .env or CI, and is optional
-docker build \
-  -f docker/apk.Dockerfile \
+set -- -f docker/apk.Dockerfile \
   --build-arg VERSION="${version}" \
   --build-arg DEV_IMAGE_TAG="${dev_image_tag}" \
-  --build-arg KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD}" \
-  --output type=local,dest=. \
-  .
+  --output type=local,dest=.
+if [ -s android.keystore ]; then
+  set -- "$@" --secret id=keystore,src=android.keystore
+fi
+if [ -n "${KEYSTORE_PASSWORD:-}" ]; then
+  export KEYSTORE_PASSWORD
+  set -- "$@" --secret id=keystore_password,env=KEYSTORE_PASSWORD
+fi
+
+docker build "$@" .
