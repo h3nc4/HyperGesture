@@ -89,7 +89,7 @@ data class SetupChecklist(val items: List<SetupItem>) {
 
         fun evaluate(facts: SetupFacts): SetupChecklist {
             val accessibility = when (facts.service) {
-                ServiceStatus.WORKING -> StepState.DONE
+                ServiceStatus.WORKING, ServiceStatus.DEGRADED -> StepState.DONE
                 ServiceStatus.STOPPED, ServiceStatus.OFF -> StepState.TO_DO
             }
             val accessibilityDone = accessibility == StepState.DONE

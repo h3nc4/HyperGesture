@@ -36,6 +36,8 @@ internal data class TileFace(
         fun of(status: ServiceStatus): TileFace = when (status) {
             ServiceStatus.WORKING ->
                 TileFace(active = true, subtitle = R.string.status_working, target = TileTarget.APP)
+            ServiceStatus.DEGRADED ->
+                TileFace(active = false, subtitle = R.string.status_degraded, target = TileTarget.APP)
             ServiceStatus.STOPPED -> stopped(R.string.status_stopped)
             ServiceStatus.OFF -> stopped(R.string.status_off)
         }

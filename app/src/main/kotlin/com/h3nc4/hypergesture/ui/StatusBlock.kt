@@ -53,11 +53,13 @@ internal fun StatusBlock(status: ServiceStatus, configuration: GestureConfigurat
     val title = when (status) {
         ServiceStatus.OFF -> R.string.status_off
         ServiceStatus.STOPPED -> R.string.status_stopped
+        ServiceStatus.DEGRADED -> R.string.status_degraded
         ServiceStatus.WORKING -> R.string.status_working
     }
     val body = when (status) {
         ServiceStatus.OFF -> R.string.status_off_body
         ServiceStatus.STOPPED -> R.string.status_stopped_body
+        ServiceStatus.DEGRADED -> R.string.status_degraded_body
         ServiceStatus.WORKING -> workingBody(configuration)
     }
     Card(
@@ -108,7 +110,7 @@ internal fun StatusBlock(status: ServiceStatus, configuration: GestureConfigurat
                         }
                     }
                 }
-                ServiceStatus.STOPPED -> Button(onClick = { openAccessibility(context) }) {
+                ServiceStatus.STOPPED, ServiceStatus.DEGRADED -> Button(onClick = { openAccessibility(context) }) {
                     Text(stringResource(R.string.action_fix))
                 }
                 ServiceStatus.WORKING -> Unit

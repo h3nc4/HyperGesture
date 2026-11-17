@@ -216,6 +216,12 @@ read_strip_height() {
     sed -n 's/.*strip BOTTOM installed [0-9]*x\([0-9]*\).*/\1/p' | tail -1
 }
 
+# FailureLog keeps the stack trace that logcat may already have rotated away. Debug builds only.
+print_last_failure() {
+  echo "files/last_failure.txt:" >&2
+  "${ADB_BIN}" shell run-as "${PKG}" cat files/last_failure.txt 2>&1 | tr -d '\r' | sed 's/^/    /' >&2
+}
+
 # The strip height is logged once, when the service binds, and a suite clears logcat
 # between cases, so the first caller writes it down and the rest read that.
 geometry() {
@@ -255,6 +261,7 @@ geometry() {
     echo "The strips were never installed (no 'strip BOTTOM installed' in 30s)." >&2
     echo "Last HyperGesture log lines:" >&2
     "${ADB_BIN}" logcat -d -s HyperGesture 2>/dev/null | tr -d '\r' | tail -10 | sed 's/^/    /' >&2
+    print_last_failure
     exit 1
   fi
   BOTTOM_Y=$((HEIGHT - strip_h + 8))

@@ -56,6 +56,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -174,6 +175,7 @@ internal class AppModel(
         scope.launch { settings.configuration.collect { configuration = it } }
         scope.launch { setupState.record.collect { record = it } }
         scope.launch { keeperSettings.enabled.collect { keeperEnabled = it } }
+        scope.launch { HyperGestureAccessibilityService.attachedStrips.drop(1).collect { refresh() } }
         // UiAutomation, which uiautomator and screen readers use, unbinds the service for a moment.
         // So a stop shows only once it outlasts that, and a return shows at once.
         HyperGestureAccessibilityService.running.collectLatest { running ->

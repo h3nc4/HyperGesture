@@ -22,11 +22,20 @@ enum class ServiceStatus {
     OFF,
     STOPPED,
     WORKING,
+
+    /** Bound and running, but the window manager refused every strip, so a gesture cannot start. */
+    DEGRADED,
     ;
 
     companion object {
         // HyperOS can stop the service while its switch stays on, which the live instance reveals.
-        fun of(switchedOn: Boolean, bound: Boolean, running: Boolean): ServiceStatus = when {
+        fun of(
+            switchedOn: Boolean,
+            bound: Boolean,
+            running: Boolean,
+            attachedStrips: Int? = null,
+        ): ServiceStatus = when {
+            running && attachedStrips == 0 -> DEGRADED
             running -> WORKING
             switchedOn || bound -> STOPPED
             else -> OFF
