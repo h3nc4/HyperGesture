@@ -132,10 +132,52 @@ jobs:
           path: hypergesture.apk
           retention-days: 1
 
+  e2e:
+    name: Gesture suites on the signed release APK
+    runs-on: ubuntu-latest
+    needs: [prepare, build-apk]
+    timeout-minutes: 60
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Run docker/login-action
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run actions/download-artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: apk
+      - name: Run h3nc4/dev-image-action
+        uses: h3nc4/dev-image-action@f7c620dd589b7ee84c3dcadce0334b43a5ac1ac3 # v3
+        with:
+          image: ${{ needs.prepare.outputs.dev-image }}
+          base-sha: ""
+          docker-args: --device /dev/kvm
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+      - name: Run every gesture E2E suite against the APK about to be published
+        run: $DEV_RUN -c './e2e/run.sh -p hypergesture.apk'
+      - name: Upload emulator log on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: emulator-log-release
+          path: build/e2e-logs/
+          retention-days: 3
+
   release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
-    needs: build-apk
+    needs: [build-apk, e2e]
     permissions:
       contents: write
     steps:
