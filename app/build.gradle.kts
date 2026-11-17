@@ -93,6 +93,10 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // Robolectric renders Compose against the merged resources and manifest.
+        unitTests.isIncludeAndroidResources = true
+        // Robolectric reaches FileDescriptor internals through SharedSecrets, which JDK 21 seals.
+        unitTests.all { it.jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED") }
     }
 }
 
@@ -104,6 +108,14 @@ kotlin {
 // Naming exact locations rather than scanning build/ keeps Gradle's task validation happy.
 val kotlinClassesDir = "intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes"
 val coverageExec = "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec"
+
+// Robolectric loads app classes through its own class loader, which JaCoCo skips by default.
+tasks.withType<Test>().configureEach {
+    extensions.configure<JacocoTaskExtension> {
+        isIncludeNoLocationClasses = true
+        excludes = listOf("jdk.internal.*")
+    }
+}
 
 tasks.register<JacocoReport>("jacocoTestReport") {
     dependsOn("testDebugUnitTest")
@@ -135,4 +147,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    // The Compose tests live in testDebug, the only variant whose manifest holds the test activity.
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    testDebugImplementation(platform(libs.androidx.compose.bom))
+    testDebugImplementation(libs.androidx.compose.ui.test.junit4)
+    testDebugImplementation(libs.robolectric)
 }
