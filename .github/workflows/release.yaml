@@ -22,8 +22,12 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   check-tag-branch:
