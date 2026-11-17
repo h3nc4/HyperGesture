@@ -209,8 +209,12 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
      */
     private fun reinstallIfGeometryChanged() {
         if (overlay == null) return
-        if (ScreenGeometry.current(this, windowManager) == lastGeometry) return
-        installOverlay()
+        reinstallOnGeometryChange(
+            last = lastGeometry,
+            read = { ScreenGeometry.current(this, windowManager) },
+            reinstall = ::installOverlay,
+            onFailure = { FailureLog.record(this, "reinstallIfGeometryChanged", it) },
+        )
     }
 
     private fun teardown() {
