@@ -155,9 +155,14 @@ internal class UpdateController(
     private val mutableState = MutableStateFlow(UpdateState())
     val state: StateFlow<UpdateState> = mutableState.asStateFlow()
 
+    // Bumped by the switch, so work begun before a toggle never writes state after it.
+    private var session = 0
+
     suspend fun onAppOpen() {
+        val started = session
         val enabled = store.enabled()
         val last = store.lastAttemptMs()
+        if (session != started) return
         mutableState.value = UpdateState(
             enabled = enabled,
             lastCheckedMs = last,
@@ -168,6 +173,7 @@ internal class UpdateController(
     }
 
     suspend fun setEnabled(enabled: Boolean) {
+        session++
         store.setEnabled(enabled)
         if (enabled) onAppOpen() else mutableState.value = UpdateState(enabled = false)
     }
@@ -177,17 +183,21 @@ internal class UpdateController(
     }
 
     private suspend fun showCached() {
+        val started = session
         val body = store.cachedBody() ?: return
+        if (session != started) return
         val release = ReleaseParser.parseOrNull(body) ?: return
         show(CheckResult.decide(installedVersion(), release))
     }
 
     private suspend fun check() {
+        val started = session
         update { it.copy(phase = UpdatePhase.Checking) }
-        recovering({ fail(CheckFailure.Unexpected(it)) }) {
+        recovering({ if (session == started) fail(CheckFailure.Unexpected(it)) }) {
             val now = clock()
             val fetched = source.latest()
             store.recordAttempt(now, (fetched as? FetchResult.Ok)?.body)
+            if (session != started) return
             update { it.copy(lastCheckedMs = now) }
             decide(fetched)
         }
@@ -238,18 +248,21 @@ internal class UpdateController(
             update { it.copy(phase = UpdatePhase.DownloadFailed(DownloadResult.Unverified)) }
             return
         }
+        val started = session
         update { it.copy(phase = UpdatePhase.Downloading(null)) }
         val downloaded = recovering(DownloadResult::Failed) {
             downloader.download(offer.asset) { percent ->
-                update { it.copy(phase = UpdatePhase.Downloading(percent)) }
+                if (session == started) update { it.copy(phase = UpdatePhase.Downloading(percent)) }
             }
         }
+        if (session != started) return
         if (downloaded !is DownloadResult.Ok || !downloaded.verified) {
             val failure = if (downloaded is DownloadResult.Ok) DownloadResult.Unverified else downloaded
             update { it.copy(phase = UpdatePhase.DownloadFailed(failure)) }
             return
         }
         val refusal = recovering({ it }) { installer.install(downloaded.file) }
+        if (session != started) return
         update {
             it.copy(phase = refusal?.let(UpdatePhase::InstallNotStarted) ?: UpdatePhase.Confirming)
         }
