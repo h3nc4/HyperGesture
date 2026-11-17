@@ -19,6 +19,7 @@ package com.h3nc4.hypergesture.update
 
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.file.Files
 import kotlin.coroutines.CoroutineContext
 
 /** The PackageInstaller calls an install makes, kept apart so a JVM test can drive them. */
@@ -31,10 +32,15 @@ internal interface InstallSessions {
 /** Null once the system holds the session, else the reason it never got there. */
 internal suspend fun installInSession(sessions: InstallSessions, file: File, io: CoroutineContext): String? =
     withContext(io) {
-        val sessionId = runCatching { sessions.create(file.length()) }
-            .getOrElse { return@withContext it.reason() }
-        // A session left open keeps its staged APK on disk until the system expires it.
-        runCatching { sessions.writeAndCommit(sessionId, file) }
-            .onFailure { runCatching { sessions.abandon(sessionId) } }
-            .exceptionOrNull()?.reason()
+        try {
+            val sessionId = runCatching { sessions.create(file.length()) }
+                .getOrElse { return@withContext it.reason() }
+            // A session left open keeps its staged APK on disk until the system expires it.
+            runCatching { sessions.writeAndCommit(sessionId, file) }
+                .onFailure { runCatching { sessions.abandon(sessionId) } }
+                .exceptionOrNull()?.reason()
+        } finally {
+            // The session has copied the bytes by now, and a retry downloads afresh.
+            runCatching { Files.deleteIfExists(file.toPath()) }
+        }
     }

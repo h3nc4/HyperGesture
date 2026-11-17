@@ -33,7 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-// Logs the mode HyperOS resets on boot, which the service's keeper restores given the grant.
+// Logs the mode HyperOS resets on boot at warn level, since the ROM drops info logs.
 // A service HyperOS switched off never binds, so the stop notice is posted from here.
 class BootCompletedReceiver : BroadcastReceiver() {
 
@@ -49,13 +49,13 @@ class BootCompletedReceiver : BroadcastReceiver() {
         // Writes the buttons back after a kill that skipped the unbind and left the bar hidden.
         CoroutineScope(SupervisorJob() + Dispatchers.IO + failures).launch {
             val running = HyperGestureAccessibilityService.isRunning()
-            ButtonRestore.forDevice(app)?.gesturesStopped(running)?.let { Log.i(TAG, ButtonRestore.logLine(it)) }
+            ButtonRestore.forDevice(app)?.gesturesStopped(running)?.let { Log.w(TAG, ButtonRestore.logLine(it)) }
             StopNotifier.sync(app) { pending.finish() }
         }
 
         val status = NavigationIntegrationFactory.create(context).status()
         if (status.available && status.currentMode != NavigationMode.GESTURAL) {
-            Log.i(
+            Log.w(
                 TAG,
                 "Navigation mode after boot is ${status.currentMode}; " +
                     "gestural navigation was not restored by the system.",

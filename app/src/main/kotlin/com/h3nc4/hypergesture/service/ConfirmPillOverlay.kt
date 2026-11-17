@@ -65,6 +65,7 @@ internal class ConfirmPillOverlay(
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             y = (ConfirmPill.ABOVE_EDGE_DP * geometry.density).toInt()
             fitInsetsTypes = 0
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             alpha = 0f
         }
         runCatching {

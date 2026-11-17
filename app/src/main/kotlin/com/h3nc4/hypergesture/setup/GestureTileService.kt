@@ -29,6 +29,7 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.diagnostics.DiagnosticsCollector
+import com.h3nc4.hypergesture.diagnostics.ServiceStatus
 import com.h3nc4.hypergesture.service.HyperGestureAccessibilityService
 import com.h3nc4.hypergesture.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -71,8 +72,13 @@ class GestureTileService : TileService() {
         if (isLocked) unlockAndRun { open(target) } else open(target)
     }
 
-    private fun currentFace() =
-        TileFace.of(DiagnosticsCollector.isAccessibilityServiceEnabled(this))
+    private fun currentFace() = TileFace.of(
+        ServiceStatus.of(
+            switchedOn = DiagnosticsCollector.isAccessibilityServiceSwitchedOn(this),
+            bound = DiagnosticsCollector.isAccessibilityServiceEnabled(this),
+            running = HyperGestureAccessibilityService.isRunning(),
+        ),
+    )
 
     private fun refresh() {
         val tile = qsTile ?: return

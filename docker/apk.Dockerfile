@@ -23,8 +23,6 @@ ARG DEV_IMAGE_TAG="1.0.0@sha256:7356c794012a3a9c55eecfc4604f5c4098427f3f15b6eea4
 FROM h3nc4/hypergesture-dev:${DEV_IMAGE_TAG} AS builder
 
 ARG VERSION="1.0.0"
-# Signing is optional: without a keystore the build produces an unsigned release.
-ARG KEYSTORE_PASSWORD=""
 ARG KEYSTORE_ALIAS="hypergesture"
 
 USER root
@@ -32,12 +30,19 @@ WORKDIR /workspaces/hypergesture
 
 COPY --chown=1000:1000 . .
 
-ENV KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD}"
 ENV KEYSTORE_ALIAS="${KEYSTORE_ALIAS}"
+ENV KEYSTORE_PATH="/run/secrets/keystore"
 ENV GRADLE_USER_HOME="/tmp/gradle"
 
-RUN ./scripts/version.sh "${VERSION}" \
-  && gradle --no-daemon assembleRelease
+# Secrets are mounted for this step alone, and the configuration cache would store the password.
+# Without them the release is unsigned.
+RUN --mount=type=secret,id=keystore \
+  --mount=type=secret,id=keystore_password \
+  if [ -s /run/secrets/keystore_password ]; then \
+    KEYSTORE_PASSWORD="$(cat /run/secrets/keystore_password)" && export KEYSTORE_PASSWORD; \
+  fi \
+  && ./scripts/version.sh "${VERSION}" \
+  && gradle --no-daemon --no-configuration-cache --dependency-verification=strict assembleRelease
 
 # The task output name depends on whether signing material was present.
 RUN mkdir -p /out \
