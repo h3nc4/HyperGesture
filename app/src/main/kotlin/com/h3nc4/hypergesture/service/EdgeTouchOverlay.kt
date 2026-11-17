@@ -75,7 +75,7 @@ internal class EdgeTouchOverlay(
 
     private val bellies = mutableMapOf<ScreenEdge, BackBellyOverlay>()
 
-    private val hold = StreamHold(StreamHold.STUCK_STREAM_MS)
+    private val hold = StreamHold(StreamHold.QUIET_STREAM_MS, StreamHold.REPLAY_STREAM_MS)
 
     private var heldEdge: ScreenEdge? = null
 
@@ -263,6 +263,8 @@ internal class EdgeTouchOverlay(
         confirmation.onReplayed(edge)
         syncPill(immediate = true)
         journal.add("replaying ${samples.size} samples")
+        hold.replaying(stream, SystemClock.uptimeMillis())
+        scheduleStuckCheck()
         val dispatched = replayer.replay(samples) { releaseStream(stream, "replay done") }
         if (!dispatched) releaseStream(stream, "replay refused")
     }
@@ -321,7 +323,11 @@ internal class EdgeTouchOverlay(
             scheduleStuckCheck()
             return
         }
-        val quiet = "${StreamHold.STUCK_STREAM_MS}ms without a touch event"
+        val quiet = if (hold.replayStarted) {
+            "a replay past ${StreamHold.REPLAY_STREAM_MS}ms"
+        } else {
+            "${StreamHold.QUIET_STREAM_MS}ms without a touch event"
+        }
         Log.w(TAG, "${StuckStreamLog.MARKER} released after $quiet")
         journal.add("stuck stream released after $quiet")
         StuckStreamLog.append(context, stuckReport())
