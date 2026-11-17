@@ -115,6 +115,14 @@ class ReplayPlanTest {
     }
 
     @Test
+    fun `sparse samples leave no empty segment`() {
+        val samples = listOf(TouchSample(0f, 0f, 0L), TouchSample(10f, 0f, 10L), TouchSample(100f, 0f, 100L))
+        val plan = drag(samples)
+        assertEquals(listOf(10L, 90L), plan.segments.map { it.durationMs })
+        assertTrue(plan.segments.all { it.points.size == 2 })
+    }
+
+    @Test
     fun `samples sharing a timestamp still get a positive duration`() {
         val plan = drag(listOf(TouchSample(0f, 0f, 5L), TouchSample(80f, 0f, 5L)))
         assertEquals(listOf(1L), plan.segments.map { it.durationMs })
