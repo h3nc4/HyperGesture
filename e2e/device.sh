@@ -108,6 +108,12 @@ service_bound() {
     grep -q "Enabled services:.*${PKG}"
 }
 
+# The bound list names the service by its label, and a rejected service never appears there.
+service_running() {
+  "${ADB_BIN}" shell dumpsys accessibility 2>/dev/null | tr -d '\r' |
+    grep -q "Bound services:.*HyperGesture"
+}
+
 # A restricted setting since Android 13, and the service caches a rejection until the
 # enabled list changes. Hence the retry, clearing the list so no write is a no-op.
 enable_service() {
@@ -118,7 +124,13 @@ enable_service() {
     sleep 1
     "${ADB_BIN}" shell settings put secure accessibility_enabled 1 >/dev/null
     "${ADB_BIN}" shell settings put secure enabled_accessibility_services "${SERVICE}" >/dev/null
-    sleep 6
+    # A bind ends the wait early, and without one the enabled list is read after 6 s as before.
+    waited=1
+    # shellcheck disable=SC2310 # a false predicate is the signal to keep waiting
+    while [ "${waited}" -le 6 ] && ! service_running; do
+      sleep 1
+      waited=$((waited + 1))
+    done
     # shellcheck disable=SC2310 # a false predicate is the retry signal, not an error
     if service_bound; then
       echo "   bound on attempt ${attempt}" >&2
