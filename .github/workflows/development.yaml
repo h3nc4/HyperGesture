@@ -40,15 +40,70 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  verification-metadata:
+    name: Regenerate Gradle verification metadata
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login == 'renovate[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint an app token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: "4811373"
+          private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+      - name: Run h3nc4/dev-image-action
+        uses: h3nc4/dev-image-action@f7c620dd589b7ee84c3dcadce0334b43a5ac1ac3 # v3
+        with:
+          docker-args: ${{ env.DEV_DOCKER_ARGS }}
+      - name: Run actions/cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/ci-cache/gradle
+          key:
+            ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
+            'gradle/libs.versions.toml', 'gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Create the cache directories
+        run: mkdir -p ~/ci-cache/gradle
+      - name: Write the verification metadata
+        run: >-
+          $DEV_RUN -c 'gradle --no-daemon --write-verification-metadata sha256
+          lint test jacocoTestReport assembleDebug assembleRelease'
+      - name: Push the metadata to the pull request's branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if git diff --quiet -- gradle/verification-metadata.xml; then
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -qm 'regenerate gradle verification metadata' -- gradle/verification-metadata.xml
+          git push --quiet origin "HEAD:${HEAD_REF}"
+          echo '::error::pushed regenerated verification metadata, the run on the new head checks it'
+          exit 1
+
   checks:
     name: Lint, test and build
+    needs: [verification-metadata]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0 # dev-image diffs against the base to spot image changes
       - name: Run h3nc4/dev-image-action
-        uses: h3nc4/dev-image-action@24e5d67fa210ea49d6ef24c07d7f8f536fe1bb7b # v3
+        uses: h3nc4/dev-image-action@f7c620dd589b7ee84c3dcadce0334b43a5ac1ac3 # v3
         with:
           docker-args: ${{ env.DEV_DOCKER_ARGS }}
       - name: Run actions/cache
@@ -65,8 +120,10 @@ jobs:
         run: mkdir -p ~/ci-cache/gradle
       - name: Lint shell scripts
         run: $DEV_RUN -c 'shellcheck -o all -x e2e/lib e2e/*.sh scripts/*.sh scripts/hooks/*'
-      - name: Android lint, unit tests, coverage and debug APK
-        run: $DEV_RUN -c 'gradle --no-daemon lint test jacocoTestReport assembleDebug'
+      - name: Android lint, unit tests, coverage, debug APK and minified release APK
+        run: >-
+          $DEV_RUN -c 'gradle --no-daemon --dependency-verification=strict
+          lint test jacocoTestReport assembleDebug assembleRelease'
       - name: Run actions/upload-artifact
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -80,6 +137,7 @@ jobs:
   sonarqube:
     name: SonarQube Scan
     needs: [checks]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Run actions/checkout

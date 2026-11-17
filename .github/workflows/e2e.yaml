@@ -22,6 +22,8 @@ name: HyperGesture Gesture E2E
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * *" # Daily at 07:00 UTC, after the development run
   push:
     branches:
       - "main"
@@ -50,11 +52,12 @@ jobs:
           fetch-depth: 0 # dev-image diffs against the base to spot image changes
       - name: Run h3nc4/dev-image-action/share
         id: dev
-        uses: h3nc4/dev-image-action/share@24e5d67fa210ea49d6ef24c07d7f8f536fe1bb7b # v3
+        uses: h3nc4/dev-image-action/share@f7c620dd589b7ee84c3dcadce0334b43a5ac1ac3 # v3
 
   shards:
     name: Gesture suites ${{ matrix.shard }} (${{ matrix.suites }})
     needs: [dev-image]
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -92,7 +95,7 @@ jobs:
       - name: Create the cache directories
         run: mkdir -p ~/ci-cache/gradle
       - name: Run h3nc4/dev-image-action
-        uses: h3nc4/dev-image-action@24e5d67fa210ea49d6ef24c07d7f8f536fe1bb7b # v3
+        uses: h3nc4/dev-image-action@f7c620dd589b7ee84c3dcadce0334b43a5ac1ac3 # v3
         with:
           image: ${{ needs.dev-image.outputs.image }}
           artifact: ${{ needs.dev-image.outputs.artifact }}
@@ -115,10 +118,64 @@ jobs:
           path: build/e2e-logs/
           retention-days: 3
 
+  release:
+    name: Gesture suites on the minified release APK
+    needs: [dev-image]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DEV_DOCKER_ARGS: --device /dev/kvm -v ${HOME:?}/ci-cache/gradle:/cache/gradle -e GRADLE_USER_HOME=/cache/gradle
+    steps:
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Pull the dev image while the cache restores
+        if: needs.dev-image.outputs.artifact == ''
+        env:
+          IMAGE: ${{ needs.dev-image.outputs.image }}
+        run: (docker pull -q "${IMAGE}" >/dev/null 2>&1 &)
+      - name: Run actions/cache/restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/ci-cache/gradle
+          key:
+            ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
+            'gradle/libs.versions.toml', 'gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Create the cache directories
+        run: mkdir -p ~/ci-cache/gradle
+      - name: Run h3nc4/dev-image-action
+        uses: h3nc4/dev-image-action@f7c620dd589b7ee84c3dcadce0334b43a5ac1ac3 # v3
+        with:
+          image: ${{ needs.dev-image.outputs.image }}
+          artifact: ${{ needs.dev-image.outputs.artifact }}
+          base-sha: ""
+          docker-args: ${{ env.DEV_DOCKER_ARGS }}
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+      - name: Build the minified release APK, signed with the debug key
+        run: $DEV_RUN -c 'gradle --no-daemon --dependency-verification=strict assembleRelease'
+      - name: Run every gesture E2E suite against the release APK
+        run: $DEV_RUN -c './e2e/run.sh -p app/build/outputs/apk/release/app-release.apk'
+      - name: Upload emulator log on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: emulator-log-release
+          path: build/e2e-logs/
+          retention-days: 3
+
   gestures:
     name: Gesture end-to-end
     needs: [dev-image, shards]
-    if: always()
+    if: always() && github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -133,7 +190,7 @@ jobs:
 
   dev-image-cleanup:
     name: Delete the shared dev image
-    needs: [dev-image, shards]
+    needs: [dev-image, shards, release]
     if: always() && needs.dev-image.outputs.artifact != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -141,6 +198,6 @@ jobs:
       actions: write
     steps:
       - name: Run h3nc4/dev-image-action/cleanup
-        uses: h3nc4/dev-image-action/cleanup@24e5d67fa210ea49d6ef24c07d7f8f536fe1bb7b # v3
+        uses: h3nc4/dev-image-action/cleanup@f7c620dd589b7ee84c3dcadce0334b43a5ac1ac3 # v3
         with:
           artifact: ${{ needs.dev-image.outputs.artifact }}
