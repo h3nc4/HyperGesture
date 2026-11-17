@@ -44,7 +44,7 @@ jobs:
     name: Regenerate Gradle verification metadata
     if: >-
       github.event_name == 'pull_request' &&
-      github.event.pull_request.user.login == 'renovate[bot]' &&
+      (github.event.pull_request.user.login == 'renovate[bot]' || github.head_ref == 'regenerate-verification-metadata-on-renovate-branches') &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
