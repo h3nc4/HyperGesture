@@ -72,4 +72,4 @@ Auto-clicking the toggle once the settings screen opens, using the app's own acc
 
 Do it only as best-effort, with a manual fallback.
 
-HyperOS also resets the navigation mode across a reboot. `boot/BootCompletedReceiver.kt` observes that and logs it. Only the keeper above restores it, and only after the grant.
+HyperOS also resets the navigation mode across a reboot. `boot/BootCompletedReceiver.kt` logs the mode it finds at warn level, which this ROM keeps while it drops info logs. Only the keeper above restores the mode, and only after the grant. The same receiver writes the buttons back when the keeper had hidden them and the service did not return with the boot, and it posts the stop notice.

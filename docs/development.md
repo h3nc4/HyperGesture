@@ -119,11 +119,17 @@ Signing material lives outside git:
 ./scripts/build-apk.sh 1.0.0   # produces ./hypergesture.apk
 ```
 
-The build receives the password as a Docker build arg. The final image stage is `FROM scratch` with only the APK in it, and no publishable layer holds the key or the password. With either piece missing, the release build degrades to unsigned rather than failing, so CI can still verify that `assembleRelease` compiles.
+`scripts/build-apk.sh` passes the keystore and the password to Docker as BuildKit secrets, mounted for the one `RUN` that signs, so no layer and no build arg holds either. `.dockerignore` keeps every keystore out of the build context. With either piece missing, the release build degrades to unsigned rather than failing, so CI can still verify that `assembleRelease` compiles.
+
+The release build runs with `--dependency-verification=strict` against the checksums in `gradle/verification-metadata.xml`, while every other build only warns on a mismatch. After a dependency bump, regenerate that file inside the dev container and review the diff before committing it:
+
+```sh
+gradle --no-daemon --write-verification-metadata sha256 lint test jacocoTestReport assembleDebug assembleRelease
+```
 
 **Back up the keystore somewhere off this machine.** Android identifies an app by its signing certificate, so an update signed with a different key is refused by every device that already has HyperGesture on it, and the only recovery is a new package name. `android.keystore` and `.env` are gitignored and must never be committed, which also means git is not a backup: keep the key and its password in a password manager, `base64` the keystore if the manager only takes text.
 
-Pushing a `v*.*.*` tag runs the same build in CI and attaches the APK to a GitHub release. That needs two repository secrets, `ANDROID_KEYSTORE_B64` (`base64 -w0 android.keystore`) and `KEYSTORE_PASSWORD`. Unlike a local build, CI stops with an error when either is missing rather than publishing an unsigned APK, and it runs `apksigner verify --print-certs` on the result so the certificate is visible in the job log. After a release, CI bumps `versionCode` on `main`, because Android refuses an install whose `versionCode` went backwards.
+Pushing a `v*.*.*` tag runs the same build in CI and attaches the APK to a GitHub release. That needs two repository secrets, `ANDROID_KEYSTORE_B64` (`base64 -w0 android.keystore`) and `KEYSTORE_PASSWORD`. Unlike a local build, CI stops with an error when either is missing rather than publishing an unsigned APK. `scripts/check-release.sh` then fails the release before anything is published when the tag is not exactly `vMAJOR.MINOR.PATCH`, when `versionCode` is not above the one at the previous tag, or when the certificate `apksigner verify --print-certs` reports differs from the digest pinned in `site/src/facts.ts`. The build and the verify both run in the dev image resolved once to its digest. After a release, CI bumps `versionCode` on `main`, because Android refuses an install whose `versionCode` went backwards.
 
 ## Update check
 

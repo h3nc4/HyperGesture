@@ -85,7 +85,14 @@ internal fun TroubleshootingScreen(model: AppModel) {
         MonospaceBlock(if (tail.length < report.length) tail.substringAfter('\n') else tail)
     }
     diagnostics.lastRecordedFailure?.let { failure ->
-        InfoRow(title = stringResource(R.string.diag_recorded_failure))
+        InfoRow(
+            title = stringResource(R.string.diag_recorded_failure),
+            actions = {
+                OutlinedButton(onClick = model::clearRecordedFailure) {
+                    Text(stringResource(R.string.action_clear_failure))
+                }
+            },
+        )
         MonospaceBlock(failure.take(MAX_FAILURE_CHARS))
     }
     TextButton(onClick = model::refresh, modifier = Modifier.padding(horizontal = 4.dp)) {
