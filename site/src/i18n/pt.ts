@@ -85,7 +85,7 @@ export const pt: Strings = {
   install: {
     title: "Instalar",
     intro: "O HyperGesture não está na Play Store, então o Android faz algumas perguntas a mais na primeira vez. Leva uns cinco minutos.",
-    more: `Prefere atualizações automáticas? <a href="${links.obtainium}">Adicione ao Obtainium</a> ou veja todas as versões na <a href="${links.releases}">página de releases</a>.`,
+    more: `Prefere atualizações automáticas? <a href="${links.obtainium}">Adicione ao Obtainium</a> ou veja todas as versões na <a href="${links.releases}">página de releases</a>. Ou ative Updates dentro do HyperGesture, e ele procura uma versão nova no GitHub quando você abre o app, no máximo uma vez por dia.`,
     optional: "(opcional)",
     steps: [
       {
