@@ -22,6 +22,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.annotation.StringRes
 import com.h3nc4.hypergesture.R
+import com.h3nc4.hypergesture.diagnostics.ServiceStatus
 
 internal enum class TileTarget { APP, ACCESSIBILITY_SETTINGS }
 
@@ -32,15 +33,15 @@ internal data class TileFace(
     val target: TileTarget,
 ) {
     companion object {
-        fun of(serviceEnabled: Boolean): TileFace = if (serviceEnabled) {
-            TileFace(active = true, subtitle = R.string.status_active, target = TileTarget.APP)
-        } else {
-            TileFace(
-                active = false,
-                subtitle = R.string.status_inactive,
-                target = TileTarget.ACCESSIBILITY_SETTINGS,
-            )
+        fun of(status: ServiceStatus): TileFace = when (status) {
+            ServiceStatus.WORKING ->
+                TileFace(active = true, subtitle = R.string.status_working, target = TileTarget.APP)
+            ServiceStatus.STOPPED -> stopped(R.string.status_stopped)
+            ServiceStatus.OFF -> stopped(R.string.status_off)
         }
+
+        private fun stopped(@StringRes subtitle: Int) =
+            TileFace(active = false, subtitle = subtitle, target = TileTarget.ACCESSIBILITY_SETTINGS)
     }
 }
 
