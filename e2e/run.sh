@@ -22,9 +22,10 @@
 # One suite alone costs seconds instead of a boot:
 #   e2e/emulator.sh && e2e/device.sh && e2e/app-switch.sh && e2e/emulator.sh -s
 #
-# Usage: e2e/run.sh [-a avd] [-p apk] [-k] [suite ...]
+# Usage: e2e/run.sh [-a avd] [-b] [-p apk] [-k] [suite ...]
 #   suite  run only these suites, by name (default: every suite)
 #   -a  AVD name (default: hypergesture)
+#   -b  build the debug APK while the emulator boots
 #   -p  APK to test (default: debug). Point at hypergesture.apk to catch R8 breakage.
 #   -k  keep the emulator running afterwards
 #
@@ -37,12 +38,15 @@ set -e
 . "$(dirname -- "$0")/lib"
 
 keep=''
+build=''
+boot=''
 apk_arg=''
-usage="usage: $0 [-a avd] [-p apk] [-k] [suite ...]"
+usage="usage: $0 [-a avd] [-b] [-p apk] [-k] [suite ...]"
 
-while getopts 'a:p:kh' opt; do
+while getopts 'a:bp:kh' opt; do
   case "${opt}" in
     a) AVD="${OPTARG}" ;;
+    b) build='1' ;;
     p) apk_arg="${OPTARG}" ;;
     k) keep='1' ;;
     h)
@@ -75,6 +79,9 @@ done
 export AVD
 
 cleanup() {
+  if [ -n "${boot}" ]; then
+    kill "${boot}" >/dev/null 2>&1 || true
+  fi
   if [ -z "${keep}" ]; then
     e2e/emulator.sh -s >/dev/null 2>&1 || true
   else
@@ -84,7 +91,15 @@ cleanup() {
 
 # Set before the boot, so a boot that times out still takes its emulator down.
 trap cleanup INT TERM EXIT
-e2e/emulator.sh
+if [ -n "${build}" ]; then
+  e2e/emulator.sh &
+  boot="$!"
+  gradle --no-daemon assembleDebug
+  wait "${boot}"
+  boot=''
+else
+  e2e/emulator.sh
+fi
 
 # shellcheck disable=SC2086 # an empty apk argument must vanish, not become an empty string
 e2e/device.sh ${apk_arg:+-p "${apk_arg}"}
