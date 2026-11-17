@@ -85,7 +85,7 @@ class UpdateNetworkTest {
     private val directory by lazy { File(temp.root, "update") }
 
     private fun downloader(transport: HttpTransport) =
-        HttpApkDownloader(directory, transport, EmptyCoroutineContext)
+        HttpApkDownloader(directory, transport, EmptyCoroutineContext, ceiling = 1_000_000)
 
     private fun serving(response: () -> FakeResponse = { FakeResponse(200, apkBytes) }) =
         FakeTransport(mapOf(apkUrl to response))
@@ -270,6 +270,28 @@ class UpdateNetworkTest {
             }
         }
         assertEquals(DownloadResult.Failed("reset by peer"), download(dropping).first)
+        assertFalse(File(directory, ReleaseParser.APK_NAME).exists())
+    }
+
+    @Test
+    fun `a body longer than the asset size is cut off and deleted`() {
+        val longer = serving { FakeResponse(200, apkBytes + ByteArray(10)) }
+        assertEquals(DownloadResult.Failed("answer over ${apkBytes.size} bytes"), download(longer).first)
+        assertFalse(File(directory, ReleaseParser.APK_NAME).exists())
+    }
+
+    @Test
+    fun `a body of unstated size stops at the apk ceiling`() {
+        val endless = serving {
+            FakeResponse(200, contentLength = -1) {
+                object : InputStream() {
+                    override fun read(): Int = 1
+                    override fun read(b: ByteArray, off: Int, len: Int): Int = len
+                }
+            }
+        }
+        val (result, _) = download(endless, asset(size = 0))
+        assertEquals(DownloadResult.Failed("answer over 1000000 bytes"), result)
         assertFalse(File(directory, ReleaseParser.APK_NAME).exists())
     }
 
