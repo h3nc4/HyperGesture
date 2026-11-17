@@ -120,8 +120,10 @@ jobs:
         run: mkdir -p ~/ci-cache/gradle
       - name: Lint shell scripts
         run: $DEV_RUN -c 'shellcheck -o all -x e2e/lib e2e/*.sh scripts/*.sh scripts/hooks/*'
-      - name: Android lint, unit tests, coverage and debug APK
-        run: $DEV_RUN -c 'gradle --no-daemon --dependency-verification=strict lint test jacocoTestReport assembleDebug'
+      - name: Android lint, unit tests, coverage, debug APK and minified release APK
+        run: >-
+          $DEV_RUN -c 'gradle --no-daemon --dependency-verification=strict
+          lint test jacocoTestReport assembleDebug assembleRelease'
       - name: Run actions/upload-artifact
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

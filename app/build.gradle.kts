@@ -38,8 +38,8 @@ android {
         versionName = "1.0.0"
     }
 
-    // android.keystore and .env are both gitignored. Missing either degrades to an
-    // unsigned release so CI can build without secrets.
+    // android.keystore and .env are both gitignored. Missing either signs the release with the
+    // debug key, so CI can build and install it without secrets.
     val keystoreFile = rootProject.file(System.getenv("KEYSTORE_PATH") ?: "android.keystore")
     val keystorePassword: String? = System.getenv("KEYSTORE_PASSWORD")
     val signingAvailable = keystoreFile.exists() && !keystorePassword.isNullOrBlank()
@@ -56,7 +56,7 @@ android {
         } else {
             logger.lifecycle(
                 "No release signing material (${keystoreFile.name} / KEYSTORE_PASSWORD); " +
-                    "release builds will be unsigned.",
+                    "release builds will be signed with the debug key.",
             )
         }
     }
@@ -68,7 +68,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.findByName("release")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
         debug {
             enableUnitTestCoverage = true
