@@ -257,9 +257,14 @@ internal class UpdateController(
 
     /** Returning from Install unknown apps with the permission granted carries on by itself. */
     suspend fun onResume() {
-        if (mutableState.value.phase == UpdatePhase.PermissionNeeded && installer.canInstall()) {
-            update { it.copy(phase = UpdatePhase.Idle) }
-            downloadAndInstall()
+        when (mutableState.value.phase) {
+            // A prompt the system blocked or the user left sends no answer, so the offer comes back.
+            UpdatePhase.Confirming -> update { it.copy(phase = UpdatePhase.Idle) }
+            UpdatePhase.PermissionNeeded -> if (installer.canInstall()) {
+                update { it.copy(phase = UpdatePhase.Idle) }
+                downloadAndInstall()
+            }
+            else -> Unit
         }
     }
 
