@@ -69,7 +69,7 @@ jobs:
           - shard: 1
             suites: navigation-keeper
           - shard: 2
-            suites: status-refresh app-switch
+            suites: status-refresh app-switch screen-repair
           - shard: 3
             suites: circle-to-search landscape-confirm
           - shard: 4

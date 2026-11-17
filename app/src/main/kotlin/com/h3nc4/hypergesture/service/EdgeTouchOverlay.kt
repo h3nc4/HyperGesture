@@ -356,6 +356,29 @@ internal class EdgeTouchOverlay(
         }
     }
 
+    fun stripWindows(): List<StripWindow> = strips.map { (edge, view) ->
+        StripWindow(edge, view.isAttachedToWindow, view.width, view.height)
+    }
+
+    /** Adds each strip's own view back. False when the window manager refuses one. */
+    fun reattach(edges: List<ScreenEdge>): Boolean = edges.all { edge ->
+        val view = strips[edge] ?: return@all false
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return@all false
+        runCatching {
+            if (view.isAttachedToWindow) windowManager.removeViewImmediate(view)
+            windowManager.addView(view, params)
+            Log.i(TAG, "strip $edge reattached ${params.width}x${params.height}")
+            journal.add("strip $edge reattached")
+        }.onFailure { FailureLog.record(context, "reattach $edge", it) }.isSuccess
+    }
+
+    /** Test seam that drops a strip's window but keeps the strip listed, as a framework detach would. */
+    fun detachWindow(edge: ScreenEdge) {
+        val view = strips[edge] ?: return
+        runCatching { windowManager.removeViewImmediate(view) }
+        journal.add("strip $edge detached")
+    }
+
     /** Reads coordinates and timestamps only — never window content, text or keystrokes. */
     @SuppressLint("ViewConstructor")
     private class TouchCaptureView(
