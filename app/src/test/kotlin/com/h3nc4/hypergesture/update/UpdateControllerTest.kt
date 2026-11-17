@@ -48,6 +48,7 @@ class UpdateControllerTest {
             calls++
             onProgress(50)
             whileDownloading()
+            onProgress(100)
             return answer
         }
     }
@@ -55,8 +56,10 @@ class UpdateControllerTest {
     private class FakeInstaller(var allowed: Boolean, var refusal: String? = null) : ApkInstaller {
         val installed = mutableListOf<File>()
         var crash: Exception? = null
+        var whileInstalling: suspend () -> Unit = {}
         override fun canInstall() = allowed
         override suspend fun install(file: File): String? {
+            whileInstalling()
             crash?.let { throw it }
             installed += file
             return refusal
@@ -64,7 +67,12 @@ class UpdateControllerTest {
     }
 
     private class FakeStore(var on: Boolean, var last: Long? = null, var body: String? = null) : UpdateStore {
-        override suspend fun enabled() = on
+        var whileReadingSwitch: suspend () -> Unit = {}
+        var whileReadingCache: suspend () -> Unit = {}
+        override suspend fun enabled(): Boolean {
+            whileReadingSwitch()
+            return on
+        }
         override suspend fun setEnabled(enabled: Boolean) {
             on = enabled
         }
@@ -73,7 +81,10 @@ class UpdateControllerTest {
             last = atMs
             if (body != null) this.body = body
         }
-        override suspend fun cachedBody() = body
+        override suspend fun cachedBody(): String? {
+            whileReadingCache()
+            return body
+        }
     }
 
     private val release = fixture()
@@ -375,6 +386,66 @@ class UpdateControllerTest {
         controller.downloadAndInstall()
         assertEquals(UpdatePhase.InstallNotStarted("denied"), controller.phase)
         assertFalse(controller.state.value.busy)
+    }
+
+    @Test
+    fun `turning updates off during a download never opens the installer`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        controller.onAppOpen()
+        downloader.whileDownloading = { controller.setEnabled(false) }
+        controller.downloadAndInstall()
+        assertTrue(installer.installed.isEmpty())
+        assertEquals(UpdateState(enabled = false), controller.state.value)
+    }
+
+    @Test
+    fun `turning updates off while the installer opens leaves the switch off`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        controller.onAppOpen()
+        installer.whileInstalling = { controller.setEnabled(false) }
+        controller.downloadAndInstall()
+        assertEquals(UpdateState(enabled = false), controller.state.value)
+    }
+
+    @Test
+    fun `turning updates off while the app opens makes no request`() = runBlocking {
+        val store = FakeStore(on = true)
+        val controller = controller(store)
+        store.whileReadingSwitch = {
+            store.whileReadingSwitch = {}
+            controller.setEnabled(false)
+        }
+        controller.onAppOpen()
+        assertEquals(0, source.calls)
+        assertEquals(UpdateState(enabled = false), controller.state.value)
+    }
+
+    @Test
+    fun `turning updates off while the cached answer loads leaves no offer`() = runBlocking {
+        val store = FakeStore(on = true, last = now - 1000, body = release)
+        val controller = controller(store)
+        store.whileReadingCache = { controller.setEnabled(false) }
+        controller.onAppOpen()
+        assertEquals(UpdateState(enabled = false), controller.state.value)
+    }
+
+    @Test
+    fun `turning updates off during the opening check leaves no offer`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        source.whileFetching = { controller.setEnabled(false) }
+        controller.onAppOpen()
+        assertEquals(UpdateState(enabled = false), controller.state.value)
+    }
+
+    @Test
+    fun `a check failing after updates were turned off reports nothing`() = runBlocking {
+        val controller = controller(FakeStore(on = true))
+        source.whileFetching = {
+            controller.setEnabled(false)
+            throw IllegalStateException("boom")
+        }
+        controller.onAppOpen()
+        assertEquals(UpdateState(enabled = false), controller.state.value)
     }
 
     @Test
