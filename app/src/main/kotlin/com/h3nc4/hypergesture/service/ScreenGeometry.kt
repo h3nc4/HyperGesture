@@ -18,6 +18,9 @@
 package com.h3nc4.hypergesture.service
 
 import android.content.Context
+import android.hardware.display.DisplayManager
+import android.view.Display
+import android.view.Surface
 import android.view.WindowInsets
 import android.view.WindowManager
 
@@ -33,16 +36,27 @@ internal data class ScreenGeometry(
     val navLeftPx: Int,
     val navRightPx: Int,
     val navBottomPx: Int,
+    val rotation: Int = Surface.ROTATION_0,
 ) {
 
     /** From the window bounds, which swap on every rotation the display goes through. */
     val landscape: Boolean get() = widthPx > heightPx
 
+    /**
+     * Window metrics can still hold the bounds from before a turn the display already made.
+     * Those are swapped and their insets dropped, so the next signal reinstalls with fresh ones.
+     */
+    fun alignedTo(displayRotation: Int, naturalLandscape: Boolean): ScreenGeometry {
+        val wantLandscape = (displayRotation % 2 == 1) != naturalLandscape
+        if (wantLandscape == landscape || widthPx == heightPx) return copy(rotation = displayRotation)
+        return ScreenGeometry(heightPx, widthPx, density, 0, 0, 0, displayRotation)
+    }
+
     companion object {
         fun current(context: Context, windowManager: WindowManager): ScreenGeometry {
             val metrics = windowManager.currentWindowMetrics
             val nav = metrics.windowInsets.getInsets(WindowInsets.Type.navigationBars())
-            return ScreenGeometry(
+            val read = ScreenGeometry(
                 widthPx = metrics.bounds.width(),
                 heightPx = metrics.bounds.height(),
                 density = context.resources.displayMetrics.density,
@@ -50,6 +64,10 @@ internal data class ScreenGeometry(
                 navRightPx = nav.right,
                 navBottomPx = nav.bottom,
             )
+            val display = context.getSystemService(DisplayManager::class.java)
+                ?.getDisplay(Display.DEFAULT_DISPLAY) ?: return read
+            val mode = display.mode
+            return read.alignedTo(display.rotation, mode.physicalWidth > mode.physicalHeight)
         }
     }
 }

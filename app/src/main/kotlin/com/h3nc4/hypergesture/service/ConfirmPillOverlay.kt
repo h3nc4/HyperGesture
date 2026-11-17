@@ -76,7 +76,7 @@ internal class ConfirmPillOverlay(
 
     fun remove() {
         hide()
-        if (attached) runCatching { windowManager.removeView(view) }
+        if (attached) runCatching { windowManager.removeViewImmediate(view) }
         attached = false
     }
 
