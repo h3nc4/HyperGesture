@@ -119,8 +119,9 @@ internal class EdgeTouchOverlay(
     }
 
     fun remove() {
+        // A plain removeView waits for the loop pass after install adds the new strips.
         strips.values.forEach { view ->
-            runCatching { windowManager.removeView(view) }
+            runCatching { windowManager.removeViewImmediate(view) }
         }
         strips.clear()
         bellies.values.forEach(BackBellyOverlay::remove)

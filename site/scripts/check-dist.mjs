@@ -15,7 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Fails when a built page outweighs its budget, links to an anchor or page that does not exist, or lacks its link preview image.
+// Fails on a page over its byte budget or containing a script, and on a link or link preview image that points outside dist.
+// The zone serves every page with script-src 'none', so a script would build fine and then never run.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -71,6 +72,10 @@ for (const page of pages(dist)) {
     }
   }
 
+  for (const m of html.matchAll(/<script\b|\son[a-z]+\s*=|(?:href|src|action)\s*=\s*["']?\s*javascript:/gi)) {
+    failures.push(`${name}: ${m[0].trim()} is a script, which script-src 'none' blocks`);
+  }
+
   rows.push({ page: name, html: Buffer.byteLength(html), assets: assets.size, total });
   if (total > budget) failures.push(`${name}: ${total} bytes with its assets, over the ${budget} byte budget`);
 
@@ -91,6 +96,21 @@ for (const page of pages(dist)) {
     if (fragment && target.endsWith(".html") && !ids(readFileSync(target, "utf8")).has(fragment)) {
       failures.push(`${name}: ${href} has no matching id`);
     }
+  }
+}
+
+const robots = join(dist, "robots.txt");
+if (!existsSync(robots)) failures.push(`${dist} has no robots.txt`);
+else if (!readFileSync(robots, "utf8").includes(`Sitemap: ${site}/sitemap.xml`)) failures.push(`robots.txt does not point at ${site}/sitemap.xml`);
+
+const sitemap = join(dist, "sitemap.xml");
+if (!existsSync(sitemap)) failures.push(`${dist} has no sitemap.xml`);
+else {
+  const xml = readFileSync(sitemap, "utf8");
+  const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>|\shref="([^"]+)"/g)].map((m) => m[1] ?? m[2]);
+  if (urls.length === 0) failures.push("sitemap.xml lists no pages");
+  for (const url of urls) {
+    if (!url.startsWith(`${site}/`) || !fileFor(url.slice(site.length))) failures.push(`sitemap.xml: ${url} is not in ${dist}`);
   }
 }
 

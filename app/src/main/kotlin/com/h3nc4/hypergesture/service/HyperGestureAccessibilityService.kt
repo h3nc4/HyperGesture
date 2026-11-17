@@ -94,7 +94,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         override fun onDisplayAdded(displayId: Int) = Unit
         override fun onDisplayRemoved(displayId: Int) = Unit
         override fun onDisplayChanged(displayId: Int) {
-            if (displayId == Display.DEFAULT_DISPLAY) reinstallIfGeometryChanged()
+            if (displayId == Display.DEFAULT_DISPLAY) onGeometrySignal("display")
         }
     }
 
@@ -176,7 +176,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        reinstallIfGeometryChanged()
+        onGeometrySignal("configuration")
     }
 
     /** No events are requested in `accessibility_service_config.xml`. */
@@ -203,14 +203,25 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         )
     }
 
+    // Logs what each signal reads, since the two arrive in either order and seconds apart.
+    private fun onGeometrySignal(source: String) {
+        val read = runCatching { ScreenGeometry.current(this, windowManager) }
+        Log.i(TAG, "GEOMETRY_SIGNAL $source read=${read.getOrNull()} installed=$lastGeometry")
+        reinstallIfGeometryChanged()
+    }
+
     /**
      * Strip windows keep their pixel sizes across a rotation, so a side strip measured
      * against portrait height runs off a landscape screen.
      */
     private fun reinstallIfGeometryChanged() {
         if (overlay == null) return
-        if (ScreenGeometry.current(this, windowManager) == lastGeometry) return
-        installOverlay()
+        reinstallOnGeometryChange(
+            last = lastGeometry,
+            read = { ScreenGeometry.current(this, windowManager) },
+            reinstall = ::installOverlay,
+            onFailure = { FailureLog.record(this, "reinstallIfGeometryChanged", it) },
+        )
     }
 
     private fun teardown() {
