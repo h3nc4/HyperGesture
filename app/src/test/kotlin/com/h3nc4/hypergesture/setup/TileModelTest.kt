@@ -19,6 +19,7 @@ package com.h3nc4.hypergesture.setup
 
 import android.app.StatusBarManager
 import com.h3nc4.hypergesture.R
+import com.h3nc4.hypergesture.diagnostics.ServiceStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -27,18 +28,26 @@ import org.junit.Test
 class TileModelTest {
 
     @Test
-    fun `running service shows an active tile that opens the app`() {
-        val face = TileFace.of(serviceEnabled = true)
+    fun `working service shows an active tile that opens the app`() {
+        val face = TileFace.of(ServiceStatus.WORKING)
         assertTrue(face.active)
-        assertEquals(R.string.status_active, face.subtitle)
+        assertEquals(R.string.status_working, face.subtitle)
         assertEquals(TileTarget.APP, face.target)
     }
 
     @Test
     fun `stopped service shows an inactive tile that opens accessibility settings`() {
-        val face = TileFace.of(serviceEnabled = false)
+        val face = TileFace.of(ServiceStatus.STOPPED)
         assertFalse(face.active)
-        assertEquals(R.string.status_inactive, face.subtitle)
+        assertEquals(R.string.status_stopped, face.subtitle)
+        assertEquals(TileTarget.ACCESSIBILITY_SETTINGS, face.target)
+    }
+
+    @Test
+    fun `service that is off shows an inactive tile that opens accessibility settings`() {
+        val face = TileFace.of(ServiceStatus.OFF)
+        assertFalse(face.active)
+        assertEquals(R.string.status_off, face.subtitle)
         assertEquals(TileTarget.ACCESSIBILITY_SETTINGS, face.target)
     }
 

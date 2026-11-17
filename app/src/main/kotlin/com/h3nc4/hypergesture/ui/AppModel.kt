@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.h3nc4.hypergesture.diagnostics.Diagnostics
 import com.h3nc4.hypergesture.diagnostics.DiagnosticsCollector
+import com.h3nc4.hypergesture.diagnostics.FailureLog
 import com.h3nc4.hypergesture.diagnostics.ServiceStatus
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.navigation.ButtonRestore
@@ -127,6 +128,14 @@ internal class AppModel(
                 setFlag(SetupFlag.SERVICE_EVER_ENABLED, true)
             }
             StopNotifier.sync(context)
+        }
+    }
+
+    /** The record outlives the fault, so the user drops it once it is read. */
+    fun clearRecordedFailure() {
+        scope.launch {
+            withContext(Dispatchers.IO) { FailureLog.clear(context) }
+            refresh()
         }
     }
 
