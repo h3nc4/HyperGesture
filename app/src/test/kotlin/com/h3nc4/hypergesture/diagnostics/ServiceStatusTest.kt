@@ -45,6 +45,28 @@ class ServiceStatusTest {
     }
 
     @Test
+    fun `a live service without a strip reads degraded`() {
+        assertEquals(
+            ServiceStatus.DEGRADED,
+            ServiceStatus.of(switchedOn = true, bound = true, running = true, attachedStrips = 0),
+        )
+    }
+
+    @Test
+    fun `a live service before or after an attached strip reads working`() {
+        assertEquals(ServiceStatus.WORKING, ServiceStatus.of(switchedOn = true, bound = true, running = true, attachedStrips = null))
+        assertEquals(ServiceStatus.WORKING, ServiceStatus.of(switchedOn = true, bound = true, running = true, attachedStrips = 1))
+    }
+
+    @Test
+    fun `a stopped service with no strip still reads stopped`() {
+        assertEquals(
+            ServiceStatus.STOPPED,
+            ServiceStatus.of(switchedOn = true, bound = false, running = false, attachedStrips = 0),
+        )
+    }
+
+    @Test
     fun `finds the service in a full or short entry`() {
         val cls = "$PKG.service.HyperGestureAccessibilityService"
         assertTrue(isServiceListed("other.app/.A:$PKG/$cls", PKG, cls))

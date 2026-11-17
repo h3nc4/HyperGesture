@@ -31,6 +31,8 @@
     <string name="status_restricted_hint">Switch greyed out? Allow restricted settings in App info first.</string>
     <string name="status_stopped">Gestures stopped</string>
     <string name="status_stopped_body">The switch is on, but the service is not running. Turn it off and on again.</string>
+    <string name="status_degraded">Gestures are not ready</string>
+    <string name="status_degraded_body">The service is running, but Android refused its edge strips. If they stay missing, turn the service off and on again.</string>
     <string name="status_working">Gestures are on</string>
     <string name="status_working_body">Back from the sides, Home and Recents from the bottom.</string>
     <string name="status_working_body_left">Back from the left side, Home and Recents from the bottom.</string>
@@ -249,6 +251,7 @@
     <string name="diag_service_enabled">Service switched on</string>
     <string name="diag_service_bound">Service bound</string>
     <string name="diag_service_running">Service running</string>
+    <string name="diag_strips_attached">Edge strips attached</string>
     <string name="diag_integration">Navigation integration</string>
     <string name="diag_last_failure">Last failure</string>
     <string name="label_last_app_switch_failure">Last app switch problem</string>

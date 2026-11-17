@@ -32,6 +32,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import com.h3nc4.hypergesture.diagnostics.FailureLog
 import com.h3nc4.hypergesture.diagnostics.StreamJournal
 import com.h3nc4.hypergesture.diagnostics.StuckStreamLog
 import com.h3nc4.hypergesture.gesture.ConfirmVerdict
@@ -93,7 +94,8 @@ internal class EdgeTouchOverlay(
 
     private val stuckCheck = Runnable(::onStuckCheck)
 
-    fun install(configuration: GestureConfiguration, geometry: ScreenGeometry) {
+    /** Returns how many strips the window manager accepted. */
+    fun install(configuration: GestureConfiguration, geometry: ScreenGeometry): Int {
         remove()
         confirmation.configure(configuration.landscapeConfirmEnabled, geometry.landscape)
         if (configuration.landscapeConfirmEnabled && geometry.landscape) {
@@ -116,6 +118,7 @@ internal class EdgeTouchOverlay(
             addStrip(edge, configuration, geometry)
         }
         applyInteractivity()
+        return strips.size
     }
 
     fun remove() {
@@ -170,7 +173,7 @@ internal class EdgeTouchOverlay(
             strips[edge] = view
             Log.i(TAG, "strip $edge installed ${params.width}x${params.height} geometry=$geometry")
             journal.add("strip $edge installed ${params.width}x${params.height}")
-        }.onFailure { Log.e(TAG, "Could not add $edge strip", it) }
+        }.onFailure { FailureLog.record(context, "addStrip $edge", it) }
     }
 
     private fun paramsFor(

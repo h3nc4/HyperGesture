@@ -36,6 +36,14 @@ class TileModelTest {
     }
 
     @Test
+    fun `degraded service shows an inactive tile that opens the app`() {
+        val face = TileFace.of(ServiceStatus.DEGRADED)
+        assertFalse(face.active)
+        assertEquals(R.string.status_degraded, face.subtitle)
+        assertEquals(TileTarget.APP, face.target)
+    }
+
+    @Test
     fun `stopped service shows an inactive tile that opens accessibility settings`() {
         val face = TileFace.of(ServiceStatus.STOPPED)
         assertFalse(face.active)

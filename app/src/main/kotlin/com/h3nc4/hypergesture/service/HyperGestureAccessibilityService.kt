@@ -56,6 +56,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.math.hypot
@@ -85,6 +86,15 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     private var keeperWatch: NavigationKeeperWatch? = null
     private var configuration: GestureConfiguration = GestureConfiguration()
     private var lastGeometry: ScreenGeometry? = null
+    private val installer = StripInstaller(
+        install = ::installOverlay,
+        schedule = { delayMs, retry ->
+            if (instance === this) handler.postDelayed(Runnable(retry), INSTALL_RETRY_TOKEN, delayMs)
+        },
+        cancelRetry = { handler.removeCallbacksAndMessages(INSTALL_RETRY_TOKEN) },
+        onFailure = { FailureLog.record(this, "installOverlay", it) },
+        onAttached = { if (instance === this) stripsState.value = it },
+    )
 
     /**
      * Rotation reaches the display *after* the configuration change lands, so
@@ -105,7 +115,9 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
      */
     override fun onServiceConnected() {
         super.onServiceConnected()
+        Log.i(TAG, "SERVICE_CONNECTED ${System.identityHashCode(this)}")
         instance = this
+        stripsState.value = null
         runningState.value = true
         try {
             setUp()
@@ -131,11 +143,17 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
             .registerDisplayListener(displayListener, handler)
 
+        // A failed read would end the collector, and with it every later install.
         scope.launch {
-            settings.configuration.collect { updated ->
-                configuration = updated
-                installOverlay()
-            }
+            settings.configuration
+                .catch {
+                    FailureLog.record(this@HyperGestureAccessibilityService, "settings collector", it)
+                    emit(GestureConfiguration())
+                }
+                .collect { updated ->
+                    configuration = updated
+                    installer.run()
+                }
         }
         scope.launch {
             NavigationKeeperSettings(applicationContext).enabled.collect { watchNavigation(it) }
@@ -163,6 +181,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        Log.i(TAG, "SERVICE_UNBIND ${System.identityHashCode(this)}")
         teardown()
         GestureTileService.requestRefresh(this)
         StopNotifier.sync(this)
@@ -170,6 +189,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     }
 
     override fun onDestroy() {
+        Log.i(TAG, "SERVICE_DESTROY ${System.identityHashCode(this)}")
         teardown()
         super.onDestroy()
     }
@@ -184,10 +204,11 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
     override fun onInterrupt() = Unit
 
-    private fun installOverlay() {
+    private fun installOverlay(): Int {
+        val overlay = overlay ?: return 0
         val geometry = ScreenGeometry.current(this, windowManager)
         lastGeometry = geometry
-        overlay?.install(configuration.copy(platform = platformDefaults()), geometry)
+        return overlay.install(configuration.copy(platform = platformDefaults()), geometry)
     }
 
     // Read on every install, so a changed touch and hold delay lands with the next settings
@@ -219,7 +240,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         reinstallOnGeometryChange(
             last = lastGeometry,
             read = { ScreenGeometry.current(this, windowManager) },
-            reinstall = ::installOverlay,
+            reinstall = installer::run,
             onFailure = { FailureLog.record(this, "reinstallIfGeometryChanged", it) },
         )
     }
@@ -236,8 +257,11 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         restoreButtons()
         handler.removeCallbacksAndMessages(null)
         scope.cancel()
-        instance = null
-        runningState.value = false
+        // A replaced instance can unbind after its successor connected, which must keep its state.
+        if (instance === this) {
+            instance = null
+            runningState.value = false
+        }
     }
 
     private fun onGestureAction(action: GestureAction, edge: ScreenEdge, stream: Long) {
@@ -364,6 +388,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
         private const val FINISH_GRACE_MS = 1_000L
 
+        private val INSTALL_RETRY_TOKEN = Any()
+
         /** An upper bound on how long a replay holds the strips past its UP, safety net included. */
         internal const val LONGEST_REPLAY_HOLD_MS = MAX_REPLAY_MS + WINDOW_SETTLE_MS + FINISH_GRACE_MS
 
@@ -376,5 +402,10 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
         /** Lets an open screen see the service start or stop without waiting for a resume. */
         val running: StateFlow<Boolean> = runningState.asStateFlow()
+
+        private val stripsState = MutableStateFlow<Int?>(null)
+
+        /** Null until each connection first installs, and kept on a stop so a brief UiAutomation unbind keeps its grace. */
+        val attachedStrips: StateFlow<Int?> = stripsState.asStateFlow()
     }
 }

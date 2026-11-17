@@ -134,6 +134,7 @@ private fun DeviceRows(diagnostics: Diagnostics) {
     ValueRow(stringResource(R.string.diag_service_enabled), yesNo(diagnostics.accessibilityServiceSwitchedOn))
     ValueRow(stringResource(R.string.diag_service_bound), yesNo(diagnostics.accessibilityServiceEnabled))
     ValueRow(stringResource(R.string.diag_service_running), yesNo(diagnostics.accessibilityServiceRunning))
+    ValueRow(stringResource(R.string.diag_strips_attached), diagnostics.attachedStrips?.toString() ?: none)
     ValueRow(stringResource(R.string.diag_integration), integrationLabel(diagnostics.navigationIntegrationId))
 }
 
