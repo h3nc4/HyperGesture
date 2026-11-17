@@ -40,6 +40,9 @@ private const val BUFFER_BYTES = 64 * 1024
 // A real answer runs to tens of KiB, so this only stops a body that never ends.
 internal const val MAX_RELEASE_BYTES = 1024 * 1024
 
+// Stops a download whose size neither the release nor the server stated.
+internal const val MAX_APK_BYTES = 128L * 1024 * 1024
+
 internal const val LATEST_RELEASE_URL =
     "https://api.github.com/repos/h3nc4/HyperGesture/releases/latest"
 
@@ -120,7 +123,7 @@ internal class GitHubReleaseSource(private val transport: HttpTransport) : Relea
     }
 }
 
-internal class OversizedBodyException(limit: Int) : IOException("answer over $limit bytes")
+internal class OversizedBodyException(limit: Long) : IOException("answer over $limit bytes")
 
 internal fun InputStream.readAtMost(limit: Int): ByteArray {
     val output = ByteArrayOutputStream()
@@ -128,7 +131,7 @@ internal fun InputStream.readAtMost(limit: Int): ByteArray {
     var read = read(buffer)
     while (read >= 0) {
         output.write(buffer, 0, read)
-        if (output.size() > limit) throw OversizedBodyException(limit)
+        if (output.size() > limit) throw OversizedBodyException(limit.toLong())
         read = read(buffer)
     }
     return output.toByteArray()
@@ -158,6 +161,7 @@ internal class HttpApkDownloader(
     private val directory: File,
     private val transport: HttpTransport,
     private val progressContext: CoroutineContext,
+    private val ceiling: Long = MAX_APK_BYTES,
 ) : ApkDownloader {
 
     override suspend fun download(asset: ReleaseAsset, onProgress: (Int?) -> Unit): DownloadResult =
@@ -179,8 +183,9 @@ internal class HttpApkDownloader(
     private suspend fun fetch(asset: ReleaseAsset, file: File, onProgress: (Int?) -> Unit): DownloadResult =
         followRedirects(transport, asset.downloadUrl, "application/octet-stream").use { response ->
             if (response.code != 200) return DownloadResult.Failed("HTTP ${response.code}")
-            val meter = ProgressMeter(asset.size.takeIf { it > 0 } ?: response.contentLength)
-            val actual = copyHashing(response.body(), file) { bytes ->
+            val size = asset.size.takeIf { it > 0 } ?: response.contentLength
+            val meter = ProgressMeter(size)
+            val actual = copyHashing(response.body(), file, size.takeIf { it > 0 } ?: ceiling) { bytes ->
                 if (meter.add(bytes)) withContext(progressContext) { onProgress(meter.percent) }
             }
             when (asset.sha256) {
@@ -190,13 +195,21 @@ internal class HttpApkDownloader(
             }
         }
 
-    private suspend fun copyHashing(input: InputStream, file: File, onChunk: suspend (Int) -> Unit): String {
+    private suspend fun copyHashing(
+        input: InputStream,
+        file: File,
+        limit: Long,
+        onChunk: suspend (Int) -> Unit,
+    ): String {
         val digest = MessageDigest.getInstance("SHA-256")
         input.use { source ->
             file.outputStream().use { output ->
                 val buffer = ByteArray(BUFFER_BYTES)
+                var written = 0L
                 var read = source.read(buffer)
                 while (read >= 0) {
+                    written += read
+                    if (written > limit) throw OversizedBodyException(limit)
                     output.write(buffer, 0, read)
                     digest.update(buffer, 0, read)
                     onChunk(read)
