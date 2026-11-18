@@ -78,6 +78,7 @@ class GestureTileService : TileService() {
             bound = DiagnosticsCollector.isAccessibilityServiceEnabled(this),
             running = HyperGestureAccessibilityService.isRunning(),
             attachedStrips = HyperGestureAccessibilityService.attachedStrips.value,
+            connectionLost = HyperGestureAccessibilityService.connectionLost.value,
         ),
     )
 

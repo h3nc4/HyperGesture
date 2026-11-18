@@ -68,6 +68,7 @@ internal class EdgeTouchOverlay(
     private val replayer: TouchReplayer,
     private val onGestureAction: (GestureAction, ScreenEdge, Long) -> Unit,
     private val onAppSwitchArmed: (Long) -> Unit,
+    private val onStripRefused: (Throwable) -> Unit = {},
     private val layout: OverlayLayout = OverlayLayout(),
 ) {
 
@@ -214,7 +215,10 @@ internal class EdgeTouchOverlay(
             strips[edge] = view
             Log.i(TAG, "strip $edge installed ${params.width}x${params.height} geometry=$geometry")
             journal.add("strip $edge installed ${params.width}x${params.height}")
-        }.onFailure { FailureLog.record(context, "addStrip $edge", it) }
+        }.onFailure {
+            FailureLog.record(context, "addStrip $edge", it)
+            onStripRefused(it)
+        }
     }
 
     private fun paramsFor(
