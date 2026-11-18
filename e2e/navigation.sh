@@ -93,4 +93,15 @@ assert_no_log "an edge tap is not misread as a gesture" "GESTURE_FIRED"
 assert_log "an edge tap is replayed to the app underneath" "REPLAY_DISPATCHED"
 assert_no_log "the replay was not refused" "REPLAY_REFUSED"
 
+echo >&2
+echo "== a drag along an edge is given back in timed segments ==" >&2
+open_test_app
+reset_log
+swipe 2 $((MID_Y - 300)) 2 $((MID_Y + 300)) 300
+sleep 3
+assert_no_log "a drag along the edge is not misread as a gesture" "GESTURE_FIRED"
+assert_log "the drag is replayed as several segments" "REPLAY_DISPATCHED .*segments=[2-9]"
+assert_log "every segment reached the app underneath" "REPLAY_COMPLETED"
+assert_no_log "no segment was cancelled, refused or timed out" "REPLAY_CANCELLED\\|REPLAY_REFUSED\\|REPLAY_TIMED_OUT"
+
 report "NAVIGATION"

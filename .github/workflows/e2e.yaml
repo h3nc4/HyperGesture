@@ -105,7 +105,7 @@ jobs:
       matrix:
         include:
           - shard: 1
-            suites: navigation-keeper
+            suites: navigation-keeper service-restore
           - shard: 2
             suites: status-refresh other-edges
           - shard: 3

@@ -274,8 +274,42 @@ geometry() {
 #
 # What the app shows, read through uiautomator.
 
+# strips_back_since <marker> - the service reconnected after that log line and its strips went up.
+# An unbind after a reconnect, as a retried dump causes, starts the wait over.
+strips_back_since() {
+  "${ADB_BIN}" logcat -d -s HyperGesture:I HyperGestureE2E:I 2>/dev/null | tr -d '\r' | awk -v mark="$1" '
+    index($0, mark) { seen = 1; next }
+    !seen { next }
+    /SERVICE_UNBIND|SERVICE_DESTROY/ { connected = 0; up = 0 }
+    /SERVICE_CONNECTED/ { connected = 1; up = 0 }
+    connected && /strip BOTTOM installed/ { up = 1 }
+    END { exit up ? 0 : 1 }'
+}
+
+# uiautomator suppresses every accessibility service while it dumps, so ours unbinds and
+# reinstalls its strips afterwards, and a swipe sent before that reaches no strip at all.
+await_strips_since() {
+  strips_try=1
+  while [ "${strips_try}" -le 40 ]; do
+    # shellcheck disable=SC2310 # a false predicate is the signal to keep waiting
+    if strips_back_since "$1"; then
+      return 0
+    fi
+    sleep 0.5
+    strips_try=$((strips_try + 1))
+  done
+  echo "   the strips were not back within 20 s of a uiautomator dump" >&2
+}
+
 # A failed dump leaves the last screen's file behind, so it is deleted first and the dump retried.
 dump_nodes() {
+  dump_bound=''
+  if "${ADB_BIN}" shell settings get secure enabled_accessibility_services 2>/dev/null |
+    grep -q "${PKG}"; then
+    dump_bound=1
+  fi
+  dump_mark="DUMP_START_$(date +%s%N)"
+  "${ADB_BIN}" shell log -t HyperGestureE2E "${dump_mark}" >/dev/null 2>&1 || true
   dump_try=1
   while [ "${dump_try}" -le 3 ]; do
     "${ADB_BIN}" shell rm -f /sdcard/hg-ui.xml >/dev/null 2>&1 || true
@@ -285,6 +319,9 @@ dump_nodes() {
     sleep 1
     dump_try=$((dump_try + 1))
   done
+  if [ -n "${dump_bound}" ]; then
+    await_strips_since "${dump_mark}"
+  fi
   "${ADB_BIN}" exec-out cat /sdcard/hg-ui.xml 2>/dev/null | sed 's/<node /\
 <node /g'
 }
@@ -351,6 +388,7 @@ scan_down() {
       sed -n 's/.*bounds="\[[0-9]*,\([0-9]*\)\]\[[0-9]*,\([0-9]*\)\]".*/\1 \2/p' |
       awk '{print int(($1 + $2) / 2)}')"
     if [ -n "${centre}" ] && [ "${centre}" -lt "$2" ]; then
+      printf '%s\n' "${screen}" >"${LOG_DIR}/found_nodes"
       printf '%s\n' "${found}"
       return 0
     fi
@@ -368,7 +406,9 @@ scan_down() {
 
 # find_id <tag> - finds that node with its centre clear of the bottom strip, which takes a tap
 # there for itself, and prints it. It looks down from where the app is, then down from the top.
+# The dump that showed it stays in LOG_DIR/found_nodes, for a caller that reads more of that screen.
 find_id() {
+  rm -f "${LOG_DIR}/found_nodes"
   size="$(screen_size)"
   clear_y=$((${size#*x} - 260))
   # shellcheck disable=SC2310 # a node out of reach is the signal to start again from the top

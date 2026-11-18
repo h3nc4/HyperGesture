@@ -44,6 +44,7 @@ import com.h3nc4.hypergesture.diagnostics.StopLog
 import com.h3nc4.hypergesture.gesture.GestureAction
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.gesture.PlatformDefaults
+import com.h3nc4.hypergesture.gesture.ReplayPlan
 import com.h3nc4.hypergesture.gesture.ScreenEdge
 import com.h3nc4.hypergesture.gesture.TouchSample
 import com.h3nc4.hypergesture.navigation.ButtonRestore
@@ -63,7 +64,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlin.math.hypot
 
 /**
  * Hosts the edge strips in-process rather than in a foreground service:
@@ -102,8 +102,9 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         },
         cancelRetry = { handler.removeCallbacksAndMessages(INSTALL_RETRY_TOKEN) },
         onFailure = { FailureLog.record(this, "installOverlay", it) },
-        onAttached = { if (instance === this) stripsState.value = it },
+        onAttached = ::onInstalled,
     )
+    private val connectionLoss = ConnectionLoss()
     private val settleCheck = InsetSettleCheck(
         schedule = { delayMs, check ->
             if (instance === this) handler.postDelayed(Runnable(check), SETTLE_CHECK_TOKEN, delayMs)
@@ -166,6 +167,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         Log.i(TAG, "SERVICE_CONNECTED ${System.identityHashCode(this)}")
         instance = this
         stripsState.value = null
+        connectionLoss.reset()
+        connectionLostState.value = false
         runningState.value = true
         StopLog.serviceStarted(this)
         try {
@@ -189,6 +192,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             replayer = this,
             onGestureAction = ::onGestureAction,
             onAppSwitchArmed = ::onAppSwitchArmed,
+            onStripRefused = connectionLoss::refused,
         )
 
         (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
@@ -277,6 +281,20 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     private fun keyguardLocked(): Boolean =
         getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
 
+    private fun onInstalled(attached: Int) {
+        if (instance !== this) return
+        val lost = connectionLoss.installed(attached)
+        val changed = lost != connectionLostState.value
+        if (changed && lost) {
+            Log.w(TAG, "SERVICE_CONNECTION_LOST ${System.identityHashCode(this)} strips refused for a null token")
+            StopLog.connectionLost(this)
+        }
+        // Set first, so a screen refreshing on the strip count already reads the loss.
+        connectionLostState.value = lost
+        stripsState.value = attached
+        if (changed) GestureTileService.requestRefresh(this)
+    }
+
     private fun installOverlay(): Int {
         val overlay = overlay ?: return 0
         val geometry = ScreenGeometry.current(this, windowManager)
@@ -363,6 +381,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         // A replaced instance can unbind after its successor connected, which must keep its state.
         if (instance === this) {
             instance = null
+            connectionLostState.value = false
             runningState.value = false
         }
     }
@@ -382,43 +401,17 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
      * remainder of [WINDOW_SETTLE_MS] still has to be waited out.
      */
     override fun replay(samples: List<TouchSample>, onDone: () -> Unit): Boolean {
-        if (samples.isEmpty()) return false
-
-        val first = samples.first()
-        val last = samples.last()
-        val movedPx = hypot(last.xPx - first.xPx, last.yPx - first.yPx)
-        val isTap = movedPx < TAP_SLOP_PX
-        val rawDurationMs = last.timestampMs - first.timestampMs
-
-        val path = Path().apply {
-            moveTo(first.xPx, first.yPx)
-            if (isTap) {
-                // dispatchGesture rejects a zero-length path. Nudge by a sub-slop pixel:
-                // still a tap, not a drag.
-                lineTo(first.xPx + 1f, first.yPx + 1f)
-            } else {
-                for (i in 1 until samples.size) lineTo(samples[i].xPx, samples[i].yPx)
-            }
-        }
-
-        val durationMs = when {
-            !isTap -> rawDurationMs.coerceIn(1L, MAX_REPLAY_MS)
-            // A deliberate hold: mirror it so the target's long-press fires too.
-            rawDurationMs >= ViewConfiguration.getLongPressTimeout() ->
-                rawDurationMs.coerceAtMost(MAX_REPLAY_MS)
-            // The click fires at the end of the stroke, so capping it cuts perceived
-            // tap latency; the press physically happened already.
-            else -> rawDurationMs.coerceIn(MIN_TAP_MS, TAP_STROKE_CAP_MS)
-        }
-
-        val gesture = runCatching {
-            GestureDescription.Builder()
-                .addStroke(GestureDescription.StrokeDescription(path, 0L, durationMs))
-                .build()
-        }.getOrElse {
+        val plan = ReplayPlan.of(
+            samples,
+            resources.displayMetrics.density,
+            ViewConfiguration.getLongPressTimeout().toLong(),
+        ) ?: return false
+        val strokes = runCatching { replayStrokes(plan) }.getOrElse {
             Log.w(TAG, "Could not build replay gesture", it)
             return false
         }
+        val durationMs = plan.durationMs
+        val rawDurationMs = samples.last().timestampMs - samples.first().timestampMs
 
         val settleDelayMs = (WINDOW_SETTLE_MS - rawDurationMs).coerceAtLeast(0L)
         var finished = false
@@ -429,61 +422,98 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             }
         }
         // Safety net: release the strips even if the result callback never arrives.
-        handler.postDelayed(finish, durationMs + settleDelayMs + FINISH_GRACE_MS)
         handler.postDelayed({
-            // After this delay the service may be unbound, and dispatchGesture then throws
-            // instead of returning false; uncaught that kills the process and gets the
-            // service flagged "malfunctioning".
-            val dispatched = runCatching {
-                dispatchGesture(
-                    gesture,
-                    object : GestureResultCallback() {
-                        override fun onCompleted(gestureDescription: GestureDescription?) {
-                            releaseStrips()
-                        }
+            if (!finished) Log.w(TAG, "REPLAY_TIMED_OUT after ${durationMs + settleDelayMs + FINISH_GRACE_MS}ms")
+            finish.run()
+        }, finish, durationMs + settleDelayMs + FINISH_GRACE_MS)
 
-                        override fun onCancelled(gestureDescription: GestureDescription?) {
-                            // The touch never reached the app underneath, so the tap is
-                            // lost; the strips still have to come back either way.
-                            Log.w(TAG, "REPLAY_CANCELLED after ${durationMs}ms")
-                            releaseStrips()
-                        }
+        fun releaseStrips() {
+            handler.removeCallbacksAndMessages(finish)
+            finish.run()
+        }
 
-                        private fun releaseStrips() {
-                            handler.removeCallbacks(finish)
-                            finish.run()
-                        }
-                    },
-                    handler,
-                )
-            }.getOrElse { throwable ->
-                FailureLog.record(this, "dispatchGesture", throwable)
-                false
-            }
-            if (dispatched) {
-                Log.i(TAG, "REPLAY_DISPATCHED ${samples.size} samples over ${durationMs}ms")
+        fun dispatchSegment(index: Int): Boolean = runCatching {
+            dispatchGesture(
+                GestureDescription.Builder().addStroke(strokes[index]).build(),
+                segmentCallback(index, strokes.size, { finished }, ::releaseStrips),
+                handler,
+            )
+        }.getOrElse { throwable ->
+            // Once unbound, dispatchGesture throws instead of returning false, and uncaught that
+            // kills the process and gets the service flagged "malfunctioning".
+            FailureLog.record(this, "dispatchGesture", throwable)
+            false
+        }
+
+        handler.postDelayed({
+            // The framework queues a continuation behind the stroke it continues. Sent from each callback
+            // instead, every hop crossed two main threads, and one stall outran the safety net.
+            val refused = strokes.indices.firstOrNull { !dispatchSegment(it) }
+            if (refused == null) {
+                Log.i(TAG, "REPLAY_DISPATCHED ${samples.size} samples over ${durationMs}ms, segments=${strokes.size}")
             } else {
-                Log.w(TAG, "REPLAY_REFUSED dispatchGesture rejected the replay")
-                handler.removeCallbacks(finish)
-                finish.run()
+                Log.w(TAG, "REPLAY_REFUSED segment ${refused + 1} of ${strokes.size}")
+                releaseStrips()
             }
         }, settleDelayMs)
         return true
+    }
+
+    private fun segmentCallback(index: Int, count: Int, finished: () -> Boolean, release: () -> Unit) =
+        object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                if (finished() || index < count - 1) return
+                Log.i(TAG, "REPLAY_COMPLETED segments=$count")
+                release()
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                if (finished()) return
+                // The touch never fully reached the app underneath. The strips still come back.
+                Log.w(TAG, "REPLAY_CANCELLED at segment ${index + 1} of $count")
+                release()
+            }
+        }
+
+    /** One stroke per segment, each continuing the last. A tap is one stroke. */
+    private fun replayStrokes(plan: ReplayPlan): List<GestureDescription.StrokeDescription> = when (plan) {
+        is ReplayPlan.Tap -> {
+            // dispatchGesture rejects a zero-length path. A sub-slop nudge is still a tap.
+            val path = Path().apply {
+                moveTo(plan.at.xPx, plan.at.yPx)
+                lineTo(plan.at.xPx + 1f, plan.at.yPx + 1f)
+            }
+            listOf(GestureDescription.StrokeDescription(path, 0L, plan.durationMs))
+        }
+        is ReplayPlan.Drag -> {
+            val strokes = mutableListOf<GestureDescription.StrokeDescription>()
+            plan.segments.forEachIndexed { index, segment ->
+                val path = segmentPath(segment.points)
+                val willContinue = index < plan.segments.lastIndex
+                strokes += strokes.lastOrNull()?.continueStroke(path, 0L, segment.durationMs, willContinue)
+                    ?: GestureDescription.StrokeDescription(path, 0L, segment.durationMs, willContinue)
+            }
+            strokes
+        }
+    }
+
+    // A still finger gives a zero-length path, so it steps out a pixel and back to end where it began.
+    private fun segmentPath(points: List<TouchSample>): Path = Path().apply {
+        val start = points.first()
+        moveTo(start.xPx, start.yPx)
+        val moves = points.drop(1).filter { it.xPx != start.xPx || it.yPx != start.yPx }
+        if (moves.isEmpty()) {
+            lineTo(start.xPx + 1f, start.yPx)
+            lineTo(start.xPx, start.yPx)
+        } else {
+            points.drop(1).forEach { lineTo(it.xPx, it.yPx) }
+        }
     }
 
     companion object {
         private const val TAG = "HyperGesture"
 
         private val KEYGUARD_CHECK_TOKEN = Any()
-
-        private const val MAX_REPLAY_MS = 3_000L
-
-        /** A 1ms stroke completes but never clicks. */
-        private const val MIN_TAP_MS = 50L
-
-        private const val TAP_STROKE_CAP_MS = 60L
-
-        private const val TAP_SLOP_PX = 12f
 
         /**
          * Grace for the non-touchable + alpha-0 update to reach the input pipeline, so the
@@ -498,7 +528,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         private val SETTLE_CHECK_TOKEN = Any()
 
         /** An upper bound on how long a replay holds the strips past its UP, safety net included. */
-        internal const val LONGEST_REPLAY_HOLD_MS = MAX_REPLAY_MS + WINDOW_SETTLE_MS + FINISH_GRACE_MS
+        internal const val LONGEST_REPLAY_HOLD_MS = ReplayPlan.MAX_REPLAY_MS + WINDOW_SETTLE_MS + FINISH_GRACE_MS
 
         @Volatile
         private var instance: HyperGestureAccessibilityService? = null
@@ -514,5 +544,10 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
         /** Null until each connection first installs, and kept on a stop so a brief UiAutomation unbind keeps its grace. */
         val attachedStrips: StateFlow<Int?> = stripsState.asStateFlow()
+
+        private val connectionLostState = MutableStateFlow(false)
+
+        /** True while the live instance holds a window token the system reset, which only a toggle restores. */
+        val connectionLost: StateFlow<Boolean> = connectionLostState.asStateFlow()
     }
 }
