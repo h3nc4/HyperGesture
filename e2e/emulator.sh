@@ -91,10 +91,12 @@ force_three_button() {
 
 nav_mode=''
 attempt=1
-while [ "${attempt}" -le 6 ]; do
+# The first switch after boot often does not take, and a switch that does lands in about 3 s,
+# so each attempt waits 5 s before it switches again.
+while [ "${attempt}" -le 12 ]; do
   force_three_button
   waited=1
-  while [ "${waited}" -le 10 ]; do
+  while [ "${waited}" -le 5 ]; do
     nav_mode="$("${ADB_BIN}" shell settings get secure navigation_mode 2>/dev/null | tr -d '\r')"
     if [ "${nav_mode}" = '0' ]; then
       break
@@ -105,7 +107,7 @@ while [ "${attempt}" -le 6 ]; do
   if [ "${nav_mode}" = '0' ]; then
     break
   fi
-  echo "   navigation_mode=${nav_mode}, retrying the overlay switch (attempt ${attempt} of 6)" >&2
+  echo "   navigation_mode=${nav_mode}, retrying the overlay switch (attempt ${attempt} of 12)" >&2
   attempt=$((attempt + 1))
 done
 if [ "${nav_mode}" != '0' ]; then
