@@ -19,6 +19,7 @@ package com.h3nc4.hypergesture.ui
 
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -36,6 +37,7 @@ import com.h3nc4.hypergesture.diagnostics.Diagnostics
 import com.h3nc4.hypergesture.diagnostics.DiagnosticsCollector
 import com.h3nc4.hypergesture.diagnostics.FailureLog
 import com.h3nc4.hypergesture.diagnostics.ServiceStatus
+import com.h3nc4.hypergesture.diagnostics.StatusSettle
 import com.h3nc4.hypergesture.diagnostics.StopLog
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.navigation.ButtonRestore
@@ -96,7 +98,12 @@ internal class AppModel(
     private var batteryUnrestricted by mutableStateOf(batteryUnrestricted(context))
     private var notificationsAllowed by mutableStateOf(notificationsAllowed(context))
 
-    val status: ServiceStatus get() = diagnostics.serviceStatus
+    private val settle = StatusSettle(STATUS_GRACE_MS, diagnostics.serviceStatus)
+    private var settling: Job? = null
+
+    /** Lags a fall into STOPPED or DEGRADED by [STATUS_GRACE_MS], so home keeps its layout through a rebind. */
+    var status: ServiceStatus by mutableStateOf(settle.shown)
+        private set
 
     val checklist: SetupChecklist
         get() = SetupChecklist.evaluate(
@@ -121,7 +128,7 @@ internal class AppModel(
 
     private var collecting: Job? = null
 
-    fun refresh() {
+    fun refresh(heldMs: Long = 0) {
         usageAccess = hasUsageAccess(context)
         assistant = readAssistant(context)
         batteryUnrestricted = batteryUnrestricted(context)
@@ -136,10 +143,23 @@ internal class AppModel(
                 StopLog.recordPreviousStop(context)
                 DiagnosticsCollector.collect(context)
             }
-            if (status != ServiceStatus.OFF && !record.serviceEverEnabled) {
+            settleStatus(heldMs)
+            if (diagnostics.serviceStatus != ServiceStatus.OFF && !record.serviceEverEnabled) {
                 setFlag(SetupFlag.SERVICE_EVER_ENABLED, true)
             }
             StopNotifier.sync(context)
+        }
+    }
+
+    private fun settleStatus(heldMs: Long = 0) {
+        settling?.cancel()
+        val wait = settle.offer(diagnostics.serviceStatus, SystemClock.elapsedRealtime(), heldMs)
+        status = settle.shown
+        if (wait != null) {
+            settling = scope.launch {
+                delay(wait)
+                settleStatus()
+            }
         }
     }
 
@@ -198,16 +218,25 @@ internal class AppModel(
         scope.launch { keeperSettings.enabled.collect { keeperEnabled = it } }
         scope.launch { restoreSettings.enabled.collect { restoreServiceEnabled = it } }
         scope.launch { HyperGestureAccessibilityService.attachedStrips.drop(1).collect { refresh() } }
+        scope.launch { HyperGestureAccessibilityService.connectionLost.drop(1).collect { refresh() } }
         // UiAutomation, which uiautomator and screen readers use, unbinds the service for a moment.
         // So a stop shows only once it outlasts that, and a return shows at once.
         HyperGestureAccessibilityService.running.collectLatest { running ->
-            if (!running) delay(STOP_GRACE_MS)
-            refresh()
+            if (running) {
+                refresh()
+            } else {
+                delay(STOP_GRACE_MS)
+                refresh(heldMs = STOP_GRACE_MS)
+            }
         }
     }
 }
 
 private const val STOP_GRACE_MS = 3_000L
+
+// The installer's first three retries span 1.75 s, and a strip Android really refuses still shows within 3 s.
+private const val STATUS_GRACE_MS = 3_000L
+
 private const val TAG = "HyperGesture"
 
 @Composable
