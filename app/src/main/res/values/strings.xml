@@ -246,6 +246,9 @@
     <string name="section_last_problems">Last problems</string>
     <string name="action_refresh_diagnostics">Refresh</string>
     <string name="action_clear_failure">Clear</string>
+    <string name="action_copy_failure">Copy log</string>
+    <string name="clip_label_failure">HyperGesture failure log</string>
+    <string name="snackbar_failure_copied">Log copied</string>
     <string name="diag_android_version">Android version</string>
     <string name="diag_device">Device</string>
     <string name="diag_hyperos">HyperOS / MIUI build</string>

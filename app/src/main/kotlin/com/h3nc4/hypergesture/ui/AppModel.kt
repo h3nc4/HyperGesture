@@ -170,6 +170,10 @@ internal class AppModel(
         scope.launch { keeperSettings.setEnabled(enabled) }
     }
 
+    fun announce(message: String) {
+        scope.launch { snackbar.showSnackbar(message, withDismissAction = true) }
+    }
+
     /** Reset has no confirmation, so the snackbar offers the old values back instead. */
     fun resetGestureSettings(message: String, undoLabel: String) {
         val previous = configuration
