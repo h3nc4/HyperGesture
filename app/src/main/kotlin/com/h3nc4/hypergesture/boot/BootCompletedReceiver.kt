@@ -22,6 +22,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.h3nc4.hypergesture.diagnostics.FailureLog
+import com.h3nc4.hypergesture.diagnostics.StopLog
 import com.h3nc4.hypergesture.navigation.ButtonRestore
 import com.h3nc4.hypergesture.navigation.NavigationIntegrationFactory
 import com.h3nc4.hypergesture.navigation.NavigationMode
@@ -48,8 +49,13 @@ class BootCompletedReceiver : BroadcastReceiver() {
         }
         // Writes the buttons back after a kill that skipped the unbind and left the bar hidden.
         CoroutineScope(SupervisorJob() + Dispatchers.IO + failures).launch {
+            StopLog.recordPreviousStop(app)
+            StopLog.recordNavigation(app, StopLog.SEEN_AT_BOOT)
             val running = HyperGestureAccessibilityService.isRunning()
-            ButtonRestore.forDevice(app)?.gesturesStopped(running)?.let { Log.w(TAG, ButtonRestore.logLine(it)) }
+            ButtonRestore.forDevice(app)?.gesturesStopped(running)?.let {
+                Log.w(TAG, ButtonRestore.logLine(it))
+                StopLog.recordNavigation(app, StopLog.WRITTEN_BY_APP)
+            }
             StopNotifier.sync(app) { pending.finish() }
         }
 

@@ -27,19 +27,19 @@ class OrderPrefetchTest {
 
     private val maxAgeMs = 3_000L
 
-    private val apps = listOf("org.example.mail", "org.example.maps")
+    private val apps = WalkOrder(listOf("org.example.mail", "org.example.maps"), frontInOrder = true)
 
     private val prefetch = OrderPrefetch<String>(maxAgeMs)
 
     @Test
     fun `a fresh order read for this stream is used`() {
-        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, apps = apps)
+        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, order = apps)
         assertEquals(apps, order.usableFor(stream = 4L, nowMs = 1_200L, maxAgeMs = maxAgeMs))
     }
 
     @Test
     fun `an order exactly at the age limit is still used`() {
-        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, apps = apps)
+        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, order = apps)
         assertEquals(apps, order.usableFor(stream = 4L, nowMs = 1_000L + maxAgeMs, maxAgeMs = maxAgeMs))
     }
 
@@ -51,25 +51,25 @@ class OrderPrefetchTest {
 
     @Test
     fun `an order read for another stream means a fresh read`() {
-        val order = PreparedOrder(stream = 3L, readAtMs = 1_000L, apps = apps)
+        val order = PreparedOrder(stream = 3L, readAtMs = 1_000L, order = apps)
         assertNull(order.usableFor(stream = 4L, nowMs = 1_200L, maxAgeMs = maxAgeMs))
     }
 
     @Test
     fun `a stale order means a fresh read`() {
-        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, apps = apps)
+        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, order = apps)
         assertNull(order.usableFor(stream = 4L, nowMs = 1_001L + maxAgeMs, maxAgeMs = maxAgeMs))
     }
 
     @Test
     fun `an order stamped after now means a fresh read`() {
-        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, apps = apps)
+        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, order = apps)
         assertNull(order.usableFor(stream = 4L, nowMs = 999L, maxAgeMs = maxAgeMs))
     }
 
     @Test
     fun `an empty order means a fresh read, since a failed read is empty too`() {
-        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, apps = emptyList<String>())
+        val order = PreparedOrder(stream = 4L, readAtMs = 1_000L, order = WalkOrder(emptyList<String>(), frontInOrder = true))
         assertNull(order.usableFor(stream = 4L, nowMs = 1_200L, maxAgeMs = maxAgeMs))
     }
 

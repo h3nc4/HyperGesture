@@ -76,7 +76,7 @@ Two layers, because they catch different things.
 
 - boots the emulator and installs the APK
 - enables the accessibility service
-- injects real swipes with `adb shell input`
+- injects real swipes with `adb shell input`, and two fingers at once with `sendevent`
 - rotates the display to landscape for the pill, and back to portrait afterwards
 
 It then asserts on two independent signals: logcat (did *our* service decide correctly) and `dumpsys` (did the system state actually change). It needs `/dev/kvm` and the debug APK from `gradle assembleDebug`:
@@ -88,7 +88,7 @@ docker run --rm --device /dev/kvm -u "$(id -u):$(id -g)" -e HOME=/tmp \
   -c './e2e/run.sh'
 ```
 
-Suite names after the flags run only those suites, such as `./e2e/run.sh navigation back-revert`, and with none it runs all eight. CI builds the debug APK once and splits the suites across three jobs, each booting its own emulator, and the `Gesture end-to-end` check passes only when all three do. `-k` leaves the emulator running for interactive poking. `-p hypergesture.apk` runs the suite against a release build. R8 obfuscation and shrinking can break things no JVM test sees. The release workflow runs every suite against the signed APK it built and publishes nothing unless they all pass. CI also runs them every night on main, and on a manual run of the `HyperGesture Gesture E2E` workflow, with every suite against the minified APK signed with the debug key. It has already caught one such bug: log and diagnostics strings built from `::class.simpleName` came out as `a`/`b`/`c` once minified, so `GestureAction` has an explicit `id`. R8 also strips every `Log.d` and `Log.v` call from a release build, so a line the suite greps for logs at info or above.
+Suite names after the flags run only those suites, such as `./e2e/run.sh navigation back-revert`, and with none it runs all twelve. CI builds the debug APK once and splits the suites across five jobs, each booting its own emulator, and the `Gesture end-to-end` check passes only when all five do. `-k` leaves the emulator running for interactive poking. `-p hypergesture.apk` runs the suite against a release build. R8 obfuscation and shrinking can break things no JVM test sees. The release workflow runs every suite against the signed APK it built and publishes nothing unless they all pass. CI also runs them every night on main, and on a manual run of the `HyperGesture Gesture E2E` workflow, with every suite against the minified APK signed with the debug key. It has already caught one such bug: log and diagnostics strings built from `::class.simpleName` came out as `a`/`b`/`c` once minified, so `GestureAction` has an explicit `id`. R8 also strips every `Log.d` and `Log.v` call from a release build, so a line the suite greps for logs at info or above.
 
 A release build ignores the debug overrides that `e2e/device.sh` writes, so for a release APK the script turns app switching on through the app's own toggle, the way a user would, and the app-switch suite runs in full. That keeps an R8 break in the toggle, its DataStore write or the recognizer visible as a failing case, where a skip would hide all three. The cost is a dependency on the screen. The app turns its Compose test tags into resource ids. The script finds the switch by its `switch_app_switch` tag in a `uiautomator` dump and taps it. A layout that drops the tag fails the run before any gesture is tried. Every suite selects rows by tag through `find_id`, `tap_id`, `text_of_id` and `set_toggle_id` in `e2e/lib`, with the tags in `ui/TestTags.kt`. Moving a row or rewording its label leaves the suites working. The Recents hold also keeps its 100 ms default, since its override is debug-only as well. Installing over a build signed with another key uninstalls it first, so the release and debug runs can share one emulator, and on a phone that wipes the installed copy and its settings. The app opens on whichever screen was last showing, so `open_home` taps the back arrow until home, and `open_screen <row tag>` goes from home to a nested screen.
 
@@ -102,11 +102,21 @@ Every bug found on a real device so far was in the Android integration, not the 
 
 None of that is reachable from a JVM test.
 
-The strips can still be left held by a touch stream that never ends, as seen on the Redmi 14. `service/StreamHold.kt` releases them after 5065 ms without a touch event, the longest replay hold plus one second. Each release appends a report with the recent overlay events to `stuck_streams.txt`, and Troubleshooting shows the latest one. The file is in app-specific external storage. `adb pull` reads it from a release build, where `run-as` cannot:
+Each stop of the service and each change to the navigation setting goes to `stop_log.txt` as one line, and Troubleshooting shows the newest ones. A switch-off, by the user or by HyperOS, is caught as the service unbinds. A force-stop or another kill doesn't run any code in the dying process. The next start reads its reason from `ApplicationExitInfo` instead. An update is recorded by the new version, on `ACTION_MY_PACKAGE_REPLACED`. A change to `force_fsg_nav_bar` or `navigation_mode` is logged with its old and new values and how it was seen: live, as the service started, at boot, or written by HyperGesture itself. `e2e/stop-notice.sh` checks that a switch-off, a navigation change, a force-stop and an update each leave their own line. The file is in the same directory as `stuck_streams.txt`:
+
+```sh
+adb shell cat /sdcard/Android/data/com.h3nc4.hypergesture/files/stop_log.txt
+```
+
+The strips can still be left held by a touch stream that never ends, as seen on the Redmi 14. `service/StreamHold.kt` releases them after 2 s without a touch event. A finger kept that still loses only its replay. Once a replay has started, the limit is 5065 ms from its start instead, the longest replay hold plus one second. Each release appends a report with the recent overlay events to `stuck_streams.txt`, and Troubleshooting shows the latest one. The file is in app-specific external storage. `adb pull` reads it from a release build, where `run-as` cannot:
 
 ```sh
 adb pull /sdcard/Android/data/com.h3nc4.hypergesture/files/stuck_streams.txt
 ```
+
+No strip covers a shown keyboard. The side strips end at the keyboard's top and the bottom strip keeps only the navigation-bar inset. A held key then repeats at once, and the keyboard gets keys typed by two thumbs near an edge in the order they were pressed. The IME is below every overlay in Z order, and the window manager gives a window only the insets of windows above it, so `service/KeyboardWatch.kt` reads the IME insets of the display's window metrics at every touch down anywhere. Its `FLAG_WATCH_OUTSIDE_TOUCH` window hears each one as `ACTION_OUTSIDE` without coordinates. While a keyboard shows, `service/KeyboardFollow.kt` reads the insets again every 500 ms. The strips then grow back within a second of an app hiding its keyboard with no touch. The rereads stop at the first read without a keyboard. A push signal for that exists only as `TYPE_WINDOWS_CHANGED` for the IME window, and the framework tracks windows for a service only when it declares both `canRetrieveWindowContent` and `flagRetrieveInteractiveWindows`. The first lets the service read the screen, which the privacy section of the README rules out. `TYPE_WINDOW_STATE_CHANGED` arrives without that access, but a window sends it on gaining focus, which the IME window doesn't do.
+
+A touch on a strip that is plainly not a gesture still waits for its release before its replay. Handing it back while the finger is down with `StrokeDescription.continueStroke` cannot work, because the framework's `MotionEventInjector` cancels an injected gesture at every real touch event. An emulator probe confirmed it. The first continuation was cancelled at the finger's first move and the last one at its release, so a vertical scroll that starts in a side strip still plays back after the finger lifts.
 
 ## Releasing
 

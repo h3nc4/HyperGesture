@@ -26,9 +26,11 @@ import org.junit.Test
 
 class StreamHoldTest {
 
-    private val limitMs = 5_000L
+    private val limitMs = 2_000L
 
-    private val hold = StreamHold(limitMs)
+    private val replayLimitMs = 5_000L
+
+    private val hold = StreamHold(limitMs, replayLimitMs)
 
     @Test
     fun `a stream holds the strips until its own release`() {
@@ -135,15 +137,53 @@ class StreamHoldTest {
     }
 
     @Test
+    fun `a DOWN without an UP frees the strips after two seconds`() {
+        val overlayHold = StreamHold(StreamHold.QUIET_STREAM_MS, StreamHold.REPLAY_STREAM_MS)
+        overlayHold.start(nowMs = 1_000L)
+        assertEquals(3_000L, overlayHold.deadlineMs)
+        assertFalse(overlayHold.expire(nowMs = 2_999L))
+        assertTrue(overlayHold.expire(nowMs = 3_000L))
+        assertFalse(overlayHold.held)
+    }
+
+    @Test
+    fun `a running replay waits out its own limit instead of the quiet one`() {
+        val stream = hold.start(nowMs = 0L)
+        hold.replaying(stream, nowMs = 300L)
+        assertTrue(hold.replayStarted)
+        assertEquals(300L + replayLimitMs, hold.deadlineMs)
+        assertFalse(hold.expire(nowMs = 300L + limitMs))
+        assertTrue(hold.expire(nowMs = 300L + replayLimitMs))
+    }
+
+    @Test
+    fun `a new stream waits the quiet limit again after a replay`() {
+        val replayed = hold.start(nowMs = 0L)
+        hold.replaying(replayed, nowMs = 100L)
+        hold.release(replayed)
+        hold.start(nowMs = 10_000L)
+        assertFalse(hold.replayStarted)
+        assertEquals(10_000L + limitMs, hold.deadlineMs)
+    }
+
+    @Test
+    fun `a stale stream cannot stretch the deadline of a later one`() {
+        val earlier = hold.start(nowMs = 0L)
+        hold.start(nowMs = 50L)
+        hold.replaying(earlier, nowMs = 60L)
+        assertEquals(50L + limitMs, hold.deadlineMs)
+    }
+
+    @Test
     fun `the timer never cuts the longest replay short`() {
-        val overlayHold = StreamHold(StreamHold.STUCK_STREAM_MS)
+        val overlayHold = StreamHold(StreamHold.QUIET_STREAM_MS, StreamHold.REPLAY_STREAM_MS)
         val stream = overlayHold.start(nowMs = 0L)
         // The UP is the last touch event, and the safety net of its replay fires this long after.
         val upMs = 2_000L
         overlayHold.activity(stream, upMs)
+        overlayHold.replaying(stream, upMs)
         val safetyNetMs = upMs + HyperGestureAccessibilityService.LONGEST_REPLAY_HOLD_MS
         assertFalse(overlayHold.expire(safetyNetMs))
         assertTrue(overlayHold.release(stream))
-        assertEquals(5_065L, StreamHold.STUCK_STREAM_MS)
     }
 }
