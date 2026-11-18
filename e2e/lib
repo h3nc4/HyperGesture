@@ -406,9 +406,15 @@ text_of_id() {
 # back-to-back dumps for 24 s, as long as six tries with a 2 s sleep took, and returns once the switch reads right.
 set_toggle_id() {
   tapped=''
+  tapped_at=0
   toggle_now="$(date +%s)"
   toggle_deadline=$((toggle_now + 24))
   while [ "${toggle_now}" -lt "${toggle_deadline}" ]; do
+    # find_id scrolls whatever is in front, and on the launcher that opens the app drawer.
+    if ! "${ADB_BIN}" shell dumpsys window 2>/dev/null | tr -d '\r' | grep -qE "mCurrentFocus.*${PKG}"; then
+      echo "   HyperGesture is not in front, opening it again" >&2
+      open_test_app
+    fi
     # shellcheck disable=SC2310 # a missing node is retried and then reported below
     node="$(find_id "$1" || true)"
     case "${node}" in
@@ -416,11 +422,17 @@ set_toggle_id() {
         echo "   '$1' is $2" >&2
         return 0
         ;;
-      # Tapped once, since a loaded emulator redraws late and a second tap would undo it.
+      # A quick second tap would undo a first one that redraws late. The next waits 8 s. Home moves while
+      # the service rebinds or its strips reinstall, and a tap at that moment hits another row.
       *'checked="'*)
-        if [ -z "${tapped}" ]; then
+        toggle_now="$(date +%s)"
+        if [ -z "${tapped}" ] || [ $((toggle_now - tapped_at)) -ge 8 ]; then
+          if [ -n "${tapped}" ]; then
+            echo "   '$1' still not $2 8 s after the tap, tapping it again" >&2
+          fi
           tap_node "${node}"
-          tapped='1'
+          tapped=$((${tapped:-0} + 1))
+          tapped_at="${toggle_now}"
         fi
         ;;
       *) sleep 1 ;;

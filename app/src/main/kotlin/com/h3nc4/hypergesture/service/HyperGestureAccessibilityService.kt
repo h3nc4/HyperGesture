@@ -90,6 +90,11 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     private var keeperWatch: NavigationKeeperWatch? = null
     private var configuration: GestureConfiguration = GestureConfiguration()
     private var lastGeometry: ScreenGeometry? = null
+    private val screenWatch = ScreenWatch(
+        onScreenOn = ::repairStrips,
+        onScreenOff = ::detachStripForTest,
+    )
+
     private val installer = StripInstaller(
         install = ::installOverlay,
         schedule = { delayMs, retry ->
@@ -115,7 +120,9 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         override fun onDisplayAdded(displayId: Int) = Unit
         override fun onDisplayRemoved(displayId: Int) = Unit
         override fun onDisplayChanged(displayId: Int) {
-            if (displayId == Display.DEFAULT_DISPLAY) onGeometrySignal("display")
+            if (displayId != Display.DEFAULT_DISPLAY) return
+            readDisplayState()
+            onGeometrySignal("display")
         }
     }
 
@@ -175,6 +182,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         settings = GestureSettingsRepository(applicationContext)
         performer = GestureActionPerformer(this, scope)
         windowManager = getSystemService(WindowManager::class.java)
+        readDisplayState()
         overlay = EdgeTouchOverlay(
             context = this,
             windowManager = windowManager,
@@ -311,6 +319,31 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             reinstall = installer::run,
             onFailure = { FailureLog.record(this, "reinstallIfGeometryChanged", it) },
         )
+    }
+
+    private fun readDisplayState() {
+        val display = (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
+            .getDisplay(Display.DEFAULT_DISPLAY) ?: return
+        screenWatch.onDisplayState(display.state)
+    }
+
+    private fun repairStrips() {
+        val overlay = overlay ?: return
+        repairDeadStrips(
+            strips = overlay.stripWindows(),
+            reattach = { dead ->
+                val found = dead.joinToString { "${it.edge} ${it.widthPx}x${it.heightPx} attached=${it.attached}" }
+                Log.i(TAG, "SCREEN_ON_REPAIR $found")
+                overlay.reattach(dead.map(StripWindow::edge))
+            },
+            reinstall = installer::run,
+        )
+    }
+
+    private fun detachStripForTest() {
+        val edge = stripToDetachForTest(this) ?: return
+        overlay?.detachWindow(edge)
+        Log.i(TAG, "STRIP_DETACHED_FOR_TEST $edge")
     }
 
     private fun teardown() {

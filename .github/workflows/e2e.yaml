@@ -74,7 +74,7 @@ jobs:
           - shard: 2
             suites: status-refresh other-edges
           - shard: 3
-            suites: circle-to-search app-switch
+            suites: circle-to-search app-switch screen-repair
           - shard: 4
             suites: navigation landscape-confirm recents-lock
           - shard: 5
