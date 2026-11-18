@@ -57,6 +57,8 @@ data class Diagnostics(
     val lastRecordedFailure: String?,
     /** The latest touch stream released by the overlay's timer, with the events before it. */
     val lastStuckStream: String?,
+    /** The newest lines of [StopLog], which says why the service stopped and what moved the navigation setting. */
+    val stopHistory: String?,
     val appVersionName: String?,
 ) {
     val serviceStatus: ServiceStatus
@@ -92,6 +94,7 @@ object DiagnosticsCollector {
             lastCircleToSearchFailure = GestureActionPerformer.lastCircleToSearchFailure,
             lastRecordedFailure = FailureLog.read(context),
             lastStuckStream = StuckStreamLog.latest(context),
+            stopHistory = StopLog.latest(context),
             appVersionName = appVersionName(context),
         )
     }

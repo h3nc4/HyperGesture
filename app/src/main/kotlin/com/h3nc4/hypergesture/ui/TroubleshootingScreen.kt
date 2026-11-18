@@ -77,6 +77,10 @@ internal fun TroubleshootingScreen(model: AppModel) {
         value = diagnostics.lastCircleToSearchFailure ?: none,
         valueTag = TestTags.DIAG_CIRCLE_TO_SEARCH_FAILURE,
     )
+    diagnostics.stopHistory?.let { history ->
+        InfoRow(title = stringResource(R.string.diag_stop_history))
+        MonospaceBlock(history)
+    }
     val stuck = diagnostics.lastStuckStream
     ValueRow(
         label = stringResource(R.string.diag_last_stuck_stream),
