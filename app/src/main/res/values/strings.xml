@@ -242,6 +242,17 @@
     <string name="fix_greyed_out_title">Switch greyed out</string>
     <string name="fix_greyed_out_body">Allow restricted settings</string>
     <string name="action_open">Open</string>
+    <string name="section_adb_grants">ADB grants</string>
+    <string name="adb_grants_intro">Run a command from a computer with USB debugging on. Xiaomi also needs USB debugging (Security settings) on.</string>
+    <string name="grant_secure_settings_title">Write secure settings</string>
+    <string name="grant_secure_settings_body">Lets Keep the bar hidden put the bar away again after HyperOS brings it back.</string>
+    <string name="grant_usage_access_body">Lets app switching find the previous app. Settings, Usage access gives the same.</string>
+    <string name="usage_access_grant_command" translatable="false">adb shell appops set %1$s GET_USAGE_STATS allow</string>
+    <string name="chip_granted">Granted</string>
+    <string name="chip_missing">Missing</string>
+    <string name="action_copy_command">Copy</string>
+    <string name="action_command_copied">Copied</string>
+    <string name="clip_label_adb_command">HyperGesture adb command</string>
     <string name="section_this_device">This device</string>
     <string name="section_last_problems">Last problems</string>
     <string name="action_refresh_diagnostics">Refresh</string>
