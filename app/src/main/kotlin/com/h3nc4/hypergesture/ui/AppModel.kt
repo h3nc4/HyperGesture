@@ -48,7 +48,7 @@ import com.h3nc4.hypergesture.setup.SetupChecklist
 import com.h3nc4.hypergesture.setup.SetupFacts
 import com.h3nc4.hypergesture.setup.SetupFlag
 import com.h3nc4.hypergesture.setup.SetupRecord
-import com.h3nc4.hypergesture.setup.ServiceRestoreSettings
+import com.h3nc4.hypergesture.setup.serviceRestoreSettings
 import com.h3nc4.hypergesture.setup.SetupStateRepository
 import com.h3nc4.hypergesture.setup.StopNotifier
 import com.h3nc4.hypergesture.setup.setupState
@@ -71,7 +71,7 @@ internal class AppModel(
 ) {
     val integration: NavigationIntegration get() = NavigationIntegrationFactory.create(context)
     private val keeperSettings = NavigationKeeperSettings(context)
-    private val restoreSettings = ServiceRestoreSettings(context)
+    private val restoreSettings = context.serviceRestoreSettings
     val snackbar = SnackbarHostState()
 
     /** Null where the integration has no keeper, so the screen leaves the row out. */

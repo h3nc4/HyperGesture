@@ -17,10 +17,16 @@
 
 package com.h3nc4.hypergesture.setup
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import com.h3nc4.hypergesture.MemoryDataStore
 import com.h3nc4.hypergesture.navigation.KeptSetting
 import com.h3nc4.hypergesture.navigation.SettingsAccess
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -32,12 +38,13 @@ class ServiceRestoreTest {
         val values = mutableMapOf<String, String?>()
         var writes = 0
         var refuseWrites = false
+        var refusal: String? = "revoked"
         var ignoreWrites = false
 
         override fun read(setting: KeptSetting) = values[setting.key]
 
         override fun write(setting: KeptSetting) {
-            if (refuseWrites) throw SecurityException("revoked")
+            if (refuseWrites) throw SecurityException(refusal)
             writes++
             if (!ignoreWrites) values[setting.key] = setting.value
         }
@@ -184,5 +191,56 @@ class ServiceRestoreTest {
         val access = FakeSettings().apply { ignoreWrites = true }
         val outcome = restore(access, optedIn()).afterStop(running = false, serviceEverEnabled = true, nowMs = 1L)
         assertTrue(outcome is RestoreOutcome.Failed)
+    }
+
+    @Test
+    fun `a refusal without a message still reports why`() = runBlocking {
+        val access = FakeSettings().apply {
+            refuseWrites = true
+            refusal = null
+        }
+        val outcome = restore(access, optedIn()).afterStop(running = false, serviceEverEnabled = true, nowMs = 1L)
+        assertEquals(RestoreOutcome.Failed("permission refused"), outcome)
+    }
+
+    @Test
+    fun `a running service clears nothing it never held off`() = runBlocking {
+        val settings = optedIn()
+        restore(FakeSettings(), settings).serviceRunning()
+        assertFalse(settings.keptOff())
+    }
+
+    @Test
+    fun `turning the switch off stops the restore`() = runBlocking {
+        val access = FakeSettings()
+        val settings = optedIn()
+        settings.setEnabled(false)
+        assertEquals(RestoreOutcome.Untouched, restore(access, settings).afterStop(false, true, nowMs = 1L))
+        assertEquals(0, access.writes)
+    }
+
+    /** Suspends on every read, as the store on disk does. */
+    private class SlowDataStore(private val inner: DataStore<Preferences> = MemoryDataStore()) :
+        DataStore<Preferences> by inner {
+        override val data: Flow<Preferences> = flow {
+            yield()
+            emitAll(inner.data)
+        }
+    }
+
+    @Test
+    fun `a store that suspends on each read restores the same way`() = runBlocking {
+        val settings = ServiceRestoreSettings(SlowDataStore()).apply { setEnabled(true) }
+        val access = FakeSettings()
+        assertEquals(RestoreOutcome.Restored, restore(access, settings).afterStop(false, true, nowMs = 1L))
+    }
+
+    @Test
+    fun `a running service or one never enabled is left alone`() = runBlocking {
+        val access = FakeSettings()
+        val restore = restore(access, optedIn())
+        assertEquals(RestoreOutcome.Untouched, restore.afterStop(running = true, serviceEverEnabled = true, nowMs = 1L))
+        assertEquals(RestoreOutcome.Untouched, restore.afterStop(running = false, serviceEverEnabled = false, nowMs = 1L))
+        assertEquals(0, access.writes)
     }
 }

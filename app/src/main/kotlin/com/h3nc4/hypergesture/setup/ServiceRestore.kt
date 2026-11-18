@@ -17,22 +17,16 @@
 
 package com.h3nc4.hypergesture.setup
 
-import android.content.Context
 import android.provider.Settings
-import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
-import com.h3nc4.hypergesture.diagnostics.FailureLog
 import com.h3nc4.hypergesture.diagnostics.isServiceListed
-import com.h3nc4.hypergesture.navigation.AndroidSettingsAccess
 import com.h3nc4.hypergesture.navigation.KeptSetting
 import com.h3nc4.hypergesture.navigation.SettingsAccess
 import com.h3nc4.hypergesture.navigation.SettingsTable
-import com.h3nc4.hypergesture.service.HyperGestureAccessibilityService
-import com.h3nc4.hypergesture.settings.resettingPreferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -72,13 +66,8 @@ internal object ServiceRestoreRule {
         enabledServices.orEmpty().split(':').filter { it.isNotBlank() }.plus(component).joinToString(":")
 }
 
-private val Context.serviceRestoreDataStore: DataStore<Preferences> by
-    resettingPreferencesDataStore("service_restore")
-
 /** Off until the user turns it on, and only offered once the keeper's grant is held. */
 internal class ServiceRestoreSettings(private val store: DataStore<Preferences>) {
-
-    constructor(context: Context) : this(context.serviceRestoreDataStore)
 
     val enabled: Flow<Boolean> = store.data.map { it[ENABLED] ?: false }.distinctUntilChanged()
 
@@ -93,7 +82,10 @@ internal class ServiceRestoreSettings(private val store: DataStore<Preferences>)
         store.edit { it[KEPT_OFF] = keptOff }
     }
 
-    suspend fun lastRestoreAtMs(): Long? = store.data.first()[LAST_RESTORE_AT_MS]
+    /** All three fields from one read, so a decision never mixes two versions of the store. */
+    suspend fun stored(): StoredRestore = store.data.first().let {
+        StoredRestore(it[ENABLED] ?: false, it[KEPT_OFF] ?: false, it[LAST_RESTORE_AT_MS])
+    }
 
     suspend fun setLastRestoreAtMs(atMs: Long) {
         store.edit { it[LAST_RESTORE_AT_MS] = atMs }
@@ -105,6 +97,8 @@ internal class ServiceRestoreSettings(private val store: DataStore<Preferences>)
         val LAST_RESTORE_AT_MS = longPreferencesKey("last_restore_at_ms")
     }
 }
+
+internal data class StoredRestore(val enabled: Boolean, val keptOff: Boolean, val lastRestoreAtMs: Long?)
 
 internal sealed interface RestoreOutcome {
     data object Untouched : RestoreOutcome
@@ -122,15 +116,16 @@ internal class ServiceRestore(
 ) {
 
     suspend fun afterStop(running: Boolean, serviceEverEnabled: Boolean, nowMs: Long): RestoreOutcome {
+        val stored = settings.stored()
         val decision = ServiceRestoreRule.decide(
             RestoreFacts(
-                optedIn = settings.enabled.first(),
+                optedIn = stored.enabled,
                 granted = access.granted,
                 switchedOn = listed(),
                 running = running,
                 serviceEverEnabled = serviceEverEnabled,
-                keptOff = settings.keptOff(),
-                lastRestoreAtMs = settings.lastRestoreAtMs(),
+                keptOff = stored.keptOff,
+                lastRestoreAtMs = stored.lastRestoreAtMs,
                 nowMs = nowMs,
             ),
         )
@@ -168,29 +163,4 @@ internal class ServiceRestore(
     // The value is ignored on a read.
     private fun services(value: String) =
         KeptSetting(SettingsTable.SECURE, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, value)
-
-    companion object {
-        private const val TAG = "HyperGesture"
-
-        fun forDevice(context: Context) = ServiceRestore(
-            AndroidSettingsAccess(context),
-            ServiceRestoreSettings(context),
-            context.packageName,
-            HyperGestureAccessibilityService::class.java.name,
-        )
-
-        /** Each restore and each removal left alone goes to the failure record, since logcat drops info. */
-        fun report(context: Context, outcome: RestoreOutcome) {
-            val message = when (outcome) {
-                RestoreOutcome.Untouched -> return
-                RestoreOutcome.HeldOff ->
-                    "SERVICE_KEPT_OFF removed again within a minute of a restore, so it stays off"
-                RestoreOutcome.Restored ->
-                    "SERVICE_RESTORED put back in enabled_accessibility_services after it was removed"
-                is RestoreOutcome.Failed -> "SERVICE_NOT_RESTORED ${outcome.reason}"
-            }
-            Log.w(TAG, message)
-            FailureLog.note(context, "service restore", message)
-        }
-    }
 }
