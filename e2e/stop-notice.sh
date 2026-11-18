@@ -30,9 +30,10 @@ require_adb
 
 notice_title="$(string_res notice_stopped_title)"
 
+# Filtered on the device, since the emulator drops its adb connection while a dump this large streams.
 notice_posted() {
-  "${ADB_BIN}" shell dumpsys notification --noredact 2>/dev/null | tr -d '\r' |
-    grep 'NotificationRecord' | grep "pkg=${PKG} " | grep -q 'channel=gestures_stopped'
+  "${ADB_BIN}" shell "dumpsys notification --noredact | grep NotificationRecord" 2>/dev/null | tr -d '\r' |
+    grep "pkg=${PKG} " | grep -q 'channel=gestures_stopped'
 }
 
 service_bound() {
