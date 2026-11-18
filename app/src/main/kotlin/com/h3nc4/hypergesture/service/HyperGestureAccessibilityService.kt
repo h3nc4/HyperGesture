@@ -422,30 +422,28 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             }
         }
         // Safety net: release the strips even if the result callback never arrives.
-        handler.postDelayed(finish, durationMs + settleDelayMs + FINISH_GRACE_MS)
+        handler.postDelayed({
+            if (!finished) Log.w(TAG, "REPLAY_TIMED_OUT after ${durationMs + settleDelayMs + FINISH_GRACE_MS}ms")
+            finish.run()
+        }, finish, durationMs + settleDelayMs + FINISH_GRACE_MS)
 
         fun releaseStrips() {
-            handler.removeCallbacks(finish)
+            handler.removeCallbacksAndMessages(finish)
             finish.run()
         }
 
-        // Each segment continues the stroke of the one before, so it goes out only once that one completed.
         fun dispatchSegment(index: Int): Boolean = runCatching {
             dispatchGesture(
                 GestureDescription.Builder().addStroke(strokes[index]).build(),
                 object : GestureResultCallback() {
                     override fun onCompleted(gestureDescription: GestureDescription?) {
-                        if (finished) return
-                        if (index == strokes.lastIndex) {
-                            Log.i(TAG, "REPLAY_COMPLETED segments=${strokes.size}")
-                            releaseStrips()
-                        } else if (!dispatchSegment(index + 1)) {
-                            Log.w(TAG, "REPLAY_REFUSED segment ${index + 2} of ${strokes.size}")
-                            releaseStrips()
-                        }
+                        if (finished || index < strokes.lastIndex) return
+                        Log.i(TAG, "REPLAY_COMPLETED segments=${strokes.size}")
+                        releaseStrips()
                     }
 
                     override fun onCancelled(gestureDescription: GestureDescription?) {
+                        if (finished) return
                         // The touch never fully reached the app underneath. The strips still come back.
                         Log.w(TAG, "REPLAY_CANCELLED at segment ${index + 1} of ${strokes.size}")
                         releaseStrips()
@@ -461,10 +459,13 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         }
 
         handler.postDelayed({
-            if (dispatchSegment(0)) {
+            // The framework queues a continuation behind the stroke it continues. Sent from each callback
+            // instead, every hop crossed two main threads, and one stall outran the safety net.
+            val refused = strokes.indices.firstOrNull { !dispatchSegment(it) }
+            if (refused == null) {
                 Log.i(TAG, "REPLAY_DISPATCHED ${samples.size} samples over ${durationMs}ms, segments=${strokes.size}")
             } else {
-                Log.w(TAG, "REPLAY_REFUSED dispatchGesture rejected the replay")
+                Log.w(TAG, "REPLAY_REFUSED segment ${refused + 1} of ${strokes.size}")
                 releaseStrips()
             }
         }, settleDelayMs)
