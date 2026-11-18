@@ -22,33 +22,40 @@ import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.util.Log
+import com.h3nc4.hypergesture.diagnostics.StopLog
 
 // Lives in the accessibility service, so it starts with it after boot and stops with it.
 // A reset arrives as a settings change, so nothing polls.
 class NavigationKeeperWatch(
     private val context: Context,
     handler: Handler,
-    private val keeper: NavigationKeeper,
+    // Null while the keeper is off, when the watch only writes the stop log.
+    private val keeper: NavigationKeeper?,
 ) : ContentObserver(handler) {
 
     fun start() {
         NavigationKeeper.KEPT.forEach {
             context.contentResolver.registerContentObserver(AndroidSettingsAccess.uriOf(it), false, this)
         }
-        keepNow()
+        keepNow(StopLog.SEEN_AT_START)
     }
 
     fun stop() {
         runCatching { context.contentResolver.unregisterContentObserver(this) }
     }
 
-    override fun onChange(selfChange: Boolean, uri: Uri?) = keepNow()
+    override fun onChange(selfChange: Boolean, uri: Uri?) = keepNow(StopLog.SEEN_LIVE)
 
-    private fun keepNow() {
-        when (val outcome = keeper.keep()) {
+    // Logged before the keeper writes, which would otherwise hide the value the system set.
+    private fun keepNow(cause: String) {
+        StopLog.recordNavigation(context, cause)
+        when (val outcome = keeper?.keep() ?: return) {
             KeepOutcome.AlreadyKept -> Unit
             KeepOutcome.NotGranted -> Log.w(TAG, "NAVIGATION_NOT_KEPT the grant is missing")
-            is KeepOutcome.Restored -> Log.i(TAG, "NAVIGATION_RESTORED ${outcome.keys.joinToString()}")
+            is KeepOutcome.Restored -> {
+                Log.i(TAG, "NAVIGATION_RESTORED ${outcome.keys.joinToString()}")
+                StopLog.recordNavigation(context, StopLog.WRITTEN_BY_APP)
+            }
             is KeepOutcome.Failed -> Log.w(TAG, "NAVIGATION_NOT_KEPT ${outcome.reason}")
         }
     }
