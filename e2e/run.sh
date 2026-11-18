@@ -109,6 +109,8 @@ worst=0
 for suite in ${suites}; do
   echo >&2
   echo "################ ${suite} ################" >&2
+  # adb can read offline for a moment between suites, and the next suite would fail on its first call.
+  timeout 60 "${ADB_BIN}" wait-for-device || true
   if ! "e2e/${suite}.sh"; then
     worst=1
   fi
