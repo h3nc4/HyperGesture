@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.h3nc4.hypergesture.R
@@ -96,6 +97,14 @@ internal fun SetupRows(items: List<SetupItem>, model: AppModel) {
                 onConfirm = { model.setFlag(SetupFlag.AUTOSTART_CONFIRMED, it) },
                 open = R.string.action_open_autostart to { openAutostart(context) },
             )
+            SetupStep.RECENTS_LOCK -> StepRow(
+                item = item,
+                title = R.string.step_recents_lock,
+                pending = R.string.step_recents_lock_body,
+                confirmed = model.record.recentsLockConfirmed,
+                onConfirm = { model.setFlag(SetupFlag.RECENTS_LOCK_CONFIRMED, it) },
+                tag = TestTags.STEP_RECENTS_LOCK,
+            )
             SetupStep.TILE -> StepRow(
                 item = item,
                 title = R.string.step_tile,
@@ -148,6 +157,7 @@ private fun StepRow(
     onConfirm: ((Boolean) -> Unit)? = null,
     outcome: String? = null,
     open: Pair<Int, () -> Unit>? = null,
+    tag: String? = null,
 ) {
     val supporting = when (item.state) {
         StepState.DONE -> when {
@@ -155,9 +165,7 @@ private fun StepRow(
             confirmed -> stringResource(R.string.step_confirmed)
             else -> null
         }
-        StepState.LOCKED -> stringResource(
-            if (item.waitsOn == SetupStep.TILE) R.string.step_waits_on_tile else R.string.step_waits_on_accessibility,
-        )
+        StepState.LOCKED -> waitsOnText(item.waitsOn)
         StepState.UNAVAILABLE -> stringResource(R.string.status_navigation_unavailable_body)
         StepState.TO_DO, StepState.UNVERIFIED -> stringResource(pending)
     }
@@ -173,6 +181,7 @@ private fun StepRow(
     InfoRow(
         title = stringResource(title),
         supporting = listOfNotNull(supporting, outcome).joinToString("\n").ifEmpty { null },
+        supportingTag = tag,
         trailing = { StatusChip(stringResource(chip), tone) },
         actions = when {
             actionable && (open != null || onConfirm != null) -> {
@@ -181,7 +190,7 @@ private fun StepRow(
                         OutlinedButton(onClick = action) { Text(stringResource(label)) }
                     }
                     if (item.state == StepState.UNVERIFIED && onConfirm != null) {
-                        TextButton(onClick = { onConfirm(true) }) {
+                        TextButton(onClick = { onConfirm(true) }, Modifier.tagged(tag?.let { "${it}_confirm" })) {
                             Text(stringResource(R.string.action_i_did_it))
                         }
                     }
@@ -189,7 +198,7 @@ private fun StepRow(
             }
             undoable -> {
                 {
-                    TextButton(onClick = { onConfirm(false) }) {
+                    TextButton(onClick = { onConfirm(false) }, Modifier.tagged(tag?.let { "${it}_undo" })) {
                         Text(stringResource(R.string.action_undo))
                     }
                 }
@@ -198,6 +207,11 @@ private fun StepRow(
         },
     )
 }
+
+@Composable
+internal fun waitsOnText(step: SetupStep?): String = stringResource(
+    if (step == SetupStep.TILE) R.string.step_waits_on_tile else R.string.step_waits_on_accessibility,
+)
 
 @Composable
 private fun tileOutcomeMessage(outcome: TileAddOutcome): String = when (outcome) {

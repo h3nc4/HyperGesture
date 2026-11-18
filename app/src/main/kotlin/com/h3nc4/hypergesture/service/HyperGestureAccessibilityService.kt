@@ -23,13 +23,17 @@ package com.h3nc4.hypergesture.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.Configuration
 import android.graphics.Path
 import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import android.view.Display
 import android.view.ViewConfiguration
@@ -49,14 +53,13 @@ import com.h3nc4.hypergesture.settings.GestureSettingsRepository
 import com.h3nc4.hypergesture.setup.GestureTileService
 import com.h3nc4.hypergesture.setup.StopNotifier
 import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.math.hypot
@@ -69,14 +72,14 @@ import kotlin.math.hypot
 class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
     /**
-     * An uncaught throw in [scope] - realistically DataStore on an unreadable file -
+     * An uncaught throw in [connectionScope] - realistically DataStore on an unreadable file -
      * kills the process and gets the service reported as malfunctioning.
      */
     private val coroutineFailures = CoroutineExceptionHandler { _, throwable ->
         FailureLog.record(this, "settings collector", throwable)
     }
-    private val scope =
-        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + coroutineFailures)
+    private val connectionScope =
+        ConnectionScope { SupervisorJob() + Dispatchers.Main.immediate + coroutineFailures }
     private val handler = Handler(Looper.getMainLooper())
 
     private lateinit var settings: GestureSettingsRepository
@@ -86,6 +89,11 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     private var keeperWatch: NavigationKeeperWatch? = null
     private var configuration: GestureConfiguration = GestureConfiguration()
     private var lastGeometry: ScreenGeometry? = null
+    private val screenWatch = ScreenWatch(
+        onScreenOn = ::repairStrips,
+        onScreenOff = ::detachStripForTest,
+    )
+
     private val installer = StripInstaller(
         install = ::installOverlay,
         schedule = { delayMs, retry ->
@@ -94,6 +102,13 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         cancelRetry = { handler.removeCallbacksAndMessages(INSTALL_RETRY_TOKEN) },
         onFailure = { FailureLog.record(this, "installOverlay", it) },
         onAttached = { if (instance === this) stripsState.value = it },
+    )
+    private val settleCheck = InsetSettleCheck(
+        schedule = { delayMs, check ->
+            if (instance === this) handler.postDelayed(Runnable(check), SETTLE_CHECK_TOKEN, delayMs)
+        },
+        cancel = { handler.removeCallbacksAndMessages(SETTLE_CHECK_TOKEN) },
+        check = ::reinstallIfGeometryChanged,
     )
 
     /**
@@ -104,7 +119,39 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         override fun onDisplayAdded(displayId: Int) = Unit
         override fun onDisplayRemoved(displayId: Int) = Unit
         override fun onDisplayChanged(displayId: Int) {
-            if (displayId == Display.DEFAULT_DISPLAY) onGeometrySignal("display")
+            if (displayId != Display.DEFAULT_DISPLAY) return
+            readDisplayState()
+            onGeometrySignal("display")
+        }
+    }
+
+    private val keyguardGate = KeyguardGate(
+        keyguardLocked = ::keyguardLocked,
+        schedule = { delayMs, check ->
+            if (instance === this) handler.postDelayed(Runnable(check), KEYGUARD_CHECK_TOKEN, delayMs)
+        },
+        cancel = { handler.removeCallbacksAndMessages(KEYGUARD_CHECK_TOKEN) },
+        onChange = { armed -> overlay?.setArmed(armed) },
+    )
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> keyguardGate.screenOff()
+                Intent.ACTION_SCREEN_ON -> keyguardGate.screenOn()
+                Intent.ACTION_USER_PRESENT -> keyguardGate.userPresent()
+            }
+        }
+    }
+
+    private val wakeListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId != Display.DEFAULT_DISPLAY) return
+            // Wake only. A display change mid-unlock can read as not on for a moment.
+            val state = getSystemService(DisplayManager::class.java)?.getDisplay(displayId)?.state
+            if (state == Display.STATE_ON) keyguardGate.screenOn()
         }
     }
 
@@ -129,9 +176,11 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     }
 
     private fun setUp() {
+        val scope = connectionScope.open()
         settings = GestureSettingsRepository(applicationContext)
         performer = GestureActionPerformer(this, scope)
         windowManager = getSystemService(WindowManager::class.java)
+        readDisplayState()
         overlay = EdgeTouchOverlay(
             context = this,
             windowManager = windowManager,
@@ -142,6 +191,19 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
         (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
             .registerDisplayListener(displayListener, handler)
+        // Protected system broadcasts only, so no export flag is needed.
+        registerReceiver(
+            screenReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_USER_PRESENT)
+            },
+            null,
+            handler,
+        )
+        getSystemService(DisplayManager::class.java).registerDisplayListener(wakeListener, handler)
+        keyguardGate.connected(screenOn = getSystemService(PowerManager::class.java)?.isInteractive != false)
 
         // A failed read would end the collector, and with it every later install.
         scope.launch {
@@ -150,6 +212,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
                     FailureLog.record(this@HyperGestureAccessibilityService, "settings collector", it)
                     emit(GestureConfiguration())
                 }
+                // A write that leaves the configuration equal, such as a key set to its default, rebuilds no window.
+                .distinctUntilChanged()
                 .collect { updated ->
                     configuration = updated
                     installer.run()
@@ -204,11 +268,15 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
     override fun onInterrupt() = Unit
 
+    private fun keyguardLocked(): Boolean =
+        getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
+
     private fun installOverlay(): Int {
         val overlay = overlay ?: return 0
         val geometry = ScreenGeometry.current(this, windowManager)
         lastGeometry = geometry
         return overlay.install(configuration.copy(platform = platformDefaults()), geometry)
+            .also { settleCheck.start() }
     }
 
     // Read on every install, so a changed touch and hold delay lands with the next settings
@@ -229,6 +297,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         val read = runCatching { ScreenGeometry.current(this, windowManager) }
         Log.i(TAG, "GEOMETRY_SIGNAL $source read=${read.getOrNull()} installed=$lastGeometry")
         reinstallIfGeometryChanged()
+        // A signal that changed nothing yet can still precede the inset it announces.
+        if (overlay != null) settleCheck.start()
     }
 
     /**
@@ -245,18 +315,45 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         )
     }
 
+    private fun readDisplayState() {
+        val display = (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
+            .getDisplay(Display.DEFAULT_DISPLAY) ?: return
+        screenWatch.onDisplayState(display.state)
+    }
+
+    private fun repairStrips() {
+        val overlay = overlay ?: return
+        repairDeadStrips(
+            strips = overlay.stripWindows(),
+            reattach = { dead ->
+                val found = dead.joinToString { "${it.edge} ${it.widthPx}x${it.heightPx} attached=${it.attached}" }
+                Log.i(TAG, "SCREEN_ON_REPAIR $found")
+                overlay.reattach(dead.map(StripWindow::edge))
+            },
+            reinstall = installer::run,
+        )
+    }
+
+    private fun detachStripForTest() {
+        val edge = stripToDetachForTest(this) ?: return
+        overlay?.detachWindow(edge)
+        Log.i(TAG, "STRIP_DETACHED_FOR_TEST $edge")
+    }
+
     private fun teardown() {
         runCatching {
             (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
                 .unregisterDisplayListener(displayListener)
         }
+        runCatching { unregisterReceiver(screenReceiver) }
+        runCatching { getSystemService(DisplayManager::class.java).unregisterDisplayListener(wakeListener) }
         overlay?.remove()
         overlay = null
         keeperWatch?.stop()
         keeperWatch = null
         restoreButtons()
         handler.removeCallbacksAndMessages(null)
-        scope.cancel()
+        connectionScope.close()
         // A replaced instance can unbind after its successor connected, which must keep its state.
         if (instance === this) {
             instance = null
@@ -371,6 +468,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     companion object {
         private const val TAG = "HyperGesture"
 
+        private val KEYGUARD_CHECK_TOKEN = Any()
+
         private const val MAX_REPLAY_MS = 3_000L
 
         /** A 1ms stroke completes but never clicks. */
@@ -389,6 +488,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         private const val FINISH_GRACE_MS = 1_000L
 
         private val INSTALL_RETRY_TOKEN = Any()
+
+        private val SETTLE_CHECK_TOKEN = Any()
 
         /** An upper bound on how long a replay holds the strips past its UP, safety net included. */
         internal const val LONGEST_REPLAY_HOLD_MS = MAX_REPLAY_MS + WINDOW_SETTLE_MS + FINISH_GRACE_MS

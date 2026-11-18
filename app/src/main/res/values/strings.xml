@@ -76,6 +76,8 @@
     <string name="step_autostart">Autostart</string>
     <string name="step_autostart_body">Lets HyperOS start the gestures again after a reboot.</string>
     <string name="action_open_autostart">Autostart</string>
+    <string name="step_recents_lock">Lock in Recents</string>
+    <string name="step_recents_lock_body">HyperOS closes apps that are not locked. Open Recents, long-press or pull down the HyperGesture card, and tap the lock.</string>
     <string name="action_open_app_info">App info</string>
 
     <!-- Capability 2: the HyperOS navigation integration. -->
