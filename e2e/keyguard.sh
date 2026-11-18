@@ -115,17 +115,25 @@ echo "== the strips work again within a second of unlocking ==" >&2
 settle
 reset_log
 # Device clock on both ends, so the adb round trip does not count against the second.
-unlocked_at="$("${ADB_BIN}" shell date +%s.%N | tr -d '\r')"
+asked_at="$("${ADB_BIN}" shell date +%s.%N | tr -d '\r')"
+"${ADB_BIN}" logcat -b events -c >/dev/null 2>&1 || true
 "${ADB_BIN}" shell wm dismiss-keyguard >/dev/null
 # shellcheck disable=SC2310 # the predicate's answer is the result
 if wait_log 'STRIPS_ARMED'; then
   armed_at="$("${ADB_BIN}" logcat -d -v epoch -s HyperGesture 2>/dev/null | tr -d '\r' |
     awk '/STRIPS_ARMED/ { print $1; exit }')"
-  took_ms="$(awk -v a="${unlocked_at}" -v b="${armed_at}" 'BEGIN { printf "%d", (b - a) * 1000 }')"
-  if [ "${took_ms}" -lt 1000 ]; then
-    pass "the strips armed ${took_ms}ms after the unlock"
+  # Timed from the lock screen starting to go, since SystemUI spends 200 to 400ms on a dismiss
+  # request before that, longer on a loaded runner, which the user never waits through.
+  unlocked_at="$("${ADB_BIN}" logcat -d -b events -v epoch 2>/dev/null | tr -d '\r' |
+    awk '/wm_set_keyguard_shown: \[[0-9]+,1,[01],1,/ { print $1; exit }')"
+  asked_ms="$(awk -v a="${asked_at}" -v b="${armed_at}" 'BEGIN { printf "%d", (b - a) * 1000 }')"
+  took_ms="$(awk -v a="${unlocked_at:-0}" -v b="${armed_at}" 'BEGIN { printf "%d", (b - a) * 1000 }')"
+  if [ -z "${unlocked_at}" ]; then
+    fail "no keyguardGoingAway event to time the unlock from, armed ${asked_ms}ms after the dismiss"
+  elif [ "${took_ms}" -lt 1000 ]; then
+    pass "the strips armed ${took_ms}ms after the unlock, ${asked_ms}ms after the dismiss"
   else
-    fail "the strips armed ${took_ms}ms after the unlock, past the second"
+    fail "the strips armed ${took_ms}ms after the unlock, past the second, ${asked_ms}ms after the dismiss"
   fi
 else
   fail "no STRIPS_ARMED within ten seconds of the unlock"
