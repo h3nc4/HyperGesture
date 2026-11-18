@@ -49,6 +49,7 @@ import com.h3nc4.hypergesture.setup.SetupChecklist
 import com.h3nc4.hypergesture.setup.SetupFacts
 import com.h3nc4.hypergesture.setup.SetupFlag
 import com.h3nc4.hypergesture.setup.SetupRecord
+import com.h3nc4.hypergesture.setup.serviceRestoreSettings
 import com.h3nc4.hypergesture.setup.SetupStateRepository
 import com.h3nc4.hypergesture.setup.StopNotifier
 import com.h3nc4.hypergesture.setup.setupState
@@ -71,12 +72,15 @@ internal class AppModel(
 ) {
     val integration: NavigationIntegration get() = NavigationIntegrationFactory.create(context)
     private val keeperSettings = NavigationKeeperSettings(context)
+    private val restoreSettings = context.serviceRestoreSettings
     val snackbar = SnackbarHostState()
 
     /** Null where the integration has no keeper, so the screen leaves the row out. */
     var keeperGranted: Boolean? by mutableStateOf(integration.keeper?.granted)
         private set
     var keeperEnabled by mutableStateOf(false)
+        private set
+    var restoreServiceEnabled by mutableStateOf(false)
         private set
 
     var configuration by mutableStateOf(GestureConfiguration())
@@ -166,6 +170,10 @@ internal class AppModel(
         scope.launch { setupState.set(flag, value) }
     }
 
+    fun switchRestoreService(enabled: Boolean) {
+        scope.launch { restoreSettings.setEnabled(enabled) }
+    }
+
     fun switchKeeper(enabled: Boolean) {
         scope.launch { keeperSettings.setEnabled(enabled) }
     }
@@ -188,6 +196,7 @@ internal class AppModel(
         scope.launch { settings.configuration.collect { configuration = it } }
         scope.launch { setupState.record.collect { record = it } }
         scope.launch { keeperSettings.enabled.collect { keeperEnabled = it } }
+        scope.launch { restoreSettings.enabled.collect { restoreServiceEnabled = it } }
         scope.launch { HyperGestureAccessibilityService.attachedStrips.drop(1).collect { refresh() } }
         // UiAutomation, which uiautomator and screen readers use, unbinds the service for a moment.
         // So a stop shows only once it outlasts that, and a return shows at once.

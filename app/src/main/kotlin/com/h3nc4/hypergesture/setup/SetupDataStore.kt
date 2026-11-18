@@ -27,3 +27,9 @@ private val Context.setupDataStore: DataStore<Preferences> by
 
 internal val Context.setupState: SetupStateRepository
     get() = SetupStateRepository(setupDataStore)
+
+private val Context.serviceRestoreDataStore: DataStore<Preferences> by
+    resettingPreferencesDataStore("service_restore")
+
+internal val Context.serviceRestoreSettings: ServiceRestoreSettings
+    get() = ServiceRestoreSettings(serviceRestoreDataStore)
