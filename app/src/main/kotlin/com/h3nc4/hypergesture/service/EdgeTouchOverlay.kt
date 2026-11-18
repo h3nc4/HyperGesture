@@ -27,7 +27,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
-import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
@@ -93,11 +92,22 @@ internal class EdgeTouchOverlay(
 
     private var pillVisible = false
 
+    // Kept across a reinstall, so a rotation over the lock screen brings no strip back.
+    private var armed = true
+
     private val handler = Handler(Looper.getMainLooper())
 
     private val pillExpiry = Runnable(::onPillTimeout)
 
     private val stuckCheck = Runnable(::onStuckCheck)
+
+    private var keyboard: KeyboardWatch? = null
+
+    private val keyboardRetry = Any()
+
+    private var keyboardTopPx: Int? = null
+
+    private var fitted: Pair<GestureConfiguration, ScreenGeometry>? = null
 
     /** Returns how many strips the window manager accepted. */
     fun install(configuration: GestureConfiguration, geometry: ScreenGeometry): Int {
@@ -122,6 +132,8 @@ internal class EdgeTouchOverlay(
             }
             addStrip(edge, configuration, geometry)
         }
+        fitted = configuration to geometry
+        installKeyboardWatch()
         applyInteractivity()
         return strips.size
     }
@@ -132,6 +144,11 @@ internal class EdgeTouchOverlay(
             runCatching { windowManager.removeViewImmediate(view) }
         }
         strips.clear()
+        handler.removeCallbacksAndMessages(keyboardRetry)
+        keyboard?.remove()
+        keyboard = null
+        keyboardTopPx = null
+        fitted = null
         bellies.values.forEach(BackBellyOverlay::remove)
         bellies.clear()
         handler.removeCallbacks(pillExpiry)
@@ -145,6 +162,24 @@ internal class EdgeTouchOverlay(
         hold.reset()
         heldEdge = null
         journal.add("overlay removed")
+    }
+
+    // After the strips and retried from the handler, so a refused probe never holds them back.
+    private fun installKeyboardWatch() {
+        val watch = KeyboardWatch(context, windowManager, ::onKeyboardTop)
+        keyboard = watch
+        StripInstaller(
+            install = {
+                if (keyboard === watch) watch.install()
+                1
+            },
+            schedule = { delayMs, retry ->
+                handler.postDelayed(Runnable(retry), keyboardRetry, delayMs)
+            },
+            cancelRetry = { handler.removeCallbacksAndMessages(keyboardRetry) },
+            onFailure = { FailureLog.record(context, "KeyboardWatch.install", it) },
+            onAttached = {},
+        ).run()
     }
 
     private fun addStrip(
@@ -188,42 +223,42 @@ internal class EdgeTouchOverlay(
         geometry: ScreenGeometry,
     ): WindowManager.LayoutParams {
         val thicknessPx = (configuration.edgeWidthDp * geometry.density).toInt().coerceAtLeast(1)
-
-        // Each strip is extended across its own edge's navigation-bar inset: the bar is
-        // slippery, so a swipe starting on it lands on us only after leaving the bar.
-        val (widthPx, heightPx, gravity) = when (edge) {
-            ScreenEdge.LEFT -> Triple(
-                thicknessPx + geometry.navLeftPx,
-                (geometry.heightPx * layout.sideLengthPercent / 100).coerceAtLeast(1),
-                Gravity.START or Gravity.CENTER_VERTICAL,
-            )
-            ScreenEdge.RIGHT -> Triple(
-                thicknessPx + geometry.navRightPx,
-                (geometry.heightPx * layout.sideLengthPercent / 100).coerceAtLeast(1),
-                Gravity.END or Gravity.CENTER_VERTICAL,
-            )
-            ScreenEdge.BOTTOM -> Triple(
-                (geometry.widthPx * layout.bottomLengthPercent / 100).coerceAtLeast(1),
-                thicknessPx + geometry.navBottomPx,
-                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
-            )
-        }
-
+        val frame = stripFrame(edge, thicknessPx, geometry, layout, keyboardTopPx)
         return WindowManager.LayoutParams(
-            widthPx,
-            heightPx,
+            frame.widthPx,
+            frame.heightPx,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            this.gravity = gravity
+            gravity = frame.gravity
+            y = frame.y
             // Without this the strip is pushed inside the inset it was just extended across.
             fitInsetsTypes = 0
             // A side strip on the camera side otherwise starts past the cutout, off the true edge.
             layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
         }
+    }
+
+    // Only new touches see a resized window, so a touch already on a strip runs its course.
+    private fun onKeyboardTop(topPx: Int?) {
+        if (topPx == keyboardTopPx) return
+        keyboardTopPx = topPx
+        val (configuration, geometry) = fitted ?: return
+        strips.forEach { (edge, view) ->
+            val current = view.layoutParams as? WindowManager.LayoutParams ?: return@forEach
+            val params = paramsFor(edge, configuration, geometry).apply {
+                flags = current.flags
+                alpha = current.alpha
+            }
+            runCatching { windowManager.updateViewLayout(view, params) }
+                .onFailure { FailureLog.record(context, "fit strip $edge to keyboard", it) }
+        }
+        val sizes = strips.values.joinToString(" ") { "${it.layoutParams.width}x${it.layoutParams.height}" }
+        Log.i(TAG, "KEYBOARD_${if (topPx == null) "HIDDEN" else "SHOWN top=$topPx"} strips $sizes")
+        journal.add("keyboard ${topPx ?: "hidden"}, strips $sizes")
     }
 
     private fun onStreamStart(edge: ScreenEdge): Long {
@@ -370,10 +405,19 @@ internal class EdgeTouchOverlay(
         append(journal.dump())
     }
 
+    /** Disarmed strips let every touch through to the window below, as a held stream does. */
+    fun setArmed(armed: Boolean) {
+        if (this.armed == armed) return
+        this.armed = armed
+        Log.i(TAG, if (armed) "STRIPS_ARMED" else "STRIPS_DISARMED keyguard")
+        journal.add(if (armed) "strips armed" else "strips disarmed for the keyguard")
+        applyInteractivity()
+    }
+
     /** See the class comment for why this is alpha 0 as well as non-touchable. */
     private fun applyInteractivity() {
         strips.forEach { (edge, view) ->
-            val interactive = others.touchable(edge, hold.held)
+            val interactive = armed && others.touchable(edge, hold.held)
             val params = view.layoutParams as? WindowManager.LayoutParams ?: return@forEach
             val flags = if (interactive) {
                 params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()

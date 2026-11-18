@@ -22,8 +22,11 @@ on:
     branches:
       - "main"
     paths:
-      - "README.md"
+      - "docker/README.md"
       - ".github/workflows/dockerhub-description.yml"
+
+permissions:
+  contents: read
 
 jobs:
   update-desc:
@@ -40,5 +43,6 @@ jobs:
           username: "${{ vars.DOCKERHUB_USERNAME }}"
           password: "${{ secrets.DOCKERHUB_TOKEN }}"
           repository: "${{ env.IMAGE }}"
-          short-description: "${{ github.event.repository.description }}"
+          short-description: "Android SDK, emulator and Gradle toolchain that builds and tests HyperGesture."
+          readme-filepath: docker/README.md
           enable-url-completion: true
