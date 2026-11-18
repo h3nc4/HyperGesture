@@ -108,6 +108,10 @@ The strips can still be left held by a touch stream that never ends, as seen on 
 adb pull /sdcard/Android/data/com.h3nc4.hypergesture/files/stuck_streams.txt
 ```
 
+No strip covers a shown keyboard. The side strips end at the keyboard's top and the bottom strip keeps only the navigation-bar inset. A held key then repeats at once, and the keyboard gets keys typed by two thumbs near an edge in the order they were pressed. The IME is below every overlay in Z order, and the window manager gives a window only the insets of windows above it, so `service/KeyboardWatch.kt` reads the IME insets of the display's window metrics at every touch down anywhere. Its `FLAG_WATCH_OUTSIDE_TOUCH` window hears each one as `ACTION_OUTSIDE` without coordinates. While a keyboard shows, `service/KeyboardFollow.kt` reads the insets again every 500 ms. The strips then grow back within a second of an app hiding its keyboard with no touch. The rereads stop at the first read without a keyboard. A push signal for that exists only as `TYPE_WINDOWS_CHANGED` for the IME window, and the framework tracks windows for a service only when it declares both `canRetrieveWindowContent` and `flagRetrieveInteractiveWindows`. The first lets the service read the screen, which the privacy section of the README rules out. `TYPE_WINDOW_STATE_CHANGED` arrives without that access, but a window sends it on gaining focus, which the IME window doesn't do.
+
+A touch on a strip that is plainly not a gesture still waits for its release before its replay. Handing it back while the finger is down with `StrokeDescription.continueStroke` cannot work, because the framework's `MotionEventInjector` cancels an injected gesture at every real touch event. An emulator probe confirmed it. The first continuation was cancelled at the finger's first move and the last one at its release, so a vertical scroll that starts in a side strip still plays back after the finger lifts.
+
 ## Releasing
 
 Signing material lives outside git:
