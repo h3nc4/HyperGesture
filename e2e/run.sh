@@ -78,9 +78,15 @@ done
 
 export AVD
 
+logger=''
+
 cleanup() {
   if [ -n "${boot}" ]; then
     kill "${boot}" >/dev/null 2>&1 || true
+  fi
+  if [ -n "${logger}" ]; then
+    pkill -P "${logger}" >/dev/null 2>&1 || true
+    kill "${logger}" >/dev/null 2>&1 || true
   fi
   if [ -z "${keep}" ]; then
     e2e/emulator.sh -s >/dev/null 2>&1 || true
@@ -105,12 +111,26 @@ fi
 # shellcheck disable=SC2086 # an empty apk argument must vanish, not become an empty string
 e2e/device.sh ${apk_arg:+-p "${apk_arg}"}
 
+# Every case clears logcat, so this stream is all a failed run leaves behind. It is filtered on
+# the device to what tells a lost touch from a lost log, since a whole buffer can drop the link.
+: >"${LOG_DIR}/logcat.txt"
+(
+  while :; do
+    "${ADB_BIN}" logcat -v threadtime HyperGesture:V HyperGestureE2E:V AndroidRuntime:E \
+      ActivityManager:I ActivityTaskManager:I WindowManager:W InputDispatcher:W '*:S' \
+      >>"${LOG_DIR}/logcat.txt" 2>/dev/null || true
+    sleep 1
+  done
+) &
+logger="$!"
+
 worst=0
 for suite in ${suites}; do
   echo >&2
   echo "################ ${suite} ################" >&2
   # The emulator can drop its adb connection mid-transfer, and adb reads offline until it reconnects.
   timeout 60 "${ADB_BIN}" wait-for-device || true
+  "${ADB_BIN}" shell log -t HyperGestureE2E "suite ${suite}" >/dev/null 2>&1 || true
   if ! "e2e/${suite}.sh"; then
     worst=1
   fi
