@@ -94,7 +94,8 @@ trap cleanup INT TERM EXIT
 if [ -n "${build}" ]; then
   e2e/emulator.sh &
   boot="$!"
-  gradle --no-daemon assembleDebug
+  # The boot is the longer of the two, so the build takes the CPU the emulator leaves.
+  nice -n 10 gradle --no-daemon assembleDebug
   wait "${boot}"
   boot=''
 else

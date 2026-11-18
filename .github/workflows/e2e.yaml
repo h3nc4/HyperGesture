@@ -72,11 +72,13 @@ jobs:
           - shard: 1
             suites: navigation-keeper
           - shard: 2
-            suites: status-refresh app-switch
+            suites: status-refresh
           - shard: 3
-            suites: circle-to-search landscape-confirm
+            suites: circle-to-search app-switch
           - shard: 4
-            suites: navigation back-revert stop-notice keyguard
+            suites: navigation landscape-confirm
+          - shard: 5
+            suites: back-revert stop-notice keyguard
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -86,15 +88,16 @@ jobs:
           IMAGE: ${{ needs.dev-image.outputs.image }}
         run: (docker pull -q "${IMAGE}" >/dev/null 2>&1 &)
       - name: Run actions/cache/restore
+        id: gradle-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/ci-cache/gradle
           key:
-            ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
+            ${{ runner.os }}-e2e-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
             'gradle/libs.versions.toml', 'gradle.properties') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            ${{ runner.os }}-e2e-gradle-
       - name: Create the cache directories
         run: mkdir -p ~/ci-cache/gradle
       - name: Run h3nc4/dev-image-action
@@ -113,6 +116,13 @@ jobs:
           ls -l /dev/kvm
       - name: Build the debug APK while the emulator boots, then run the gesture E2E suites
         run: $DEV_RUN -c './e2e/run.sh -b ${{ matrix.suites }}'
+      - name: Save the Gradle cache of the debug build
+        if: matrix.shard == 5 && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/ci-cache/gradle
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
       - name: Upload emulator log on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
