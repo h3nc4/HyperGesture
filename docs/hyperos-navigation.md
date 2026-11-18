@@ -40,6 +40,16 @@ The buttons come back whenever gestures stop, because a phone with neither gestu
 
 The emulator suite `e2e/navigation-keeper.sh` covers the grant, the switch, a reset of each key, the buttons coming back on an unbind and on a kill, and a rebind. The emulator is not HyperOS. The suite sets the debug-only `hypergesture_integration` global setting to `hyperos` to reach the HyperOS integration. Whether these two keys alone hide the bar on HyperOS, or the three-button overlay also has to go, is still to be confirmed on the Redmi 14.
 
+## Turning gestures back on
+
+HyperOS takes HyperGesture out of `enabled_accessibility_services` on events such as Ultra Battery Saver. With the same grant, the opt-in switch named **Turn gestures back on**, below the keeper's, puts it back and sets `accessibility_enabled` to `1`. Without the grant nothing is written and the setup screen shows the grant command alone.
+
+A removal by HyperOS and one by the user in Settings are the same write to the same setting, and nothing in either marks who made it. So the restore has its own switch, off by default. A removal within a minute of a restore is taken as the user's. The app leaves it and records it, so neither boot nor an app resume puts it back until the service runs again. The same rule stops a loop with a ROM that keeps removing it.
+
+`setup/ServiceRestore.kt` holds the check, which runs on the stop notice's path: as the service unbinds, at boot and on each app resume. A force stop also drops the service from the setting, and a stopped app doesn't get broadcasts until the user opens it. The restore then happens at that app resume. Each restore, and each removal the app leaves alone, goes to the failure record in Diagnostics.
+
+The emulator suite `e2e/service-restore.sh` covers the switch, a removal put back, a second removal left alone and a removal without the grant.
+
 ## TODO: apply the overlay directly
 
 Opening a settings window is a poor substitute for doing the thing. The state to reach is this one:
