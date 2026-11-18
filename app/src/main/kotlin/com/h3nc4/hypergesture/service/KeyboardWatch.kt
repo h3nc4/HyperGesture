@@ -20,6 +20,8 @@ package com.h3nc4.hypergesture.service
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -27,8 +29,8 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import com.h3nc4.hypergesture.diagnostics.FailureLog
 
-// An overlay is above the keyboard and doesn't receive IME insets, so this reads the display's
-// own at every touch down anywhere, which ACTION_OUTSIDE reports without its coordinates.
+// An overlay is above the keyboard and doesn't get IME insets, so this reads the display's at every
+// touch down, which ACTION_OUTSIDE reports, and again while one shows, as an app can hide it unseen.
 internal class KeyboardWatch(
     private val context: Context,
     private val windowManager: WindowManager,
@@ -37,15 +39,27 @@ internal class KeyboardWatch(
 
     private var view: View? = null
 
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val recheckToken = Any()
+
+    private val follow = KeyboardFollow(
+        read = ::read,
+        schedule = { delayMs, recheck -> handler.postDelayed(Runnable(recheck), recheckToken, delayMs) },
+        cancelRecheck = { handler.removeCallbacksAndMessages(recheckToken) },
+        onFailure = { FailureLog.record(context, "KeyboardWatch.check", it) },
+        onKeyboardTop = onKeyboardTop,
+    )
+
     /** Throws when the window manager refuses the probe, which the caller retries. */
     @SuppressLint("ClickableViewAccessibility")
     fun install() {
         if (view != null) return
         // Read first, so a refused probe still fits the strips to a keyboard already up.
-        check()
+        follow.check()
         val watcher = object : View(context) {
             override fun onTouchEvent(event: MotionEvent): Boolean {
-                if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) check()
+                if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) follow.check()
                 return false
             }
         }
@@ -68,20 +82,18 @@ internal class KeyboardWatch(
     }
 
     fun remove() {
+        follow.stop()
         view?.let { runCatching { windowManager.removeViewImmediate(it) } }
         view = null
     }
 
-    private fun check() {
-        runCatching {
-            val metrics = windowManager.currentWindowMetrics
-            val ime = WindowInsets.Type.ime()
-            keyboardTop(
-                metrics.windowInsets.isVisible(ime),
-                metrics.windowInsets.getInsets(ime).bottom,
-                metrics.bounds.height(),
-            )
-        }.onSuccess(onKeyboardTop)
-            .onFailure { FailureLog.record(context, "KeyboardWatch.check", it) }
+    private fun read(): Int? {
+        val metrics = windowManager.currentWindowMetrics
+        val ime = WindowInsets.Type.ime()
+        return keyboardTop(
+            metrics.windowInsets.isVisible(ime),
+            metrics.windowInsets.getInsets(ime).bottom,
+            metrics.bounds.height(),
+        )
     }
 }
