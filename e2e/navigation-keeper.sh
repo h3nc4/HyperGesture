@@ -45,32 +45,108 @@ put() {
 }
 
 # Pressing Home pauses the activity, so opening it again is a resume that rereads the grant.
+# The launcher takes focus once the pause is done, so that is what it waits for.
 leave_app() {
   "${ADB_BIN}" shell input keyevent KEYCODE_HOME >/dev/null
-  sleep 2
+  away_try=1
+  while [ "${away_try}" -le 10 ]; do
+    if ! "${ADB_BIN}" shell dumpsys window 2>/dev/null | tr -d '\r' |
+      grep -qE "mCurrentFocus.*${PKG}"; then
+      return 0
+    fi
+    sleep 0.5
+    away_try=$((away_try + 1))
+  done
 }
 
 # The HyperOS integration adds required steps the user confirms by hand, and home folds the
-# checklist into its Setup row only once they are done.
+# checklist into its Setup row only once they are done. It returns on home, with ROW_SETUP set.
 confirm_required_steps() {
   did_it="$(string_res action_i_did_it)"
+  ROW_SETUP=''
+  open_home
+  nodes="${HOME_NODES}"
   confirm_try=1
   while [ "${confirm_try}" -le 4 ]; do
-    open_home
-    nodes="$(ui_nodes)"
-    if printf '%s\n' "${nodes}" | grep -q 'resource-id="row_setup"'; then
+    ROW_SETUP="$(printf '%s\n' "${nodes}" | grep -m1 'resource-id="row_setup"' || true)"
+    if [ -n "${ROW_SETUP}" ]; then
       return 0
     fi
-    tap_node "$(printf '%s\n' "${nodes}" | grep -m1 "text=\"${did_it}\"" || true)"
-    sleep 2
+    did_it_node="$(printf '%s\n' "${nodes}" | grep -m1 "text=\"${did_it}\"" || true)"
+    if [ -n "${did_it_node}" ]; then
+      tap_node "${did_it_node}"
+      sleep 2
+      nodes="$(ui_nodes)"
+    else
+      open_home
+      nodes="${HOME_NODES}"
+    fi
     confirm_try=$((confirm_try + 1))
   done
 }
 
+# Taps the Setup row read off home when it is clear of the bottom strip, and falls back to
+# open_screen, which reopens home, when that tap does not reach the screen.
 open_setup() {
   leave_app
   confirm_required_steps
+  row_centre="$(printf '%s\n' "${ROW_SETUP}" |
+    sed -n 's/.*bounds="\[[0-9]*,\([0-9]*\)\]\[[0-9]*,\([0-9]*\)\]".*/\1 \2/p' |
+    awk '{print int(($1 + $2) / 2)}')"
+  size="$(screen_size)"
+  if [ -n "${row_centre}" ] && [ "${row_centre}" -lt $((${size#*x} - 260)) ]; then
+    tap_node "${ROW_SETUP}"
+    sleep 1
+    # shellcheck disable=SC2310 # a missing node sends it to the slower path below
+    if find_id "$1" >/dev/null; then
+      return 0
+    fi
+  fi
   open_screen row_setup "$1"
+}
+
+# Setup is one scrolled column, and a dump leaves out what is scrolled away. So these prove a dump
+# reaches the list's first or last node before an absent node counts as absent.
+setup_has_first() {
+  first="$(string_res setup_group_required)"
+  printf '%s\n' "$1" | grep -qF "text=\"${first}\""
+}
+
+setup_has_last() {
+  last_hyperos="$(string_res setup_footer_hyperos)"
+  last_plain="$(string_res setup_footer)"
+  printf '%s\n' "$1" | grep -qF -e "text=\"${last_hyperos}\"" -e "text=\"${last_plain}\""
+}
+
+# first_list_text <nodes> - the first text inside the scrolled column, which is its top visible row.
+first_list_text() {
+  printf '%s\n' "$1" | sed -n '/scrollable="true"/,$ s/.* text="\([^"]\{1,\}\)".*/\1/p' | sed -n 1p
+}
+
+# setup_shows_switch <nodes> - looks for the switch in a dump at the end of Setup and in one from its
+# top. Together they cover the list only when the top dump also shows the end dump's top row.
+setup_shows_switch() {
+  end_nodes="$1"
+  # shellcheck disable=SC2310 # a false predicate is the answer, not an error
+  if setup_has_first "${end_nodes}" && setup_has_last "${end_nodes}"; then
+    echo "   one dump covers the whole Setup list" >&2
+    printf '%s\n' "${end_nodes}" | grep -q 'resource-id="switch_keep_navigation"'
+    return
+  fi
+  scroll_app up
+  scroll_app up
+  sleep 1
+  top_nodes="$(ui_nodes)"
+  seam="$(first_list_text "${end_nodes}")"
+  seam_count="$(printf '%s\n' "${end_nodes}" | grep -cF "text=\"${seam}\"" || true)"
+  # shellcheck disable=SC2310 # a false predicate sends it to the scrolling scan
+  if [ -n "${seam}" ] && [ "${seam_count}" = 1 ] && setup_has_last "${end_nodes}" &&
+    setup_has_first "${top_nodes}" && printf '%s\n' "${top_nodes}" | grep -qF "text=\"${seam}\""; then
+    echo "   two dumps meeting at '${seam}' cover the whole Setup list" >&2
+    printf '%s\n%s\n' "${end_nodes}" "${top_nodes}" | grep -q 'resource-id="switch_keep_navigation"'
+    return
+  fi
+  find_id switch_keep_navigation >/dev/null
 }
 
 # expect_settings <description> <fsg> <mode> - polls, since the keeper answers asynchronously.
@@ -137,14 +213,16 @@ put global hypergesture_integration hyperos
 echo >&2
 echo "== without the grant the row shows the adb command ==" >&2
 open_setup keep_navigation_grant
+setup_nodes="$(ui_nodes)"
 # shellcheck disable=SC2310 # a missing node is a result, reported below
-if find_id keep_navigation_grant >/dev/null; then
+if printf '%s\n' "${setup_nodes}" | grep -q 'resource-id="keep_navigation_grant"' ||
+  find_id keep_navigation_grant >/dev/null; then
   pass "the grant instructions show"
 else
   fail "the grant instructions are missing"
 fi
 # shellcheck disable=SC2310 # a missing node is a result, reported below
-if find_id switch_keep_navigation >/dev/null; then
+if setup_shows_switch "${setup_nodes}"; then
   fail "the switch shows before the grant"
 else
   pass "the switch waits for the grant"
