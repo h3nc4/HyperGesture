@@ -88,7 +88,8 @@ confirm_required_steps() {
 }
 
 # Taps the Setup row read off home when it is clear of the bottom strip, and falls back to
-# open_screen, which reopens home, when that tap does not reach the screen.
+# open_screen, which reopens home, when that tap does not reach the screen. The dump that showed
+# the node is left in SETUP_NODES and the node in SETUP_NODE, both empty when it was not found.
 open_setup() {
   leave_app
   confirm_required_steps
@@ -101,10 +102,30 @@ open_setup() {
     sleep 1
     # shellcheck disable=SC2310 # a missing node sends it to the slower path below
     if find_id "$1" >/dev/null; then
+      setup_found "$1"
       return 0
     fi
   fi
   open_screen row_setup "$1"
+  setup_found "$1"
+}
+
+setup_found() {
+  SETUP_NODES="$(cat "${LOG_DIR}/found_nodes" 2>/dev/null || true)"
+  SETUP_NODE="$(printf '%s\n' "${SETUP_NODES}" | grep -m1 "resource-id=\"$1\"" || true)"
+}
+
+# reopen_setup <tag> - the resume open_setup makes, without the walk through home, as the app
+# reopens on the screen it left. Home has no back arrow, so landing there takes open_setup.
+reopen_setup() {
+  leave_app
+  open_test_app
+  SETUP_NODE=''
+  # shellcheck disable=SC2310 # a node out of reach sends it to open_setup
+  if ui_nodes | grep -q 'resource-id="nav_back"' && find_id "$1" >/dev/null; then
+    setup_found "$1"
+  fi
+  [ -n "${SETUP_NODE}" ] || open_setup "$1"
 }
 
 # Setup is one scrolled column, and a dump leaves out what is scrolled away. So these prove a dump
@@ -134,6 +155,14 @@ setup_shows_switch() {
     echo "   one dump covers the whole Setup list" >&2
     printf '%s\n' "${end_nodes}" | grep -q 'resource-id="switch_keep_navigation"'
     return
+  fi
+  # The grant row can show before the list ends, and then the dump of the end is taken here.
+  # shellcheck disable=SC2310 # a false predicate is the answer, not an error
+  if ! setup_has_last "${end_nodes}"; then
+    scroll_app down
+    scroll_app down
+    sleep 1
+    end_nodes="$(ui_nodes)"
   fi
   scroll_app up
   scroll_app up
@@ -222,7 +251,7 @@ remove_tile
 echo >&2
 echo "== without the grant the row shows the adb command ==" >&2
 open_setup keep_navigation_grant
-setup_nodes="$(ui_nodes)"
+setup_nodes="${SETUP_NODES:-$(ui_nodes)}"
 # shellcheck disable=SC2310 # a missing node is a result, reported below
 if printf '%s\n' "${setup_nodes}" | grep -q 'resource-id="keep_navigation_grant"' ||
   find_id keep_navigation_grant >/dev/null; then
@@ -240,9 +269,9 @@ fi
 echo >&2
 echo "== granted without the tile, the switch shows off and locked, as the bar step is ==" >&2
 "${ADB_BIN}" shell pm grant "${PKG}" "${PERMISSION}"
-open_setup switch_keep_navigation
+reopen_setup switch_keep_navigation
 # shellcheck disable=SC2310 # a missing node is a result, reported below
-node="$(find_id switch_keep_navigation || true)"
+node="${SETUP_NODE:-$(find_id switch_keep_navigation || true)}"
 case "${node}" in
   *'checked="false"'*'enabled="false"'* | *'enabled="false"'*'checked="false"'*)
     pass "the switch shows, turned off and locked"
@@ -250,8 +279,9 @@ case "${node}" in
   *) fail "the switch is missing, on or unlocked before the tile: ${node:-nothing}" ;;
 esac
 waits="$(string_res step_waits_on_tile)"
-nodes="$(ui_nodes)"
-if printf '%s\n' "${nodes}" | grep -q "text=\"[^\"]*${waits}"; then
+# shellcheck disable=SC2310 # a missing text is a result, reported below
+if printf '%s\n' "${SETUP_NODES}" | grep -q "text=\"[^\"]*${waits}" ||
+  ui_nodes | grep -q "text=\"[^\"]*${waits}"; then
   pass "the switch says it waits for the tile"
 else
   fail "the switch does not say it waits for the tile"
@@ -269,12 +299,18 @@ esac
 echo >&2
 echo "== the tile added, the switch unlocks ==" >&2
 "${ADB_BIN}" shell cmd statusbar add-tile "${TILE}" >/dev/null
+# Setup collects the stored tile flag, so the open screen unlocks with no resume. The last
+# four tries reopen it, in case the flag reaches the screen only on a resume.
 unlocked=''
 unlock_try=1
-while [ "${unlock_try}" -le 4 ]; do
-  open_setup switch_keep_navigation
+while [ "${unlock_try}" -le 7 ]; do
   # shellcheck disable=SC2310 # a missing node is the retry signal, reported below
-  node="$(find_id switch_keep_navigation || true)"
+  if [ "${unlock_try}" -le 3 ]; then
+    node="$(find_id switch_keep_navigation || true)"
+  else
+    reopen_setup switch_keep_navigation
+    node="${SETUP_NODE:-$(find_id switch_keep_navigation || true)}"
+  fi
   case "${node}" in
     *'enabled="true"'*)
       unlocked='1'
@@ -282,7 +318,7 @@ while [ "${unlock_try}" -le 4 ]; do
       ;;
     *) ;;
   esac
-  sleep 2
+  sleep 1
   unlock_try=$((unlock_try + 1))
 done
 if [ -n "${unlocked}" ]; then
