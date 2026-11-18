@@ -68,17 +68,22 @@ wait_log() {
   return 1
 }
 
-# first_after <epoch ms> <grep-pattern> - when the first main or events line matching it was
-# logged at or after that moment. A plain logcat -c leaves the events buffer in place.
-first_after() {
-  "${ADB_BIN}" logcat -d -v epoch -b main -b events 2>/dev/null | tr -d '\r' | grep -e "$2" |
-    awk -v after="$1" '{ split($1, t, "."); ms = t[1] * 1000 + t[2]; if (ms >= after) { print ms; exit } }'
+# screen_log - this package's main lines and the screen events, filtered on the device, since the
+# emulator drops its adb connection while both whole buffers stream and the dump arrives cut short.
+screen_log() {
+  "${ADB_BIN}" shell 'logcat -d -v epoch -b main -b events | grep -F -e HyperGesture: -e power_screen_state -e screen_toggled' 2>/dev/null |
+    tr -d '\r' | grep -v GEOMETRY_SIGNAL
 }
 
-timing_log() {
-  "${ADB_BIN}" logcat -d -v epoch -b main -b events 2>/dev/null | tr -d '\r' |
-    grep -e 'HyperGesture:' -e power_screen_state -e screen_toggled | grep -v GEOMETRY_SIGNAL |
-    tail -30 | sed 's/^/        /' >&2
+show_screen_log() {
+  printf '%s\n' "${captured}" | tail -30 | sed 's/^/        /' >&2
+}
+
+# first_after <log> <epoch ms> <grep-pattern> - when the first line of that log matching it was
+# logged at or after that moment. A plain logcat -c leaves the events buffer in place.
+first_after() {
+  printf '%s\n' "$1" | grep -e "$3" |
+    awk -v after="$2" '{ split($1, t, "."); ms = t[1] * 1000 + t[2]; if (ms >= after) { print ms; exit } }'
 }
 
 echo >&2
@@ -107,24 +112,39 @@ fi
 # The marker and the key run in one device shell, so both are stamped by the device clock. The
 # budget runs from power_screen_state, since the emulator alone can take over a second to light the panel.
 "${ADB_BIN}" shell 'log -t HyperGesture SCREEN_WAKE_SENT; input keyevent KEYCODE_WAKEUP' >/dev/null
-# shellcheck disable=SC2310 # a timeout is reported as this case's failure
-if wait_log 5 'strip LEFT \(installed\|reattached\)'; then
+# The strip often returns before power_screen_state is logged, so the wait is for both lines.
+woke=''
+lit=''
+back=''
+wait_try=1
+while [ "${wait_try}" -le 5 ]; do
+  # shellcheck disable=SC2310 # an empty or failed dump means another try
+  captured="$(screen_log || true)"
+  woke="$(first_after "${captured}" 0 SCREEN_WAKE_SENT)"
+  if [ -n "${woke}" ]; then
+    lit="$(first_after "${captured}" "${woke}" 'power_screen_state: \[1')"
+    back="$(first_after "${captured}" "${woke}" 'strip LEFT \(installed\|reattached\)')"
+  fi
+  if [ -n "${lit}" ] && [ -n "${back}" ]; then
+    break
+  fi
+  sleep 1
+  wait_try=$((wait_try + 1))
+done
+if [ -z "${back}" ]; then
+  fail "the left strip never came back after screen-on"
+  show_screen_log
+elif [ -z "${lit}" ]; then
+  fail "no screen-on logged after the wake key (${woke:-no marker}), though the left strip is back"
+  show_screen_log
+else
   assert_log "the screen-on check names the detached strip" 'SCREEN_ON_REPAIR.*LEFT.*attached=false'
-  woke="$(first_after 0 SCREEN_WAKE_SENT)"
-  lit="$(first_after "${woke}" 'power_screen_state: \[1')"
-  back="$(first_after "${woke}" 'strip LEFT \(installed\|reattached\)')"
-  if [ -z "${lit}" ] || [ -z "${back}" ]; then
-    fail "no screen-on (${lit:-none}) or no left strip (${back:-none}) logged after the wake key"
-    timing_log
-  elif [ $((back - lit)) -le "${REPAIR_BUDGET_MS}" ]; then
+  if [ $((back - lit)) -le "${REPAIR_BUDGET_MS}" ]; then
     pass "the left strip is back $((back - lit)) ms after screen-on, which took $((lit - woke)) ms"
   else
     fail "the left strip took $((back - lit)) ms after screen-on, over ${REPAIR_BUDGET_MS} ms"
-    timing_log
+    show_screen_log
   fi
-else
-  fail "the left strip never came back after screen-on"
-  gesture_log | sed 's/^/        /' >&2
 fi
 sleep 1
 windows_after="$(overlay_windows)"
