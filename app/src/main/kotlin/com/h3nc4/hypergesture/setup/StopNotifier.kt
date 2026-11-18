@@ -26,11 +26,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.h3nc4.hypergesture.R
 import com.h3nc4.hypergesture.diagnostics.DiagnosticsCollector
 import com.h3nc4.hypergesture.diagnostics.FailureLog
+import com.h3nc4.hypergesture.navigation.AndroidSettingsAccess
 import com.h3nc4.hypergesture.service.HyperGestureAccessibilityService
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -69,9 +71,21 @@ internal object StopNotifier {
         val state = context.setupState
         val record = state.record.first()
         val notifications = NotificationManagerCompat.from(context)
+        val running = HyperGestureAccessibilityService.isRunning()
+        val restore = ServiceRestore(
+            AndroidSettingsAccess(context),
+            context.serviceRestoreSettings,
+            context.packageName,
+            HyperGestureAccessibilityService::class.java.name,
+        )
+        // Before the notice reads the switch, so a service put back posts nothing.
+        reportRestore(
+            context,
+            restore.afterStop(running, record.serviceEverEnabled, System.currentTimeMillis()),
+        )
         val action = StopNotice.decide(
             StopNoticeFacts(
-                running = HyperGestureAccessibilityService.isRunning(),
+                running = running,
                 switchedOn = DiagnosticsCollector.isAccessibilityServiceSwitchedOn(context),
                 serviceEverEnabled = record.serviceEverEnabled,
                 alreadyPosted = record.stopNoticePosted,
@@ -84,6 +98,7 @@ internal object StopNotifier {
             }
             StopNoticeAction.CLEAR -> {
                 notifications.cancel(NOTIFICATION_ID)
+                restore.serviceRunning()
                 if (!record.serviceEverEnabled) state.set(SetupFlag.SERVICE_EVER_ENABLED, true)
                 if (record.stopNoticePosted) state.set(SetupFlag.STOP_NOTICE_POSTED, false)
             }
@@ -122,4 +137,18 @@ internal object StopNotifier {
         notifications.notify(NOTIFICATION_ID, notice)
         return true
     }
+}
+
+/** Each restore and each removal left alone goes to the failure record, since logcat drops info. */
+private fun reportRestore(context: Context, outcome: RestoreOutcome) {
+    val message = when (outcome) {
+        RestoreOutcome.Untouched -> return
+        RestoreOutcome.HeldOff ->
+            "SERVICE_KEPT_OFF removed again within a minute of a restore, so it stays off"
+        RestoreOutcome.Restored ->
+            "SERVICE_RESTORED put back in enabled_accessibility_services after it was removed"
+        is RestoreOutcome.Failed -> "SERVICE_NOT_RESTORED ${outcome.reason}"
+    }
+    Log.w("HyperGesture", message)
+    FailureLog.note(context, "service restore", message)
 }

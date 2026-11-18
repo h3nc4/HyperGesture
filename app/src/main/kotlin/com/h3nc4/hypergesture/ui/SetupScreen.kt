@@ -38,6 +38,7 @@ internal fun SetupScreen(model: AppModel) {
     SectionHeader(stringResource(R.string.setup_group_recommended))
     SetupRows(checklist.recommended, model)
     KeepNavigationRow(model, checklist.keeperWaitsOn(model.keeperEnabled))
+    RestoreServiceRow(model)
     FootNote(
         stringResource(
             if (model.diagnostics.navigationIntegrationAvailable) {
@@ -81,4 +82,17 @@ private fun KeepNavigationRow(model: AppModel, waitsOn: SetupStep?) {
             modifier = Modifier.padding(horizontal = 16.dp),
         )
     }
+}
+
+/** Shown only where the keeper's grant is held, since the restore writes with it too. */
+@Composable
+private fun RestoreServiceRow(model: AppModel) {
+    if (model.keeperGranted != true) return
+    ToggleRow(
+        label = stringResource(R.string.label_restore_service),
+        supporting = stringResource(R.string.restore_service_body),
+        checked = model.restoreServiceEnabled,
+        tag = TestTags.SWITCH_RESTORE_SERVICE,
+        onChange = model::switchRestoreService,
+    )
 }
