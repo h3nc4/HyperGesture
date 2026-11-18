@@ -59,6 +59,14 @@ class ServiceStatusTest {
     }
 
     @Test
+    fun `a live service whose connection was lost reads stopped`() {
+        assertEquals(
+            ServiceStatus.STOPPED,
+            ServiceStatus.of(switchedOn = true, bound = true, running = true, attachedStrips = 0, connectionLost = true),
+        )
+    }
+
+    @Test
     fun `a stopped service with no strip still reads stopped`() {
         assertEquals(
             ServiceStatus.STOPPED,

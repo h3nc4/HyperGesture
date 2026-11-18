@@ -189,6 +189,7 @@ internal class AppModel(
         scope.launch { setupState.record.collect { record = it } }
         scope.launch { keeperSettings.enabled.collect { keeperEnabled = it } }
         scope.launch { HyperGestureAccessibilityService.attachedStrips.drop(1).collect { refresh() } }
+        scope.launch { HyperGestureAccessibilityService.connectionLost.drop(1).collect { refresh() } }
         // UiAutomation, which uiautomator and screen readers use, unbinds the service for a moment.
         // So a stop shows only once it outlasts that, and a return shows at once.
         HyperGestureAccessibilityService.running.collectLatest { running ->

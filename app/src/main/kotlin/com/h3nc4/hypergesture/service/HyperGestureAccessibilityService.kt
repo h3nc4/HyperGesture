@@ -102,8 +102,9 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         },
         cancelRetry = { handler.removeCallbacksAndMessages(INSTALL_RETRY_TOKEN) },
         onFailure = { FailureLog.record(this, "installOverlay", it) },
-        onAttached = { if (instance === this) stripsState.value = it },
+        onAttached = ::onInstalled,
     )
+    private val connectionLoss = ConnectionLoss()
     private val settleCheck = InsetSettleCheck(
         schedule = { delayMs, check ->
             if (instance === this) handler.postDelayed(Runnable(check), SETTLE_CHECK_TOKEN, delayMs)
@@ -166,6 +167,8 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         Log.i(TAG, "SERVICE_CONNECTED ${System.identityHashCode(this)}")
         instance = this
         stripsState.value = null
+        connectionLoss.reset()
+        connectionLostState.value = false
         runningState.value = true
         StopLog.serviceStarted(this)
         try {
@@ -189,6 +192,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             replayer = this,
             onGestureAction = ::onGestureAction,
             onAppSwitchArmed = ::onAppSwitchArmed,
+            onStripRefused = connectionLoss::refused,
         )
 
         (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
@@ -277,6 +281,20 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     private fun keyguardLocked(): Boolean =
         getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
 
+    private fun onInstalled(attached: Int) {
+        if (instance !== this) return
+        val lost = connectionLoss.installed(attached)
+        val changed = lost != connectionLostState.value
+        if (changed && lost) {
+            Log.w(TAG, "SERVICE_CONNECTION_LOST ${System.identityHashCode(this)} strips refused for a null token")
+            StopLog.connectionLost(this)
+        }
+        // Set first, so a screen refreshing on the strip count already reads the loss.
+        connectionLostState.value = lost
+        stripsState.value = attached
+        if (changed) GestureTileService.requestRefresh(this)
+    }
+
     private fun installOverlay(): Int {
         val overlay = overlay ?: return 0
         val geometry = ScreenGeometry.current(this, windowManager)
@@ -363,6 +381,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         // A replaced instance can unbind after its successor connected, which must keep its state.
         if (instance === this) {
             instance = null
+            connectionLostState.value = false
             runningState.value = false
         }
     }
@@ -514,5 +533,10 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
         /** Null until each connection first installs, and kept on a stop so a brief UiAutomation unbind keeps its grace. */
         val attachedStrips: StateFlow<Int?> = stripsState.asStateFlow()
+
+        private val connectionLostState = MutableStateFlow(false)
+
+        /** True while the live instance holds a window token the system reset, which only a toggle restores. */
+        val connectionLost: StateFlow<Boolean> = connectionLostState.asStateFlow()
     }
 }

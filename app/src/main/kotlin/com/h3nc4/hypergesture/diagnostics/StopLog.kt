@@ -74,6 +74,9 @@ object StopLog {
         if (prefs(context).getInt(RUNNING_PID, 0) == Process.myPid()) clearMarker(context)
     }
 
+    @Synchronized
+    fun connectionLost(context: Context) = guarded { append(context, StopReason.CONNECTION_LOST_LINE) }
+
     /** Called wherever a new process may start, because the process that ended ran nothing to say why. */
     @Synchronized
     fun recordPreviousStop(context: Context) = guarded {

@@ -44,6 +44,8 @@ internal object StopReason {
     const val NAVIGATION = "NAVIGATION_CHANGED"
 
     const val SWITCHED_OFF_LINE = "$SWITCHED_OFF removed from the enabled services by the user or the system"
+    const val CONNECTION_LOST = "STOPPED_CONNECTION_LOST"
+    const val CONNECTION_LOST_LINE = "$CONNECTION_LOST the system reset the window token without an unbind"
 
     // Why the service's process ended without an unbind. Null while it still runs, and for an update,
     // which its own broadcast records.
