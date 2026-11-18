@@ -314,9 +314,19 @@ string_res() {
   sed -n "s/.*name=\"$1\">\(.*\)<\/string>.*/\1/p" app/src/main/res/values/strings.xml
 }
 
+# screen_size - the width and height. It reads the file geometry wrote and calls wm only without it.
+screen_size() {
+  if [ -f "${LOG_DIR}/geometry" ]; then
+    read -r size_w size_h _ <"${LOG_DIR}/geometry"
+    echo "${size_w}x${size_h}"
+    return 0
+  fi
+  "${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1
+}
+
 # scroll_app <up|down> - drags the app's own content, clear of every edge strip.
 scroll_app() {
-  size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
+  size="$(screen_size)"
   w="${size%x*}"
   h="${size#*x}"
   if [ "$1" = 'up' ]; then
@@ -328,14 +338,11 @@ scroll_app() {
 
 # Test tags reach uiautomator as resource ids, so these select by tag rather than by text.
 
-# find_id <tag> - scrolls the app from the top until that node's centre clears the bottom
-# strip, which takes a tap there for itself, and prints the node.
-find_id() {
-  scroll_app up
-  scroll_app up
-  size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
-  clear_y=$((${size#*x} - 260))
+# scan_down <tag> <clear y> - scrolls down from where the app is until that node's centre is above
+# clear y, and prints it. A scroll that leaves the screen as it was means the end, so it stops there.
+scan_down() {
   found=''
+  last=''
   tries=1
   while [ "${tries}" -le 8 ]; do
     screen="$(ui_nodes)"
@@ -343,14 +350,40 @@ find_id() {
     centre="$(printf '%s\n' "${found}" |
       sed -n 's/.*bounds="\[[0-9]*,\([0-9]*\)\]\[[0-9]*,\([0-9]*\)\]".*/\1 \2/p' |
       awk '{print int(($1 + $2) / 2)}')"
-    if [ -n "${centre}" ] && [ "${centre}" -lt "${clear_y}" ]; then
+    if [ -n "${centre}" ] && [ "${centre}" -lt "$2" ]; then
       printf '%s\n' "${found}"
       return 0
     fi
+    if [ "${screen}" = "${last}" ]; then
+      break
+    fi
+    last="${screen}"
     scroll_app down
     sleep 1
     tries=$((tries + 1))
   done
+  printf '%s\n' "${found}"
+  return 1
+}
+
+# find_id <tag> - finds that node with its centre clear of the bottom strip, which takes a tap
+# there for itself, and prints it. It looks down from where the app is, then down from the top.
+find_id() {
+  size="$(screen_size)"
+  clear_y=$((${size#*x} - 260))
+  # shellcheck disable=SC2310 # a node out of reach is the signal to start again from the top
+  if found_here="$(scan_down "$1" "${clear_y}")"; then
+    printf '%s\n' "${found_here}"
+    return 0
+  fi
+  scroll_app up
+  scroll_app up
+  # shellcheck disable=SC2310 # a node out of reach is reported below
+  if found_top="$(scan_down "$1" "${clear_y}")"; then
+    printf '%s\n' "${found_top}"
+    return 0
+  fi
+  found="${found_top:-${found_here}}"
   [ -n "${found}" ] || return 1
   printf '%s\n' "${found}"
 }
@@ -369,12 +402,14 @@ text_of_id() {
   printf '%s\n' "${node}" | sed -n 's/.* text="\([^"]*\)".*/\1/p'
 }
 
-# set_toggle_id <tag> <true|false> - sets the switch with that tag on the current screen.
+# set_toggle_id <tag> <true|false> - sets the switch with that tag on the current screen. It polls with
+# back-to-back dumps for 24 s, as long as six tries with a 2 s sleep took, and returns once the switch reads right.
 set_toggle_id() {
   tapped=''
   tapped_at=0
-  tries=1
-  while [ "${tries}" -le 6 ]; do
+  toggle_now="$(date +%s)"
+  toggle_deadline=$((toggle_now + 24))
+  while [ "${toggle_now}" -lt "${toggle_deadline}" ]; do
     # find_id scrolls whatever is in front, and on the launcher that opens the app drawer.
     if ! "${ADB_BIN}" shell dumpsys window 2>/dev/null | tr -d '\r' | grep -qE "mCurrentFocus.*${PKG}"; then
       echo "   HyperGesture is not in front, opening it again" >&2
@@ -400,10 +435,9 @@ set_toggle_id() {
           tapped_at="${toggle_now}"
         fi
         ;;
-      *) ;;
+      *) sleep 1 ;;
     esac
-    sleep 2
-    tries=$((tries + 1))
+    toggle_now="$(date +%s)"
   done
   echo "Could not set '$1' to $2 (tapped: ${tapped:-no}). On screen:" >&2
   ui_nodes | grep -o 'resource-id="[^"]\{1,\}"\|text="[^"]\{1,\}"' | sed 's/^/    /' >&2
@@ -413,12 +447,17 @@ set_toggle_id() {
 # open_test_app lands on whichever screen was open last, where Back only returns home.
 # So a suite that touches the UI or needs Back to leave the app goes through these.
 
-# to_home - taps the app bar's back arrow until home, which has none, is showing.
+# to_home - taps the app bar's back arrow until home, which has none, is showing. The dump of home
+# stays in HOME_NODES for a caller that reads home next.
 to_home() {
+  HOME_NODES=''
   back_try=1
   while [ "${back_try}" -le 6 ]; do
-    back_node="$(ui_nodes | grep -m1 'resource-id="nav_back"' || true)"
+    home_nodes="$(ui_nodes)"
+    back_node="$(printf '%s\n' "${home_nodes}" | grep -m1 'resource-id="nav_back"' || true)"
     if [ -z "${back_node}" ]; then
+      # shellcheck disable=SC2034 # read by the suites that source this file
+      HOME_NODES="${home_nodes}"
       return 0
     fi
     tap_node "${back_node}"

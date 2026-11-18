@@ -61,7 +61,7 @@ while getopts 'a:bp:kh' opt; do
 done
 shift $((OPTIND - 1))
 
-all_suites='navigation app-switch back-revert status-refresh circle-to-search landscape-confirm stop-notice navigation-keeper keyguard'
+all_suites='navigation app-switch back-revert status-refresh circle-to-search landscape-confirm stop-notice navigation-keeper keyguard other-edges recents-lock'
 suites="${all_suites}"
 if [ "$#" -gt 0 ]; then
   suites="$*"
@@ -109,7 +109,7 @@ worst=0
 for suite in ${suites}; do
   echo >&2
   echo "################ ${suite} ################" >&2
-  # adb can read offline for a moment between suites, and the next suite would fail on its first call.
+  # The emulator can drop its adb connection mid-transfer, and adb reads offline until it reconnects.
   timeout 60 "${ADB_BIN}" wait-for-device || true
   if ! "e2e/${suite}.sh"; then
     worst=1

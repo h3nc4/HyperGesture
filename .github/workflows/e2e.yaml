@@ -72,11 +72,11 @@ jobs:
           - shard: 1
             suites: navigation-keeper
           - shard: 2
-            suites: status-refresh
+            suites: status-refresh other-edges
           - shard: 3
             suites: circle-to-search app-switch
           - shard: 4
-            suites: navigation landscape-confirm
+            suites: navigation landscape-confirm recents-lock
           - shard: 5
             suites: back-revert stop-notice keyguard
     steps:
