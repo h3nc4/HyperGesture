@@ -102,6 +102,6 @@ sleep 3
 assert_no_log "a drag along the edge is not misread as a gesture" "GESTURE_FIRED"
 assert_log "the drag is replayed as several segments" "REPLAY_DISPATCHED .*segments=[2-9]"
 assert_log "every segment reached the app underneath" "REPLAY_COMPLETED"
-assert_no_log "no segment was cancelled or refused" "REPLAY_CANCELLED\\|REPLAY_REFUSED"
+assert_no_log "no segment was cancelled, refused or timed out" "REPLAY_CANCELLED\\|REPLAY_REFUSED\\|REPLAY_TIMED_OUT"
 
 report "NAVIGATION"
