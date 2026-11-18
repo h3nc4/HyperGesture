@@ -40,6 +40,7 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import com.h3nc4.hypergesture.diagnostics.FailureLog
+import com.h3nc4.hypergesture.diagnostics.StopLog
 import com.h3nc4.hypergesture.gesture.GestureAction
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.gesture.PlatformDefaults
@@ -89,6 +90,11 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
     private var keeperWatch: NavigationKeeperWatch? = null
     private var configuration: GestureConfiguration = GestureConfiguration()
     private var lastGeometry: ScreenGeometry? = null
+    private val screenWatch = ScreenWatch(
+        onScreenOn = ::repairStrips,
+        onScreenOff = ::detachStripForTest,
+    )
+
     private val installer = StripInstaller(
         install = ::installOverlay,
         schedule = { delayMs, retry ->
@@ -114,7 +120,9 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         override fun onDisplayAdded(displayId: Int) = Unit
         override fun onDisplayRemoved(displayId: Int) = Unit
         override fun onDisplayChanged(displayId: Int) {
-            if (displayId == Display.DEFAULT_DISPLAY) onGeometrySignal("display")
+            if (displayId != Display.DEFAULT_DISPLAY) return
+            readDisplayState()
+            onGeometrySignal("display")
         }
     }
 
@@ -159,6 +167,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         instance = this
         stripsState.value = null
         runningState.value = true
+        StopLog.serviceStarted(this)
         try {
             setUp()
         } catch (t: Throwable) {
@@ -173,6 +182,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         settings = GestureSettingsRepository(applicationContext)
         performer = GestureActionPerformer(this, scope)
         windowManager = getSystemService(WindowManager::class.java)
+        readDisplayState()
         overlay = EdgeTouchOverlay(
             context = this,
             windowManager = windowManager,
@@ -216,12 +226,12 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         }
     }
 
-    // Reads the integration again on each change. Turning the switch off unregisters the observer.
+    // Reads the integration again on each change. With the switch off the observer only feeds the stop log.
     private suspend fun watchNavigation(enabled: Boolean) {
         keeperWatch?.stop()
         keeperWatch = null
-        val keeper = NavigationIntegrationFactory.create(this).keeper?.takeIf { enabled } ?: return
-        ButtonRestore(keeper, NavigationKeeperSettings(applicationContext)).hiding()
+        val keeper = NavigationIntegrationFactory.create(this).keeper?.takeIf { enabled }
+        keeper?.let { ButtonRestore(it, NavigationKeeperSettings(applicationContext)).hiding() }
         keeperWatch = NavigationKeeperWatch(this, handler, keeper).also { it.start() }
     }
 
@@ -230,7 +240,10 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         runCatching {
             runBlocking { ButtonRestore.forDevice(applicationContext)?.gesturesStopped(serviceRunning = false) }
         }.onSuccess { outcome ->
-            outcome?.let { Log.i(TAG, ButtonRestore.logLine(it)) }
+            outcome?.let {
+                Log.i(TAG, ButtonRestore.logLine(it))
+                StopLog.recordNavigation(this, StopLog.WRITTEN_BY_APP)
+            }
         }.onFailure {
             FailureLog.record(this, "restoreButtons", it)
         }
@@ -238,6 +251,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
 
     override fun onUnbind(intent: Intent?): Boolean {
         Log.i(TAG, "SERVICE_UNBIND ${System.identityHashCode(this)}")
+        StopLog.serviceUnbound(this)
         teardown()
         GestureTileService.requestRefresh(this)
         StopNotifier.sync(this)
@@ -305,6 +319,31 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
             reinstall = installer::run,
             onFailure = { FailureLog.record(this, "reinstallIfGeometryChanged", it) },
         )
+    }
+
+    private fun readDisplayState() {
+        val display = (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
+            .getDisplay(Display.DEFAULT_DISPLAY) ?: return
+        screenWatch.onDisplayState(display.state)
+    }
+
+    private fun repairStrips() {
+        val overlay = overlay ?: return
+        repairDeadStrips(
+            strips = overlay.stripWindows(),
+            reattach = { dead ->
+                val found = dead.joinToString { "${it.edge} ${it.widthPx}x${it.heightPx} attached=${it.attached}" }
+                Log.i(TAG, "SCREEN_ON_REPAIR $found")
+                overlay.reattach(dead.map(StripWindow::edge))
+            },
+            reinstall = installer::run,
+        )
+    }
+
+    private fun detachStripForTest() {
+        val edge = stripToDetachForTest(this) ?: return
+        overlay?.detachWindow(edge)
+        Log.i(TAG, "STRIP_DETACHED_FOR_TEST $edge")
     }
 
     private fun teardown() {
