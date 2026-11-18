@@ -72,7 +72,7 @@ data class SetupItem(
     val waitsOn: SetupStep? = null,
 )
 
-data class SetupChecklist(val items: List<SetupItem>) {
+data class SetupChecklist(val items: List<SetupItem>, val hidingBarWaitsOn: SetupStep? = null) {
 
     val required: List<SetupItem> get() = items.filter { it.group == SetupGroup.REQUIRED }
 
@@ -88,14 +88,15 @@ data class SetupChecklist(val items: List<SetupItem>) {
 
     operator fun get(step: SetupStep): SetupItem? = items.firstOrNull { it.step == step }
 
+    /** The keeper hides the bar too, so it waits as the bar step does. A switch already on may still turn off. */
+    fun keeperWaitsOn(keeperOn: Boolean): SetupStep? = hidingBarWaitsOn.takeUnless { keeperOn }
+
     companion object {
 
         fun evaluate(facts: SetupFacts): SetupChecklist {
-            val accessibility = when (facts.service) {
-                ServiceStatus.WORKING, ServiceStatus.DEGRADED -> StepState.DONE
-                ServiceStatus.STOPPED, ServiceStatus.OFF -> StepState.TO_DO
-            }
-            val accessibilityDone = accessibility == StepState.DONE
+            val accessibilityDone = accessibilityDone(facts.service)
+            val accessibility = if (accessibilityDone) StepState.DONE else StepState.TO_DO
+            val hidingBarWaitsOn = hidingBarWaitsOn(facts)
             val items = buildList {
                 if (facts.restrictedSettingsApply) add(restrictedSettings(facts))
                 add(required(SetupStep.ACCESSIBILITY, accessibility))
@@ -115,9 +116,9 @@ data class SetupChecklist(val items: List<SetupItem>) {
                 add(recommended(SetupStep.TILE, facts.tileAdded))
                 // Android 13 asks at runtime. Earlier versions allow notifications from install.
                 if (facts.notificationsApply) add(recommended(SetupStep.NOTIFICATIONS, facts.notificationsAllowed))
-                add(navigationBar(facts, accessibilityDone))
+                add(navigationBar(facts, hidingBarWaitsOn))
             }
-            return SetupChecklist(items)
+            return SetupChecklist(items, hidingBarWaitsOn)
         }
 
         private fun required(step: SetupStep, state: StepState) =
@@ -140,15 +141,24 @@ data class SetupChecklist(val items: List<SetupItem>) {
                 else -> SetupItem(step, SetupGroup.REQUIRED, StepState.LOCKED, SetupStep.ACCESSIBILITY)
             }
 
-        // The bar waits for a running service and the tile, which are the way back if gestures stop.
-        private fun navigationBar(facts: SetupFacts, accessibilityDone: Boolean): SetupItem {
-            fun item(state: StepState, waitsOn: SetupStep? = null) =
-                SetupItem(SetupStep.NAVIGATION_BAR, SetupGroup.RECOMMENDED, state, waitsOn)
+        // A running service and the tile are the way back if gestures stop with the bar hidden.
+        private fun hidingBarWaitsOn(facts: SetupFacts): SetupStep? = when {
+            !accessibilityDone(facts.service) -> SetupStep.ACCESSIBILITY
+            !facts.tileAdded -> SetupStep.TILE
+            else -> null
+        }
+
+        private fun accessibilityDone(service: ServiceStatus) = when (service) {
+            ServiceStatus.WORKING, ServiceStatus.DEGRADED -> true
+            ServiceStatus.STOPPED, ServiceStatus.OFF -> false
+        }
+
+        private fun navigationBar(facts: SetupFacts, waitsOn: SetupStep?): SetupItem {
+            fun item(state: StepState) = SetupItem(SetupStep.NAVIGATION_BAR, SetupGroup.RECOMMENDED, state)
             return when {
                 !facts.navigationBarChangeable -> item(StepState.UNAVAILABLE)
                 facts.navigationBarHidden -> item(StepState.DONE)
-                !accessibilityDone -> item(StepState.LOCKED, SetupStep.ACCESSIBILITY)
-                !facts.tileAdded -> item(StepState.LOCKED, SetupStep.TILE)
+                waitsOn != null -> item(StepState.LOCKED).copy(waitsOn = waitsOn)
                 else -> item(StepState.TO_DO)
             }
         }

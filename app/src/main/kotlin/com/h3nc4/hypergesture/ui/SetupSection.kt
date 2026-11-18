@@ -165,9 +165,7 @@ private fun StepRow(
             confirmed -> stringResource(R.string.step_confirmed)
             else -> null
         }
-        StepState.LOCKED -> stringResource(
-            if (item.waitsOn == SetupStep.TILE) R.string.step_waits_on_tile else R.string.step_waits_on_accessibility,
-        )
+        StepState.LOCKED -> waitsOnText(item.waitsOn)
         StepState.UNAVAILABLE -> stringResource(R.string.status_navigation_unavailable_body)
         StepState.TO_DO, StepState.UNVERIFIED -> stringResource(pending)
     }
@@ -209,6 +207,11 @@ private fun StepRow(
         },
     )
 }
+
+@Composable
+internal fun waitsOnText(step: SetupStep?): String = stringResource(
+    if (step == SetupStep.TILE) R.string.step_waits_on_tile else R.string.step_waits_on_accessibility,
+)
 
 @Composable
 private fun tileOutcomeMessage(outcome: TileAddOutcome): String = when (outcome) {

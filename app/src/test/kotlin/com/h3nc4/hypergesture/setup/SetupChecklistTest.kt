@@ -165,6 +165,27 @@ class SetupChecklistTest {
     }
 
     @Test
+    fun `the keeper switch waits for the service and then for the tile as the bar step does`() {
+        assertEquals(SetupStep.ACCESSIBILITY, SetupChecklist.evaluate(firstRun).keeperWaitsOn(keeperOn = false))
+        val running = firstRun.copy(service = ServiceStatus.WORKING)
+        assertEquals(SetupStep.TILE, SetupChecklist.evaluate(running).keeperWaitsOn(keeperOn = false))
+        assertNull(SetupChecklist.evaluate(running.copy(tileAdded = true)).keeperWaitsOn(keeperOn = false))
+    }
+
+    @Test
+    fun `the keeper switch waits for the tile even with the bar already hidden`() {
+        val hidden = firstRun.copy(service = ServiceStatus.WORKING, navigationBarHidden = true)
+        val list = SetupChecklist.evaluate(hidden)
+        assertEquals(StepState.DONE, list[SetupStep.NAVIGATION_BAR]?.state)
+        assertEquals(SetupStep.TILE, list.keeperWaitsOn(keeperOn = false))
+    }
+
+    @Test
+    fun `a keeper switch already on is never locked so it can be turned off`() {
+        assertNull(SetupChecklist.evaluate(firstRun).keeperWaitsOn(keeperOn = true))
+    }
+
+    @Test
     fun `a hidden bar reads done and an unchangeable one is a fact`() {
         assertEquals(StepState.DONE, state(firstRun.copy(navigationBarHidden = true), SetupStep.NAVIGATION_BAR))
         val generic = SetupChecklist.evaluate(allSet.copy(navigationBarChangeable = false, navigationBarHidden = false))
