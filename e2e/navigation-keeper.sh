@@ -156,6 +156,14 @@ setup_shows_switch() {
     printf '%s\n' "${end_nodes}" | grep -q 'resource-id="switch_keep_navigation"'
     return
   fi
+  # The grant row can show before the list ends, and then the dump of the end is taken here.
+  # shellcheck disable=SC2310 # a false predicate is the answer, not an error
+  if ! setup_has_last "${end_nodes}"; then
+    scroll_app down
+    scroll_app down
+    sleep 1
+    end_nodes="$(ui_nodes)"
+  fi
   scroll_app up
   scroll_app up
   sleep 1
