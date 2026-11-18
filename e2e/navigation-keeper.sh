@@ -105,6 +105,50 @@ open_setup() {
   open_screen row_setup "$1"
 }
 
+# Setup is one scrolled column, and a dump leaves out what is scrolled away. So these prove a dump
+# reaches the list's first or last node before an absent node counts as absent.
+setup_has_first() {
+  first="$(string_res setup_group_required)"
+  printf '%s\n' "$1" | grep -qF "text=\"${first}\""
+}
+
+setup_has_last() {
+  last_hyperos="$(string_res setup_footer_hyperos)"
+  last_plain="$(string_res setup_footer)"
+  printf '%s\n' "$1" | grep -qF -e "text=\"${last_hyperos}\"" -e "text=\"${last_plain}\""
+}
+
+# first_list_text <nodes> - the first text inside the scrolled column, which is its top visible row.
+first_list_text() {
+  printf '%s\n' "$1" | sed -n '/scrollable="true"/,$ s/.* text="\([^"]\{1,\}\)".*/\1/p' | sed -n 1p
+}
+
+# setup_shows_switch <nodes> - looks for the switch in a dump at the end of Setup and in one from its
+# top. Together they cover the list only when the top dump also shows the end dump's top row.
+setup_shows_switch() {
+  end_nodes="$1"
+  # shellcheck disable=SC2310 # a false predicate is the answer, not an error
+  if setup_has_first "${end_nodes}" && setup_has_last "${end_nodes}"; then
+    echo "   one dump covers the whole Setup list" >&2
+    printf '%s\n' "${end_nodes}" | grep -q 'resource-id="switch_keep_navigation"'
+    return
+  fi
+  scroll_app up
+  scroll_app up
+  sleep 1
+  top_nodes="$(ui_nodes)"
+  seam="$(first_list_text "${end_nodes}")"
+  seam_count="$(printf '%s\n' "${end_nodes}" | grep -cF "text=\"${seam}\"" || true)"
+  # shellcheck disable=SC2310 # a false predicate sends it to the scrolling scan
+  if [ -n "${seam}" ] && [ "${seam_count}" = 1 ] && setup_has_last "${end_nodes}" &&
+    setup_has_first "${top_nodes}" && printf '%s\n' "${top_nodes}" | grep -qF "text=\"${seam}\""; then
+    echo "   two dumps meeting at '${seam}' cover the whole Setup list" >&2
+    printf '%s\n%s\n' "${end_nodes}" "${top_nodes}" | grep -q 'resource-id="switch_keep_navigation"'
+    return
+  fi
+  find_id switch_keep_navigation >/dev/null
+}
+
 # expect_settings <description> <fsg> <mode> - polls, since the keeper answers asynchronously.
 expect_settings() {
   tries=1
@@ -169,14 +213,16 @@ put global hypergesture_integration hyperos
 echo >&2
 echo "== without the grant the row shows the adb command ==" >&2
 open_setup keep_navigation_grant
+setup_nodes="$(ui_nodes)"
 # shellcheck disable=SC2310 # a missing node is a result, reported below
-if find_id keep_navigation_grant >/dev/null; then
+if printf '%s\n' "${setup_nodes}" | grep -q 'resource-id="keep_navigation_grant"' ||
+  find_id keep_navigation_grant >/dev/null; then
   pass "the grant instructions show"
 else
   fail "the grant instructions are missing"
 fi
 # shellcheck disable=SC2310 # a missing node is a result, reported below
-if find_id switch_keep_navigation >/dev/null; then
+if setup_shows_switch "${setup_nodes}"; then
   fail "the switch shows before the grant"
 else
   pass "the switch waits for the grant"
