@@ -61,7 +61,7 @@ while getopts 'a:bp:kh' opt; do
 done
 shift $((OPTIND - 1))
 
-all_suites='navigation app-switch back-revert status-refresh circle-to-search landscape-confirm stop-notice navigation-keeper recents-lock'
+all_suites='navigation app-switch back-revert status-refresh circle-to-search landscape-confirm stop-notice navigation-keeper keyguard other-edges recents-lock'
 suites="${all_suites}"
 if [ "$#" -gt 0 ]; then
   suites="$*"
@@ -94,7 +94,8 @@ trap cleanup INT TERM EXIT
 if [ -n "${build}" ]; then
   e2e/emulator.sh &
   boot="$!"
-  gradle --no-daemon assembleDebug
+  # The boot is the longer of the two, so the build takes the CPU the emulator leaves.
+  nice -n 10 gradle --no-daemon assembleDebug
   wait "${boot}"
   boot=''
 else
@@ -108,6 +109,8 @@ worst=0
 for suite in ${suites}; do
   echo >&2
   echo "################ ${suite} ################" >&2
+  # adb can read offline for a moment between suites, and the next suite would fail on its first call.
+  timeout 60 "${ADB_BIN}" wait-for-device || true
   if ! "e2e/${suite}.sh"; then
     worst=1
   fi

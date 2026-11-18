@@ -34,3 +34,36 @@ internal fun reinstallOnGeometryChange(
         onFailure(t)
     }
 }
+
+/**
+ * Insets can land after the last signal able to report them. A navigation-mode switch
+ * changes the configuration about 650 ms before the new bar inset is readable.
+ */
+internal class InsetSettleCheck(
+    private val schedule: (delayMs: Long, check: () -> Unit) -> Unit,
+    private val cancel: () -> Unit,
+    private val check: () -> Unit,
+) {
+
+    private var generation = 0
+
+    /** Restarts the re-reads, so a reinstall that one of them caused gets its own full series. */
+    fun start() {
+        cancel()
+        next(++generation, 0)
+    }
+
+    private fun next(owner: Int, step: Int) {
+        if (owner != generation || step >= DELAYS_MS.size) return
+        schedule(DELAYS_MS[step]) {
+            if (owner == generation) {
+                check()
+                next(owner, step + 1)
+            }
+        }
+    }
+
+    companion object {
+        val DELAYS_MS = longArrayOf(500L, 1_000L, 2_000L, 4_000L)
+    }
+}
