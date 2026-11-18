@@ -36,6 +36,7 @@ import com.h3nc4.hypergesture.diagnostics.Diagnostics
 import com.h3nc4.hypergesture.diagnostics.DiagnosticsCollector
 import com.h3nc4.hypergesture.diagnostics.FailureLog
 import com.h3nc4.hypergesture.diagnostics.ServiceStatus
+import com.h3nc4.hypergesture.diagnostics.StopLog
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.navigation.ButtonRestore
 import com.h3nc4.hypergesture.navigation.NavigationIntegration
@@ -123,10 +124,14 @@ internal class AppModel(
         notificationsAllowed = notificationsAllowed(context)
         keeperGranted = integration.keeper?.granted
         restoreButtonsIfStopped()
-        // The collection reads two log files, so it runs off the main thread. A newer refresh cancels an older one.
+        // The collection reads the log files, so it runs off the main thread. A newer refresh cancels an older one.
         collecting?.cancel()
         collecting = scope.launch {
-            diagnostics = withContext(Dispatchers.IO) { DiagnosticsCollector.collect(context) }
+            diagnostics = withContext(Dispatchers.IO) {
+                // A force-stop also switches the service off, so opening the app may be the next start.
+                StopLog.recordPreviousStop(context)
+                DiagnosticsCollector.collect(context)
+            }
             if (status != ServiceStatus.OFF && !record.serviceEverEnabled) {
                 setFlag(SetupFlag.SERVICE_EVER_ENABLED, true)
             }
@@ -146,8 +151,10 @@ internal class AppModel(
     private fun restoreButtonsIfStopped() {
         val restore = integration.keeper?.let { ButtonRestore(it, keeperSettings) } ?: return
         scope.launch(Dispatchers.IO) {
-            restore.gesturesStopped(HyperGestureAccessibilityService.isRunning())
-                ?.let { Log.i(TAG, ButtonRestore.logLine(it)) }
+            restore.gesturesStopped(HyperGestureAccessibilityService.isRunning())?.let {
+                Log.i(TAG, ButtonRestore.logLine(it))
+                StopLog.recordNavigation(context, StopLog.WRITTEN_BY_APP)
+            }
         }
     }
 
@@ -161,6 +168,10 @@ internal class AppModel(
 
     fun switchKeeper(enabled: Boolean) {
         scope.launch { keeperSettings.setEnabled(enabled) }
+    }
+
+    fun announce(message: String) {
+        scope.launch { snackbar.showSnackbar(message, withDismissAction = true) }
     }
 
     /** Reset has no confirmation, so the snackbar offers the old values back instead. */
