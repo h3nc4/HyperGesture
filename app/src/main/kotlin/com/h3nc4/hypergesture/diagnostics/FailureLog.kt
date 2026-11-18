@@ -38,12 +38,21 @@ object FailureLog {
 
     fun record(context: Context, label: String, throwable: Throwable) {
         Log.e(TAG, "FAILURE [$label]", throwable)
+        persist(context, label, stackTraceOf(throwable))
+    }
+
+    /** Records an event that threw nothing, such as a restore, in the same file. */
+    fun note(context: Context, label: String, message: String) {
+        persist(context, label, message)
+    }
+
+    private fun persist(context: Context, label: String, body: String) {
         val text = buildString {
             appendLine("label: $label")
             appendLine("device: ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
             appendLine("---")
-            append(stackTraceOf(throwable))
+            append(body)
         }
         runCatching {
             file(context).writeText(text.take(MAX_BYTES))
