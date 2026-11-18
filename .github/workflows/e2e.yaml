@@ -72,7 +72,7 @@ jobs:
           - shard: 1
             suites: navigation-keeper
           - shard: 2
-            suites: status-refresh
+            suites: status-refresh other-edges
           - shard: 3
             suites: circle-to-search app-switch
           - shard: 4

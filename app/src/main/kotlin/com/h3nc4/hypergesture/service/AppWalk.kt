@@ -17,18 +17,56 @@
 
 package com.h3nc4.hypergesture.service
 
-// One entry per launchable package, newest first. Home resumes between apps but has no
-// launcher entry, so [resolve] returning null for it keeps steps off a package that cannot start.
-internal fun <T : Any> newestFirst(
-    resumed: List<String>,
-    ownPackage: String,
-    resolve: (String) -> T?,
-): List<T> {
-    val seen = mutableSetOf<String>()
-    // Walked backwards so the first sighting of a package is its most recent one.
-    return resumed.asReversed().mapNotNull { packageName ->
-        if (packageName == ownPackage || !seen.add(packageName)) null else resolve(packageName)
+/** A package coming to the front, from an `ACTIVITY_RESUMED` usage event. */
+internal data class Resumed(val packageName: String, val atMs: Long)
+
+/** Which packages a walk never starts, whatever their launch intent says. */
+internal class WalkFilter(
+    private val ownPackage: String,
+    private val homePackages: Set<String>,
+    private val isSystem: (String) -> Boolean,
+    private val hasLauncherEntry: (String) -> Boolean,
+) {
+    // A third-party launcher often has a launcher entry of its own, so home is matched by name.
+    fun skips(packageName: String): Boolean =
+        packageName == ownPackage ||
+            packageName in homePackages ||
+            packageName in SYSTEM_UI_PACKAGES ||
+            (isSystem(packageName) && !hasLauncherEntry(packageName))
+
+    private companion object {
+        val SYSTEM_UI_PACKAGES = setOf("android", "com.android.systemui")
     }
+}
+
+/** Apps newest first. Without the app in front, such as the launcher, a first step back opens the newest. */
+internal data class WalkOrder<T>(val apps: List<T>, val frontInOrder: Boolean) {
+    val hasPrevious: Boolean get() = apps.size > if (frontInOrder) 1 else 0
+}
+
+// One entry per package the user really visited, newest first. A visit lasts until another
+// package resumes, so a dialog-only task or a step passed through on the way is shorter than
+// [minVisitMs] and drops out, while the app still in front always counts.
+internal fun <T : Any> newestFirst(
+    resumed: List<Resumed>,
+    minVisitMs: Long,
+    filter: WalkFilter,
+    resolve: (String) -> T?,
+): WalkOrder<T> {
+    val visits = resumed.filterIndexed { i, event -> i == 0 || resumed[i - 1].packageName != event.packageName }
+    val seen = mutableSetOf<String>()
+    var frontInOrder = true
+    // Walked backwards so the first sighting of a package is its most recent real visit.
+    val apps = visits.indices.reversed().mapNotNull { i ->
+        val packageName = visits[i].packageName
+        val endedAtMs = visits.getOrNull(i + 1)?.atMs
+        when {
+            endedAtMs != null && endedAtMs - visits[i].atMs < minVisitMs -> null
+            !seen.add(packageName) || filter.skips(packageName) -> null
+            else -> resolve(packageName)
+        }.also { if (i == visits.lastIndex && it == null) frontInOrder = false }
+    }
+    return WalkOrder(apps, frontInOrder)
 }
 
 // One order serves a whole chain. Usage events lag by seconds, and a read right after a
@@ -44,9 +82,9 @@ internal class AppWalk<T>(private val chainWindowMs: Long) {
     // A long enough pause means the user went somewhere by hand. The walk then starts over.
     fun restartsAt(nowMs: Long): Boolean = order.isEmpty() || nowMs - lastStepAtMs > chainWindowMs
 
-    fun begin(newOrder: List<T>) {
-        order = newOrder
-        position = 0
+    fun begin(newOrder: WalkOrder<T>) {
+        order = newOrder.apps
+        position = if (newOrder.frontInOrder) 0 else -1
     }
 
     /** The app one step away, or null past either end of the order. */

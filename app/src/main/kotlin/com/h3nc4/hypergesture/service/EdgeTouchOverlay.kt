@@ -60,6 +60,7 @@ import com.h3nc4.hypergesture.gesture.TrackerAction
  * take effect, since window changes only affect the targeting of *new* touches; alpha 0
  * because a visible non-touchable overlay still counts toward Android's
  * obscuring-opacity cap, and an injected touch under one is discarded as untrusted.
+ * [OtherEdges] gives the other strips back half a second in, for a finger resting on one.
  */
 internal class EdgeTouchOverlay(
     private val context: Context,
@@ -74,9 +75,13 @@ internal class EdgeTouchOverlay(
 
     private val bellies = mutableMapOf<ScreenEdge, BackBellyOverlay>()
 
-    private val hold = StreamHold(StreamHold.STUCK_STREAM_MS)
+    private val hold = StreamHold(StreamHold.QUIET_STREAM_MS, StreamHold.REPLAY_STREAM_MS)
 
     private var heldEdge: ScreenEdge? = null
+
+    private val others = OtherEdges()
+
+    private val othersCheck = Runnable(::onOthersCheck)
 
     private val journal = StreamJournal()
 
@@ -148,6 +153,7 @@ internal class EdgeTouchOverlay(
         bellies.clear()
         handler.removeCallbacks(pillExpiry)
         handler.removeCallbacks(stuckCheck)
+        closeOthers()
         pill?.remove()
         pill = null
         pillVisible = false
@@ -262,8 +268,10 @@ internal class EdgeTouchOverlay(
         syncPill()
         val stream = hold.start(now)
         heldEdge = edge
+        others.hold(edge, now)
         applyInteractivity()
         scheduleStuckCheck()
+        scheduleOthersCheck()
         return stream
     }
 
@@ -295,9 +303,14 @@ internal class EdgeTouchOverlay(
             endStream(edge, stream)
             return
         }
+        // No other edge may start a stream while the replay is in flight.
+        closeOthers()
+        applyInteractivity()
         confirmation.onReplayed(edge)
         syncPill(immediate = true)
         journal.add("replaying ${samples.size} samples")
+        hold.replaying(stream, SystemClock.uptimeMillis())
+        scheduleStuckCheck()
         val dispatched = replayer.replay(samples) { releaseStream(stream, "replay done") }
         if (!dispatched) releaseStream(stream, "replay refused")
     }
@@ -338,9 +351,30 @@ internal class EdgeTouchOverlay(
             return
         }
         handler.removeCallbacks(stuckCheck)
+        closeOthers()
         applyInteractivity()
         Log.d(TAG, "stream released ($reason), strips interactive again")
         journal.add("stream released ($reason)")
+    }
+
+    private fun scheduleOthersCheck() {
+        handler.removeCallbacks(othersCheck)
+        others.dueMs?.let { handler.postAtTime(othersCheck, it) }
+    }
+
+    private fun onOthersCheck() {
+        if (!others.elapse(SystemClock.uptimeMillis())) {
+            scheduleOthersCheck()
+            return
+        }
+        Log.i(TAG, "OTHER_EDGES_LIVE while $heldEdge holds a touch")
+        journal.add("other edges live while $heldEdge holds a touch")
+        applyInteractivity()
+    }
+
+    private fun closeOthers() {
+        handler.removeCallbacks(othersCheck)
+        others.close()
     }
 
     private fun scheduleStuckCheck() {
@@ -356,7 +390,11 @@ internal class EdgeTouchOverlay(
             scheduleStuckCheck()
             return
         }
-        val quiet = "${StreamHold.STUCK_STREAM_MS}ms without a touch event"
+        val quiet = if (hold.replayStarted) {
+            "a replay past ${StreamHold.REPLAY_STREAM_MS}ms"
+        } else {
+            "${StreamHold.QUIET_STREAM_MS}ms without a touch event"
+        }
         Log.w(TAG, "${StuckStreamLog.MARKER} released after $quiet")
         journal.add("stuck stream released after $quiet")
         StuckStreamLog.append(context, stuckReport())
@@ -384,8 +422,8 @@ internal class EdgeTouchOverlay(
 
     /** See the class comment for why this is alpha 0 as well as non-touchable. */
     private fun applyInteractivity() {
-        val interactive = armed && !hold.held
-        strips.values.forEach { view ->
+        strips.forEach { (edge, view) ->
+            val interactive = armed && others.touchable(edge, hold.held)
             val params = view.layoutParams as? WindowManager.LayoutParams ?: return@forEach
             val flags = if (interactive) {
                 params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
