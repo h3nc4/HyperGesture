@@ -74,9 +74,15 @@ confirm_required_steps() {
     if [ -n "${ROW_SETUP}" ]; then
       return 0
     fi
-    did_it_node="$(printf '%s\n' "${nodes}" | grep -m1 "text=\"${did_it}\"" || true)"
-    if [ -n "${did_it_node}" ]; then
-      tap_node "${did_it_node}"
+    did_it_nodes="$(printf '%s\n' "${nodes}" | grep "text=\"${did_it}\"" || true)"
+    if [ -n "${did_it_nodes}" ]; then
+      # Bottom first, as a confirmed row folds up and moves only the rows below it. adb reads
+      # stdin, so each tap is cut off from the list it would otherwise swallow.
+      printf '%s\n' "${did_it_nodes}" |
+        sed -n 's/.*bounds="\[[0-9]*,\([0-9]*\)\].*/\1 &/p' | sort -rn | cut -d' ' -f2- |
+        while IFS= read -r did_it_node; do
+          tap_node "${did_it_node}" </dev/null
+        done
       sleep 2
       nodes="$(ui_nodes)"
     else
@@ -91,6 +97,7 @@ confirm_required_steps() {
 # open_screen, which reopens home, when that tap does not reach the screen. The dump that showed
 # the node is left in SETUP_NODES and the node in SETUP_NODE, both empty when it was not found.
 open_setup() {
+  SETUP_FIRST_NODES=''
   leave_app
   confirm_required_steps
   row_centre="$(printf '%s\n' "${ROW_SETUP}" |
@@ -101,13 +108,25 @@ open_setup() {
     tap_node "${ROW_SETUP}"
     sleep 1
     # shellcheck disable=SC2310 # a missing node sends it to the slower path below
-    if find_id "$1" >/dev/null; then
+    if scan_setup "$1"; then
       setup_found "$1"
       return 0
     fi
   fi
   open_screen row_setup "$1"
   setup_found "$1"
+}
+
+# scan_setup <tag> - the keeper rows sit about two scrolls below the top Setup opens at, so after one
+# dump of that top, left in SETUP_FIRST_NODES, it scrolls there unseen and searches on from that point.
+scan_setup() {
+  SETUP_FIRST_NODES="$(ui_nodes)"
+  # shellcheck disable=SC2310 # a dump short of the top means Setup did not open
+  setup_has_first "${SETUP_FIRST_NODES}" || return 1
+  scroll_app down
+  scroll_app down
+  sleep 1
+  find_id "$1" >/dev/null
 }
 
 setup_found() {
@@ -146,10 +165,11 @@ first_list_text() {
   printf '%s\n' "$1" | sed -n '/scrollable="true"/,$ s/.* text="\([^"]\{1,\}\)".*/\1/p' | sed -n 1p
 }
 
-# setup_shows_switch <nodes> - looks for the switch in a dump at the end of Setup and in one from its
-# top. Together they cover the list only when the top dump also shows the end dump's top row.
+# setup_shows_switch <nodes> [<top nodes>] - looks for the switch in a dump at the end of Setup and in
+# one from its top. Together they cover the list only when the top dump also shows the end dump's top row.
 setup_shows_switch() {
   end_nodes="$1"
+  top_nodes="${2:-}"
   # shellcheck disable=SC2310 # a false predicate is the answer, not an error
   if setup_has_first "${end_nodes}" && setup_has_last "${end_nodes}"; then
     echo "   one dump covers the whole Setup list" >&2
@@ -164,10 +184,13 @@ setup_shows_switch() {
     sleep 1
     end_nodes="$(ui_nodes)"
   fi
-  scroll_app up
-  scroll_app up
-  sleep 1
-  top_nodes="$(ui_nodes)"
+  # shellcheck disable=SC2310 # a dump short of the top is the signal to scroll there
+  if ! setup_has_first "${top_nodes}"; then
+    scroll_app up
+    scroll_app up
+    sleep 1
+    top_nodes="$(ui_nodes)"
+  fi
   seam="$(first_list_text "${end_nodes}")"
   seam_count="$(printf '%s\n' "${end_nodes}" | grep -cF "text=\"${seam}\"" || true)"
   # shellcheck disable=SC2310 # a false predicate sends it to the scrolling scan
@@ -260,7 +283,7 @@ else
   fail "the grant instructions are missing"
 fi
 # shellcheck disable=SC2310 # a missing node is a result, reported below
-if setup_shows_switch "${setup_nodes}"; then
+if setup_shows_switch "${setup_nodes}" "${SETUP_FIRST_NODES:-}"; then
   fail "the switch shows before the grant"
 else
   pass "the switch waits for the grant"
@@ -378,9 +401,19 @@ expect_settings "the service hides the bar again on bind" 1 2
 
 echo >&2
 echo "== switching off stops the keeper ==" >&2
-open_setup switch_keep_navigation
-# shellcheck disable=SC2310 # the failure is reported, and the next case then fails too
-set_toggle_id switch_keep_navigation false || fail "could not turn the switch off"
+# The app is in front since the resume, so Setup is a tap from home and the switch two scrolls down,
+# where the toggle's own dump shows Setup opened. Only a missed tap takes the full walk.
+to_home
+tap_node "$(printf '%s\n' "${HOME_NODES}" | grep -m1 'resource-id="row_setup"' || true)"
+sleep 1
+scroll_app down
+scroll_app down
+sleep 1
+# shellcheck disable=SC2310 # a switch out of reach sends it through open_setup, and then it is reported
+if ! set_toggle_id switch_keep_navigation false; then
+  open_setup switch_keep_navigation
+  set_toggle_id switch_keep_navigation false || fail "could not turn the switch off"
+fi
 sleep 2
 reset_bar
 sleep 4
