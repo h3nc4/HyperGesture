@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.h3nc4.hypergesture.R
+import com.h3nc4.hypergesture.setup.SetupStep
 
 @Composable
 internal fun SetupScreen(model: AppModel) {
@@ -36,7 +37,7 @@ internal fun SetupScreen(model: AppModel) {
     SetupRows(checklist.required, model)
     SectionHeader(stringResource(R.string.setup_group_recommended))
     SetupRows(checklist.recommended, model)
-    KeepNavigationRow(model)
+    KeepNavigationRow(model, checklist.keeperWaitsOn(model.keeperEnabled))
     FootNote(
         stringResource(
             if (model.diagnostics.navigationIntegrationAvailable) {
@@ -50,14 +51,19 @@ internal fun SetupScreen(model: AppModel) {
 
 /** Outside the checklist, since it is an opt-in that needs a computer once. */
 @Composable
-private fun KeepNavigationRow(model: AppModel) {
+private fun KeepNavigationRow(model: AppModel, waitsOn: SetupStep?) {
     val granted = model.keeperGranted ?: return
     if (granted) {
+        val locked = waitsOn != null
         ToggleRow(
             label = stringResource(R.string.label_keep_navigation),
-            supporting = stringResource(R.string.keep_navigation_body),
+            supporting = listOfNotNull(
+                stringResource(R.string.keep_navigation_body),
+                waitsOnText(waitsOn).takeIf { locked },
+            ).joinToString("\n"),
             checked = model.keeperEnabled,
             tag = TestTags.SWITCH_KEEP_NAVIGATION,
+            enabled = !locked,
             onChange = model::switchKeeper,
         )
         return

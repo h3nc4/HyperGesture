@@ -134,16 +134,17 @@ internal fun ToggleRow(
     checked: Boolean,
     supporting: String? = null,
     tag: String? = null,
+    enabled: Boolean = true,
     onChange: (Boolean) -> Unit,
 ) {
     ListItem(
         headlineContent = { Text(label) },
         supportingContent = supporting?.let { { SupportingText(it) } },
-        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
         colors = transparentItem,
         modifier = Modifier
             .tagged(tag)
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),
     )
 }
 

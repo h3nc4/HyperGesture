@@ -42,6 +42,7 @@ class SetupStateRepositoryTest {
             SetupFlag.RESTRICTED_SETTINGS_CONFIRMED to SetupRecord::restrictedSettingsConfirmed,
             SetupFlag.BATTERY_CONFIRMED to SetupRecord::batteryConfirmed,
             SetupFlag.AUTOSTART_CONFIRMED to SetupRecord::autostartConfirmed,
+            SetupFlag.RECENTS_LOCK_CONFIRMED to SetupRecord::recentsLockConfirmed,
             SetupFlag.STOP_NOTICE_POSTED to SetupRecord::stopNoticePosted,
         )
         assertEquals(SetupFlag.entries.toSet(), expected.keys)
@@ -59,6 +60,13 @@ class SetupStateRepositoryTest {
         repository.set(SetupFlag.BATTERY_CONFIRMED, true)
         repository.set(SetupFlag.BATTERY_CONFIRMED, false)
         assertEquals(SetupRecord(), record())
+    }
+
+    @Test
+    fun `a recents lock confirmation is read back by a new repository on the same store`() = runBlocking {
+        val store = MemoryDataStore()
+        SetupStateRepository(store).set(SetupFlag.RECENTS_LOCK_CONFIRMED, true)
+        assertEquals(SetupRecord(recentsLockConfirmed = true), SetupStateRepository(store).record.first())
     }
 
     @Test
