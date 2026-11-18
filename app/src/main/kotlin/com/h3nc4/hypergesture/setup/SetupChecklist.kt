@@ -24,6 +24,7 @@ enum class SetupStep {
     ACCESSIBILITY,
     BATTERY,
     AUTOSTART,
+    RECENTS_LOCK,
     TILE,
     NOTIFICATIONS,
     NAVIGATION_BAR,
@@ -55,6 +56,8 @@ data class SetupFacts(
     val batteryConfirmed: Boolean,
     val autostartApplies: Boolean,
     val autostartConfirmed: Boolean,
+    val recentsLockApplies: Boolean,
+    val recentsLockConfirmed: Boolean,
     val tileAdded: Boolean,
     val notificationsApply: Boolean,
     val notificationsAllowed: Boolean,
@@ -104,6 +107,9 @@ data class SetupChecklist(val items: List<SetupItem>, val hidingBarWaitsOn: Setu
                         accessibilityDone,
                     ),
                 )
+                if (facts.recentsLockApplies) {
+                    add(afterAccessibility(SetupStep.RECENTS_LOCK, facts.recentsLockConfirmed, accessibilityDone))
+                }
                 if (facts.autostartApplies) {
                     add(afterAccessibility(SetupStep.AUTOSTART, facts.autostartConfirmed, accessibilityDone))
                 }
