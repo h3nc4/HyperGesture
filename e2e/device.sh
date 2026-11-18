@@ -114,11 +114,37 @@ service_running() {
     grep -q "Bound services:.*HyperGesture"
 }
 
+service_binding() {
+  "${ADB_BIN}" shell dumpsys accessibility 2>/dev/null | tr -d '\r' |
+    grep -q "Binding services:{.*${PKG}"
+}
+
+# A connection that loses a bind race is marked crashed, and its reset nulls the window
+# token of the instance the winner connected, so every strip is refused.
+service_crashed() {
+  "${ADB_BIN}" shell dumpsys accessibility 2>/dev/null | tr -d '\r' |
+    grep -q "Crashed services:{.*${PKG}"
+}
+
+# The install restarts an enabled service by itself. Changing the enabled list while that
+# bind is in flight leaves two connections to one service, and one of them loses.
+await_bind_settled() {
+  settle=1
+  # shellcheck disable=SC2310 # a true predicate is the signal to keep waiting
+  while [ "${settle}" -le 15 ] && service_binding; do
+    sleep 1
+    settle=$((settle + 1))
+  done
+  # The losing connection is reset by a message queued after the binding list empties.
+  sleep 1
+}
+
 # A restricted setting since Android 13, and the service caches a rejection until the
 # enabled list changes. Hence the retry, clearing the list so no write is a no-op.
 enable_service() {
   attempt=1
   while [ "${attempt}" -le 4 ]; do
+    await_bind_settled
     "${ADB_BIN}" shell appops set "${PKG}" ACCESS_RESTRICTED_SETTINGS allow >/dev/null 2>&1 || true
     "${ADB_BIN}" shell settings delete secure enabled_accessibility_services >/dev/null 2>&1 || true
     sleep 1
@@ -131,6 +157,13 @@ enable_service() {
       sleep 1
       waited=$((waited + 1))
     done
+    await_bind_settled
+    # shellcheck disable=SC2310 # a crashed service is the retry signal
+    if service_crashed; then
+      echo "   bound but marked crashed, so its window token is gone (attempt ${attempt} of 4)" >&2
+      attempt=$((attempt + 1))
+      continue
+    fi
     # shellcheck disable=SC2310 # a false predicate is the retry signal, not an error
     if service_bound; then
       echo "   bound on attempt ${attempt}" >&2
