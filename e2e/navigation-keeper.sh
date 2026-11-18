@@ -17,7 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# The switch to keep the bar hidden shows once the permission is granted, and a reset is undone while it is on.
+# The switch to keep the bar hidden shows once the permission is granted, stays locked until the
+# Control Center tile is added, and a reset is undone while it is on.
 # Gestures stopping, by an unbind or a kill, writes the buttons back.
 # Needs a debug build from e2e/device.sh, since it borrows the HyperOS integration.
 
@@ -35,6 +36,7 @@ if ! "${ADB_BIN}" shell dumpsys package "${PKG}" 2>/dev/null | grep -q 'pkgFlags
 fi
 
 PERMISSION='android.permission.WRITE_SECURE_SETTINGS'
+TILE="${PKG}/.setup.GestureTileService"
 
 setting() {
   "${ADB_BIN}" shell settings get "$1" "$2" 2>/dev/null | tr -d '\r'
@@ -199,7 +201,13 @@ restore_setting() {
   fi
 }
 
+# The tile is added and removed through SystemUI, which calls the app back to record either.
+remove_tile() {
+  "${ADB_BIN}" shell cmd statusbar remove-tile "${TILE}" >/dev/null 2>&1 || true
+}
+
 restore_device() {
+  remove_tile
   "${ADB_BIN}" shell settings delete global hypergesture_integration >/dev/null 2>&1 || true
   "${ADB_BIN}" shell pm revoke "${PKG}" "${PERMISSION}" >/dev/null 2>&1 || true
   restore_setting global force_fsg_nav_bar "${original_fsg}"
@@ -209,6 +217,7 @@ trap restore_device EXIT
 
 put global hypergesture_integration hyperos
 "${ADB_BIN}" shell pm revoke "${PKG}" "${PERMISSION}" >/dev/null 2>&1 || true
+remove_tile
 
 echo >&2
 echo "== without the grant the row shows the adb command ==" >&2
@@ -229,15 +238,58 @@ else
 fi
 
 echo >&2
-echo "== granted, the switch appears and starts off ==" >&2
+echo "== granted without the tile, the switch shows off and locked, as the bar step is ==" >&2
 "${ADB_BIN}" shell pm grant "${PKG}" "${PERMISSION}"
 open_setup switch_keep_navigation
 # shellcheck disable=SC2310 # a missing node is a result, reported below
 node="$(find_id switch_keep_navigation || true)"
 case "${node}" in
-  *'checked="false"'*) pass "the switch shows, turned off" ;;
-  *) fail "the switch is missing or on after the grant: ${node:-nothing}" ;;
+  *'checked="false"'*'enabled="false"'* | *'enabled="false"'*'checked="false"'*)
+    pass "the switch shows, turned off and locked"
+    ;;
+  *) fail "the switch is missing, on or unlocked before the tile: ${node:-nothing}" ;;
 esac
+waits="$(string_res step_waits_on_tile)"
+nodes="$(ui_nodes)"
+if printf '%s\n' "${nodes}" | grep -q "text=\"[^\"]*${waits}"; then
+  pass "the switch says it waits for the tile"
+else
+  fail "the switch does not say it waits for the tile"
+fi
+reset_bar
+tap_node "${node}"
+sleep 4
+expect_settings "a tap on the locked switch writes nothing" 0 0
+# shellcheck disable=SC2310 # a missing node is a result, reported below
+case "$(find_id switch_keep_navigation || true)" in
+  *'checked="false"'*) pass "a tap on the locked switch leaves it off" ;;
+  *) fail "a tap on the locked switch turned it on" ;;
+esac
+
+echo >&2
+echo "== the tile added, the switch unlocks ==" >&2
+"${ADB_BIN}" shell cmd statusbar add-tile "${TILE}" >/dev/null
+unlocked=''
+unlock_try=1
+while [ "${unlock_try}" -le 4 ]; do
+  open_setup switch_keep_navigation
+  # shellcheck disable=SC2310 # a missing node is the retry signal, reported below
+  node="$(find_id switch_keep_navigation || true)"
+  case "${node}" in
+    *'enabled="true"'*)
+      unlocked='1'
+      break
+      ;;
+    *) ;;
+  esac
+  sleep 2
+  unlock_try=$((unlock_try + 1))
+done
+if [ -n "${unlocked}" ]; then
+  pass "the switch unlocks once the tile is added"
+else
+  fail "the switch stays locked with the tile added: ${node:-nothing}"
+fi
 
 echo >&2
 echo "== switched off, a reset stays ==" >&2
