@@ -47,7 +47,14 @@ assert_stayed() {
   resumed="$(resumed_activity)"
   case "${resumed}" in
     *"${PKG}"*) pass "$1" ;;
-    *) fail "$1 (resumed activity is now ${resumed})" ;;
+    *)
+      fail "$1 (resumed activity is now ${resumed})"
+      # The last finish, crash and kill events show what took the app off the screen.
+      "${ADB_BIN}" logcat -d -v epoch -b events,crash \
+        -s wm_finish_activity am_crash am_anr am_proc_died am_kill wm_on_top_resumed_gained_called AndroidRuntime \
+        2>/dev/null | tr -d '\r' | tail -12 | sed 's/^/        /' >&2
+      gesture_log | sed 's/^/        /' >&2
+      ;;
   esac
 }
 

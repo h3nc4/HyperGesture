@@ -46,6 +46,8 @@ data class Diagnostics(
     val accessibilityServiceRunning: Boolean,
     /** Null until the running service first tries to install its strips. */
     val attachedStrips: Int?,
+    /** The framework reset the live instance's window token without unbinding it. */
+    val connectionLost: Boolean,
     val navigationIntegrationId: String,
     val navigationIntegrationAvailable: Boolean,
     val lastGlobalActionFailure: String?,
@@ -67,6 +69,7 @@ data class Diagnostics(
             bound = accessibilityServiceEnabled,
             running = accessibilityServiceRunning,
             attachedStrips = attachedStrips,
+            connectionLost = connectionLost,
         )
 }
 
@@ -87,6 +90,7 @@ object DiagnosticsCollector {
             accessibilityServiceSwitchedOn = isAccessibilityServiceSwitchedOn(context),
             accessibilityServiceRunning = HyperGestureAccessibilityService.isRunning(),
             attachedStrips = HyperGestureAccessibilityService.attachedStrips.value,
+            connectionLost = HyperGestureAccessibilityService.connectionLost.value,
             navigationIntegrationId = status.integrationId,
             navigationIntegrationAvailable = status.available,
             lastGlobalActionFailure = GestureActionPerformer.lastFailure,
