@@ -18,15 +18,15 @@
 package com.h3nc4.hypergesture.service
 
 /** An app order read ahead for one touch stream, newest first, and when the read started. */
-internal data class PreparedOrder<T>(val stream: Long, val readAtMs: Long, val apps: List<T>)
+internal data class PreparedOrder<T>(val stream: Long, val readAtMs: Long, val order: WalkOrder<T>)
 
 // Null sends the caller to read the order itself. An empty read is never trusted, since a
 // failed read looks the same.
-internal fun <T> PreparedOrder<T>?.usableFor(stream: Long, nowMs: Long, maxAgeMs: Long): List<T>? {
+internal fun <T> PreparedOrder<T>?.usableFor(stream: Long, nowMs: Long, maxAgeMs: Long): WalkOrder<T>? {
     val prepared = this ?: return null
     val age = nowMs - prepared.readAtMs
-    val usable = prepared.stream == stream && age in 0..maxAgeMs && prepared.apps.isNotEmpty()
-    return if (usable) prepared.apps else null
+    val usable = prepared.stream == stream && age in 0..maxAgeMs && prepared.order.apps.isNotEmpty()
+    return if (usable) prepared.order else null
 }
 
 // The order read off the main thread for the latest touch armed as a switch. Only the main
@@ -51,9 +51,9 @@ internal class OrderPrefetch<T>(private val maxAgeMs: Long) {
     }
 
     /** The order for [stream] when it is ready and fresh, consumed so no later touch reuses it. */
-    fun take(stream: Long, nowMs: Long): List<T>? {
-        val apps = prepared.usableFor(stream, nowMs, maxAgeMs)
-        if (apps != null) prepared = null
-        return apps
+    fun take(stream: Long, nowMs: Long): WalkOrder<T>? {
+        val order = prepared.usableFor(stream, nowMs, maxAgeMs)
+        if (order != null) prepared = null
+        return order
     }
 }
