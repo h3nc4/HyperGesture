@@ -18,6 +18,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 # The service switched off posts a notice in the shade, and the service returning takes it down.
+# A switch-off, a navigation change, a force-stop and an update each leave their own stop log entry.
 # Needs a device from e2e/device.sh, and binds the service again.
 
 set -e
@@ -57,6 +58,37 @@ wait_notice() {
   return 1
 }
 
+stop_log_path="/sdcard/Android/data/${PKG}/files/stop_log.txt"
+
+stop_log() {
+  "${ADB_BIN}" shell cat "${stop_log_path}" 2>/dev/null | tr -d '\r' || true
+}
+
+stop_log_lines() {
+  stop_log | awk 'NF { n++ } END { print n + 0 }'
+}
+
+# expect_entry <case> <lines before> <pattern> - one new entry matching it within ten seconds, and no other stop.
+expect_entry() {
+  entry_try=1
+  while [ "${entry_try}" -le 10 ]; do
+    added="$(stop_log | tail -n "+$(($2 + 1))")"
+    if printf '%s\n' "${added}" | grep -q -- "$3"; then
+      break
+    fi
+    sleep 1
+    entry_try=$((entry_try + 1))
+  done
+  matching="$(printf '%s\n' "${added}" | grep -c -- "$3" || true)"
+  others="$(printf '%s\n' "${added}" | grep -v -- "$3" | grep -c 'STOPPED_' || true)"
+  if [ "${matching}" = 1 ] && [ "${others}" = 0 ]; then
+    pass "$1"
+  else
+    fail "$1 (${matching} matching '$3', ${others} other stops)"
+    printf '%s\n' "${added}" | sed 's/^/        /' >&2
+  fi
+}
+
 turn_on() {
   "${ADB_BIN}" shell settings put secure accessibility_enabled 1 >/dev/null
   "${ADB_BIN}" shell settings put secure enabled_accessibility_services "${SERVICE}" >/dev/null
@@ -81,6 +113,7 @@ fi
 
 echo >&2
 echo "== the service switched off posts the notice ==" >&2
+lines="$(stop_log_lines)"
 "${ADB_BIN}" shell settings delete secure enabled_accessibility_services >/dev/null
 # shellcheck disable=SC2310 # the predicate's answer is the result
 if wait_notice posted; then
@@ -88,6 +121,7 @@ if wait_notice posted; then
 else
   fail "no notice in dumpsys notification after the switch went off"
 fi
+expect_entry "the switch-off leaves its own stop log entry" "${lines}" 'STOPPED_SWITCHED_OFF'
 
 echo >&2
 echo "== tapping the notice opens Accessibility ==" >&2
@@ -115,6 +149,56 @@ if service_bound && wait_notice gone; then
   pass "the notice left the shade by itself"
 else
   fail "the notice stayed after the service bound again"
+fi
+
+echo >&2
+echo "== a navigation change is logged with both values ==" >&2
+# The watch registers once the service has read its settings, a moment after the bind.
+sleep 3
+mode_before="$("${ADB_BIN}" shell settings get secure navigation_mode | tr -d '\r')"
+case "${mode_before}" in
+  0) mode_new=2 ;;
+  *) mode_new=0 ;;
+esac
+logged_before="${mode_before}"
+[ "${mode_before}" = 'null' ] && logged_before='unset'
+lines="$(stop_log_lines)"
+"${ADB_BIN}" shell settings put secure navigation_mode "${mode_new}" >/dev/null
+expect_entry "the change leaves its own stop log entry" "${lines}" \
+  "NAVIGATION_CHANGED navigation_mode ${logged_before} -> ${mode_new}, seen live"
+if [ "${mode_before}" = 'null' ]; then
+  "${ADB_BIN}" shell settings delete secure navigation_mode >/dev/null
+else
+  "${ADB_BIN}" shell settings put secure navigation_mode "${mode_before}" >/dev/null
+fi
+sleep 2
+
+echo >&2
+echo "== a force-stop is named on the next start ==" >&2
+lines="$(stop_log_lines)"
+"${ADB_BIN}" shell am force-stop "${PKG}" >/dev/null
+sleep 2
+# A force-stop takes the service out of the enabled list, so it binds again only when switched on.
+turn_on
+expect_entry "the force-stop leaves its own stop log entry" "${lines}" 'STOPPED_BY_FORCE_STOP'
+
+echo >&2
+echo "== an update is named with both versions ==" >&2
+# The installed APK goes back over itself, which a debug and a release run share.
+"${ADB_BIN}" shell "cp \"\$(pm path ${PKG} | head -n 1 | cut -d: -f2)\" /data/local/tmp/hg-update.apk"
+lines="$(stop_log_lines)"
+if "${ADB_BIN}" shell pm install -r /data/local/tmp/hg-update.apk >/dev/null; then
+  expect_entry "the update leaves its own stop log entry" "${lines}" 'STOPPED_BY_UPDATE .* -> '
+else
+  fail "the installed APK could not be installed over itself"
+fi
+"${ADB_BIN}" shell rm -f /data/local/tmp/hg-update.apk >/dev/null
+turn_on
+# shellcheck disable=SC2310 # the predicate's answer is the result
+if service_bound; then
+  pass "the service is bound again after the update"
+else
+  fail "the service did not bind after the update"
 fi
 
 report "STOP NOTICE"

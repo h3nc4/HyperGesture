@@ -102,6 +102,12 @@ Every bug found on a real device so far was in the Android integration, not the 
 
 None of that is reachable from a JVM test.
 
+Each stop of the service and each change to the navigation setting goes to `stop_log.txt` as one line, and Troubleshooting shows the newest ones. A switch-off, by the user or by HyperOS, is caught as the service unbinds. A force-stop or another kill doesn't run any code in the dying process. The next start reads its reason from `ApplicationExitInfo` instead. An update is recorded by the new version, on `ACTION_MY_PACKAGE_REPLACED`. A change to `force_fsg_nav_bar` or `navigation_mode` is logged with its old and new values and how it was seen: live, as the service started, at boot, or written by HyperGesture itself. `e2e/stop-notice.sh` checks that a switch-off, a navigation change, a force-stop and an update each leave their own line. The file is in the same directory as `stuck_streams.txt`:
+
+```sh
+adb shell cat /sdcard/Android/data/com.h3nc4.hypergesture/files/stop_log.txt
+```
+
 The strips can still be left held by a touch stream that never ends, as seen on the Redmi 14. `service/StreamHold.kt` releases them after 2 s without a touch event. A finger kept that still loses only its replay. Once a replay has started, the limit is 5065 ms from its start instead, the longest replay hold plus one second. Each release appends a report with the recent overlay events to `stuck_streams.txt`, and Troubleshooting shows the latest one. The file is in app-specific external storage. `adb pull` reads it from a release build, where `run-as` cannot:
 
 ```sh
