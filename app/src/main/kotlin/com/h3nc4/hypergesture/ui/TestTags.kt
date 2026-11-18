@@ -43,4 +43,7 @@ internal object TestTags {
     const val UPDATE_ALLOW_INSTALLS = "update_allow_installs"
     const val SWITCH_KEEP_NAVIGATION = "switch_keep_navigation"
     const val KEEP_NAVIGATION_GRANT = "keep_navigation_grant"
+
+    /** The step's I did it and Undo buttons add _confirm and _undo to it. */
+    const val STEP_RECENTS_LOCK = "step_recents_lock"
 }

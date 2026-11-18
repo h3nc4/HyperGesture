@@ -35,6 +35,8 @@ class SetupChecklistTest {
         batteryConfirmed = false,
         autostartApplies = true,
         autostartConfirmed = false,
+        recentsLockApplies = true,
+        recentsLockConfirmed = false,
         tileAdded = false,
         notificationsApply = false,
         notificationsAllowed = false,
@@ -47,6 +49,7 @@ class SetupChecklistTest {
         service = ServiceStatus.WORKING,
         batteryUnrestricted = true,
         autostartConfirmed = true,
+        recentsLockConfirmed = true,
         tileAdded = true,
         navigationBarHidden = true,
     )
@@ -62,8 +65,10 @@ class SetupChecklistTest {
         assertEquals(StepState.LOCKED, list[SetupStep.BATTERY]?.state)
         assertEquals(SetupStep.ACCESSIBILITY, list[SetupStep.BATTERY]?.waitsOn)
         assertEquals(StepState.LOCKED, list[SetupStep.AUTOSTART]?.state)
+        assertEquals(StepState.LOCKED, list[SetupStep.RECENTS_LOCK]?.state)
+        assertEquals(SetupStep.ACCESSIBILITY, list[SetupStep.RECENTS_LOCK]?.waitsOn)
         assertEquals(0, list.requiredDone)
-        assertEquals(4, list.required.size)
+        assertEquals(5, list.required.size)
         assertFalse(list.essentialsDone)
     }
 
@@ -83,7 +88,7 @@ class SetupChecklistTest {
     fun `restricted settings are left out where they do not exist`() {
         val list = SetupChecklist.evaluate(firstRun.copy(restrictedSettingsApply = false))
         assertNull(list[SetupStep.RESTRICTED_SETTINGS])
-        assertEquals(3, list.required.size)
+        assertEquals(4, list.required.size)
     }
 
     @Test
@@ -113,6 +118,32 @@ class SetupChecklistTest {
     fun `autostart is left out off HyperOS`() {
         val list = SetupChecklist.evaluate(firstRun.copy(autostartApplies = false))
         assertNull(list[SetupStep.AUTOSTART])
+    }
+
+    @Test
+    fun `a running service unlocks the recents lock for confirmation`() {
+        val facts = firstRun.copy(service = ServiceStatus.WORKING)
+        assertEquals(StepState.UNVERIFIED, state(facts, SetupStep.RECENTS_LOCK))
+        assertEquals(SetupGroup.REQUIRED, SetupChecklist.evaluate(facts)[SetupStep.RECENTS_LOCK]?.group)
+    }
+
+    @Test
+    fun `a confirmed recents lock reads done even with the service stopped`() {
+        val facts = firstRun.copy(recentsLockConfirmed = true)
+        assertEquals(StepState.DONE, state(facts, SetupStep.RECENTS_LOCK))
+        assertEquals(StepState.DONE, state(facts.copy(service = ServiceStatus.WORKING), SetupStep.RECENTS_LOCK))
+    }
+
+    @Test
+    fun `an unconfirmed recents lock keeps the essentials open`() {
+        assertFalse(SetupChecklist.evaluate(allSet.copy(recentsLockConfirmed = false)).essentialsDone)
+    }
+
+    @Test
+    fun `the recents lock is left out off HyperOS`() {
+        val list = SetupChecklist.evaluate(firstRun.copy(recentsLockApplies = false))
+        assertNull(list[SetupStep.RECENTS_LOCK])
+        assertEquals(4, list.required.size)
     }
 
     @Test

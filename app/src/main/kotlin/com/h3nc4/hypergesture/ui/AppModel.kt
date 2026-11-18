@@ -108,6 +108,8 @@ internal class AppModel(
                 batteryConfirmed = record.batteryConfirmed,
                 autostartApplies = diagnostics.navigationIntegrationAvailable,
                 autostartConfirmed = record.autostartConfirmed,
+                recentsLockApplies = diagnostics.navigationIntegrationAvailable,
+                recentsLockConfirmed = record.recentsLockConfirmed,
                 tileAdded = record.tileAdded,
                 notificationsApply = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
                 notificationsAllowed = notificationsAllowed,
