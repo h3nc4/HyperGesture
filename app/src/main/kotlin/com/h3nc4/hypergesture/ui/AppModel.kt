@@ -19,6 +19,7 @@ package com.h3nc4.hypergesture.ui
 
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -36,6 +37,8 @@ import com.h3nc4.hypergesture.diagnostics.Diagnostics
 import com.h3nc4.hypergesture.diagnostics.DiagnosticsCollector
 import com.h3nc4.hypergesture.diagnostics.FailureLog
 import com.h3nc4.hypergesture.diagnostics.ServiceStatus
+import com.h3nc4.hypergesture.diagnostics.StatusSettle
+import com.h3nc4.hypergesture.diagnostics.StopLog
 import com.h3nc4.hypergesture.gesture.GestureConfiguration
 import com.h3nc4.hypergesture.navigation.ButtonRestore
 import com.h3nc4.hypergesture.navigation.NavigationIntegration
@@ -48,6 +51,7 @@ import com.h3nc4.hypergesture.setup.SetupChecklist
 import com.h3nc4.hypergesture.setup.SetupFacts
 import com.h3nc4.hypergesture.setup.SetupFlag
 import com.h3nc4.hypergesture.setup.SetupRecord
+import com.h3nc4.hypergesture.setup.serviceRestoreSettings
 import com.h3nc4.hypergesture.setup.SetupStateRepository
 import com.h3nc4.hypergesture.setup.StopNotifier
 import com.h3nc4.hypergesture.setup.setupState
@@ -70,12 +74,15 @@ internal class AppModel(
 ) {
     val integration: NavigationIntegration get() = NavigationIntegrationFactory.create(context)
     private val keeperSettings = NavigationKeeperSettings(context)
+    private val restoreSettings = context.serviceRestoreSettings
     val snackbar = SnackbarHostState()
 
     /** Null where the integration has no keeper, so the screen leaves the row out. */
     var keeperGranted: Boolean? by mutableStateOf(integration.keeper?.granted)
         private set
     var keeperEnabled by mutableStateOf(false)
+        private set
+    var restoreServiceEnabled by mutableStateOf(false)
         private set
 
     var configuration by mutableStateOf(GestureConfiguration())
@@ -91,7 +98,12 @@ internal class AppModel(
     private var batteryUnrestricted by mutableStateOf(batteryUnrestricted(context))
     private var notificationsAllowed by mutableStateOf(notificationsAllowed(context))
 
-    val status: ServiceStatus get() = diagnostics.serviceStatus
+    private val settle = StatusSettle(STATUS_GRACE_MS, diagnostics.serviceStatus)
+    private var settling: Job? = null
+
+    /** Lags a fall into STOPPED or DEGRADED by [STATUS_GRACE_MS], so home keeps its layout through a rebind. */
+    var status: ServiceStatus by mutableStateOf(settle.shown)
+        private set
 
     val checklist: SetupChecklist
         get() = SetupChecklist.evaluate(
@@ -104,6 +116,8 @@ internal class AppModel(
                 batteryConfirmed = record.batteryConfirmed,
                 autostartApplies = diagnostics.navigationIntegrationAvailable,
                 autostartConfirmed = record.autostartConfirmed,
+                recentsLockApplies = diagnostics.navigationIntegrationAvailable,
+                recentsLockConfirmed = record.recentsLockConfirmed,
                 tileAdded = record.tileAdded,
                 notificationsApply = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
                 notificationsAllowed = notificationsAllowed,
@@ -114,21 +128,38 @@ internal class AppModel(
 
     private var collecting: Job? = null
 
-    fun refresh() {
+    fun refresh(heldMs: Long = 0) {
         usageAccess = hasUsageAccess(context)
         assistant = readAssistant(context)
         batteryUnrestricted = batteryUnrestricted(context)
         notificationsAllowed = notificationsAllowed(context)
         keeperGranted = integration.keeper?.granted
         restoreButtonsIfStopped()
-        // The collection reads two log files, so it runs off the main thread. A newer refresh cancels an older one.
+        // The collection reads the log files, so it runs off the main thread. A newer refresh cancels an older one.
         collecting?.cancel()
         collecting = scope.launch {
-            diagnostics = withContext(Dispatchers.IO) { DiagnosticsCollector.collect(context) }
-            if (status != ServiceStatus.OFF && !record.serviceEverEnabled) {
+            diagnostics = withContext(Dispatchers.IO) {
+                // A force-stop also switches the service off, so opening the app may be the next start.
+                StopLog.recordPreviousStop(context)
+                DiagnosticsCollector.collect(context)
+            }
+            settleStatus(heldMs)
+            if (diagnostics.serviceStatus != ServiceStatus.OFF && !record.serviceEverEnabled) {
                 setFlag(SetupFlag.SERVICE_EVER_ENABLED, true)
             }
             StopNotifier.sync(context)
+        }
+    }
+
+    private fun settleStatus(heldMs: Long = 0) {
+        settling?.cancel()
+        val wait = settle.offer(diagnostics.serviceStatus, SystemClock.elapsedRealtime(), heldMs)
+        status = settle.shown
+        if (wait != null) {
+            settling = scope.launch {
+                delay(wait)
+                settleStatus()
+            }
         }
     }
 
@@ -144,8 +175,10 @@ internal class AppModel(
     private fun restoreButtonsIfStopped() {
         val restore = integration.keeper?.let { ButtonRestore(it, keeperSettings) } ?: return
         scope.launch(Dispatchers.IO) {
-            restore.gesturesStopped(HyperGestureAccessibilityService.isRunning())
-                ?.let { Log.i(TAG, ButtonRestore.logLine(it)) }
+            restore.gesturesStopped(HyperGestureAccessibilityService.isRunning())?.let {
+                Log.i(TAG, ButtonRestore.logLine(it))
+                StopLog.recordNavigation(context, StopLog.WRITTEN_BY_APP)
+            }
         }
     }
 
@@ -157,8 +190,16 @@ internal class AppModel(
         scope.launch { setupState.set(flag, value) }
     }
 
+    fun switchRestoreService(enabled: Boolean) {
+        scope.launch { restoreSettings.setEnabled(enabled) }
+    }
+
     fun switchKeeper(enabled: Boolean) {
         scope.launch { keeperSettings.setEnabled(enabled) }
+    }
+
+    fun announce(message: String) {
+        scope.launch { snackbar.showSnackbar(message, withDismissAction = true) }
     }
 
     /** Reset has no confirmation, so the snackbar offers the old values back instead. */
@@ -175,17 +216,27 @@ internal class AppModel(
         scope.launch { settings.configuration.collect { configuration = it } }
         scope.launch { setupState.record.collect { record = it } }
         scope.launch { keeperSettings.enabled.collect { keeperEnabled = it } }
+        scope.launch { restoreSettings.enabled.collect { restoreServiceEnabled = it } }
         scope.launch { HyperGestureAccessibilityService.attachedStrips.drop(1).collect { refresh() } }
+        scope.launch { HyperGestureAccessibilityService.connectionLost.drop(1).collect { refresh() } }
         // UiAutomation, which uiautomator and screen readers use, unbinds the service for a moment.
         // So a stop shows only once it outlasts that, and a return shows at once.
         HyperGestureAccessibilityService.running.collectLatest { running ->
-            if (!running) delay(STOP_GRACE_MS)
-            refresh()
+            if (running) {
+                refresh()
+            } else {
+                delay(STOP_GRACE_MS)
+                refresh(heldMs = STOP_GRACE_MS)
+            }
         }
     }
 }
 
 private const val STOP_GRACE_MS = 3_000L
+
+// The installer's first three retries span 1.75 s, and a strip Android really refuses still shows within 3 s.
+private const val STATUS_GRACE_MS = 3_000L
+
 private const val TAG = "HyperGesture"
 
 @Composable

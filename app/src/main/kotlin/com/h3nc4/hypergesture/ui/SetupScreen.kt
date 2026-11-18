@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.h3nc4.hypergesture.R
+import com.h3nc4.hypergesture.setup.SetupStep
 
 @Composable
 internal fun SetupScreen(model: AppModel) {
@@ -36,7 +37,8 @@ internal fun SetupScreen(model: AppModel) {
     SetupRows(checklist.required, model)
     SectionHeader(stringResource(R.string.setup_group_recommended))
     SetupRows(checklist.recommended, model)
-    KeepNavigationRow(model)
+    KeepNavigationRow(model, checklist.keeperWaitsOn(model.keeperEnabled))
+    RestoreServiceRow(model)
     FootNote(
         stringResource(
             if (model.diagnostics.navigationIntegrationAvailable) {
@@ -50,14 +52,19 @@ internal fun SetupScreen(model: AppModel) {
 
 /** Outside the checklist, since it is an opt-in that needs a computer once. */
 @Composable
-private fun KeepNavigationRow(model: AppModel) {
+private fun KeepNavigationRow(model: AppModel, waitsOn: SetupStep?) {
     val granted = model.keeperGranted ?: return
     if (granted) {
+        val locked = waitsOn != null
         ToggleRow(
             label = stringResource(R.string.label_keep_navigation),
-            supporting = stringResource(R.string.keep_navigation_body),
+            supporting = listOfNotNull(
+                stringResource(R.string.keep_navigation_body),
+                waitsOnText(waitsOn).takeIf { locked },
+            ).joinToString("\n"),
             checked = model.keeperEnabled,
             tag = TestTags.SWITCH_KEEP_NAVIGATION,
+            enabled = !locked,
             onChange = model::switchKeeper,
         )
         return
@@ -75,4 +82,17 @@ private fun KeepNavigationRow(model: AppModel) {
             modifier = Modifier.padding(horizontal = 16.dp),
         )
     }
+}
+
+/** Shown only where the keeper's grant is held, since the restore writes with it too. */
+@Composable
+private fun RestoreServiceRow(model: AppModel) {
+    if (model.keeperGranted != true) return
+    ToggleRow(
+        label = stringResource(R.string.label_restore_service),
+        supporting = stringResource(R.string.restore_service_body),
+        checked = model.restoreServiceEnabled,
+        tag = TestTags.SWITCH_RESTORE_SERVICE,
+        onChange = model::switchRestoreService,
+    )
 }

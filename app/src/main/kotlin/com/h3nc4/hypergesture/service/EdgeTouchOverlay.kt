@@ -27,7 +27,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
-import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
@@ -61,6 +60,7 @@ import com.h3nc4.hypergesture.gesture.TrackerAction
  * take effect, since window changes only affect the targeting of *new* touches; alpha 0
  * because a visible non-touchable overlay still counts toward Android's
  * obscuring-opacity cap, and an injected touch under one is discarded as untrusted.
+ * [OtherEdges] gives the other strips back half a second in, for a finger resting on one.
  */
 internal class EdgeTouchOverlay(
     private val context: Context,
@@ -68,6 +68,7 @@ internal class EdgeTouchOverlay(
     private val replayer: TouchReplayer,
     private val onGestureAction: (GestureAction, ScreenEdge, Long) -> Unit,
     private val onAppSwitchArmed: (Long) -> Unit,
+    private val onStripRefused: (Throwable) -> Unit = {},
     private val layout: OverlayLayout = OverlayLayout(),
 ) {
 
@@ -75,9 +76,13 @@ internal class EdgeTouchOverlay(
 
     private val bellies = mutableMapOf<ScreenEdge, BackBellyOverlay>()
 
-    private val hold = StreamHold(StreamHold.STUCK_STREAM_MS)
+    private val hold = StreamHold(StreamHold.QUIET_STREAM_MS, StreamHold.REPLAY_STREAM_MS)
 
     private var heldEdge: ScreenEdge? = null
+
+    private val others = OtherEdges()
+
+    private val othersCheck = Runnable(::onOthersCheck)
 
     private val journal = StreamJournal()
 
@@ -88,11 +93,22 @@ internal class EdgeTouchOverlay(
 
     private var pillVisible = false
 
+    // Kept across a reinstall, so a rotation over the lock screen brings no strip back.
+    private var armed = true
+
     private val handler = Handler(Looper.getMainLooper())
 
     private val pillExpiry = Runnable(::onPillTimeout)
 
     private val stuckCheck = Runnable(::onStuckCheck)
+
+    private var keyboard: KeyboardWatch? = null
+
+    private val keyboardRetry = Any()
+
+    private var keyboardTopPx: Int? = null
+
+    private var fitted: Pair<GestureConfiguration, ScreenGeometry>? = null
 
     /** Returns how many strips the window manager accepted. */
     fun install(configuration: GestureConfiguration, geometry: ScreenGeometry): Int {
@@ -117,6 +133,8 @@ internal class EdgeTouchOverlay(
             }
             addStrip(edge, configuration, geometry)
         }
+        fitted = configuration to geometry
+        installKeyboardWatch()
         applyInteractivity()
         return strips.size
     }
@@ -127,10 +145,16 @@ internal class EdgeTouchOverlay(
             runCatching { windowManager.removeViewImmediate(view) }
         }
         strips.clear()
+        handler.removeCallbacksAndMessages(keyboardRetry)
+        keyboard?.remove()
+        keyboard = null
+        keyboardTopPx = null
+        fitted = null
         bellies.values.forEach(BackBellyOverlay::remove)
         bellies.clear()
         handler.removeCallbacks(pillExpiry)
         handler.removeCallbacks(stuckCheck)
+        closeOthers()
         pill?.remove()
         pill = null
         pillVisible = false
@@ -139,6 +163,24 @@ internal class EdgeTouchOverlay(
         hold.reset()
         heldEdge = null
         journal.add("overlay removed")
+    }
+
+    // After the strips and retried from the handler, so a refused probe never holds them back.
+    private fun installKeyboardWatch() {
+        val watch = KeyboardWatch(context, windowManager, ::onKeyboardTop)
+        keyboard = watch
+        StripInstaller(
+            install = {
+                if (keyboard === watch) watch.install()
+                1
+            },
+            schedule = { delayMs, retry ->
+                handler.postDelayed(Runnable(retry), keyboardRetry, delayMs)
+            },
+            cancelRetry = { handler.removeCallbacksAndMessages(keyboardRetry) },
+            onFailure = { FailureLog.record(context, "KeyboardWatch.install", it) },
+            onAttached = {},
+        ).run()
     }
 
     private fun addStrip(
@@ -173,7 +215,10 @@ internal class EdgeTouchOverlay(
             strips[edge] = view
             Log.i(TAG, "strip $edge installed ${params.width}x${params.height} geometry=$geometry")
             journal.add("strip $edge installed ${params.width}x${params.height}")
-        }.onFailure { FailureLog.record(context, "addStrip $edge", it) }
+        }.onFailure {
+            FailureLog.record(context, "addStrip $edge", it)
+            onStripRefused(it)
+        }
     }
 
     private fun paramsFor(
@@ -182,42 +227,42 @@ internal class EdgeTouchOverlay(
         geometry: ScreenGeometry,
     ): WindowManager.LayoutParams {
         val thicknessPx = (configuration.edgeWidthDp * geometry.density).toInt().coerceAtLeast(1)
-
-        // Each strip is extended across its own edge's navigation-bar inset: the bar is
-        // slippery, so a swipe starting on it lands on us only after leaving the bar.
-        val (widthPx, heightPx, gravity) = when (edge) {
-            ScreenEdge.LEFT -> Triple(
-                thicknessPx + geometry.navLeftPx,
-                (geometry.heightPx * layout.sideLengthPercent / 100).coerceAtLeast(1),
-                Gravity.START or Gravity.CENTER_VERTICAL,
-            )
-            ScreenEdge.RIGHT -> Triple(
-                thicknessPx + geometry.navRightPx,
-                (geometry.heightPx * layout.sideLengthPercent / 100).coerceAtLeast(1),
-                Gravity.END or Gravity.CENTER_VERTICAL,
-            )
-            ScreenEdge.BOTTOM -> Triple(
-                (geometry.widthPx * layout.bottomLengthPercent / 100).coerceAtLeast(1),
-                thicknessPx + geometry.navBottomPx,
-                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
-            )
-        }
-
+        val frame = stripFrame(edge, thicknessPx, geometry, layout, keyboardTopPx)
         return WindowManager.LayoutParams(
-            widthPx,
-            heightPx,
+            frame.widthPx,
+            frame.heightPx,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            this.gravity = gravity
+            gravity = frame.gravity
+            y = frame.y
             // Without this the strip is pushed inside the inset it was just extended across.
             fitInsetsTypes = 0
             // A side strip on the camera side otherwise starts past the cutout, off the true edge.
             layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
         }
+    }
+
+    // Only new touches see a resized window, so a touch already on a strip runs its course.
+    private fun onKeyboardTop(topPx: Int?) {
+        if (topPx == keyboardTopPx) return
+        keyboardTopPx = topPx
+        val (configuration, geometry) = fitted ?: return
+        strips.forEach { (edge, view) ->
+            val current = view.layoutParams as? WindowManager.LayoutParams ?: return@forEach
+            val params = paramsFor(edge, configuration, geometry).apply {
+                flags = current.flags
+                alpha = current.alpha
+            }
+            runCatching { windowManager.updateViewLayout(view, params) }
+                .onFailure { FailureLog.record(context, "fit strip $edge to keyboard", it) }
+        }
+        val sizes = strips.values.joinToString(" ") { "${it.layoutParams.width}x${it.layoutParams.height}" }
+        Log.i(TAG, "KEYBOARD_${if (topPx == null) "HIDDEN" else "SHOWN top=$topPx"} strips $sizes")
+        journal.add("keyboard ${topPx ?: "hidden"}, strips $sizes")
     }
 
     private fun onStreamStart(edge: ScreenEdge): Long {
@@ -227,8 +272,10 @@ internal class EdgeTouchOverlay(
         syncPill()
         val stream = hold.start(now)
         heldEdge = edge
+        others.hold(edge, now)
         applyInteractivity()
         scheduleStuckCheck()
+        scheduleOthersCheck()
         return stream
     }
 
@@ -260,9 +307,14 @@ internal class EdgeTouchOverlay(
             endStream(edge, stream)
             return
         }
+        // No other edge may start a stream while the replay is in flight.
+        closeOthers()
+        applyInteractivity()
         confirmation.onReplayed(edge)
         syncPill(immediate = true)
         journal.add("replaying ${samples.size} samples")
+        hold.replaying(stream, SystemClock.uptimeMillis())
+        scheduleStuckCheck()
         val dispatched = replayer.replay(samples) { releaseStream(stream, "replay done") }
         if (!dispatched) releaseStream(stream, "replay refused")
     }
@@ -303,9 +355,30 @@ internal class EdgeTouchOverlay(
             return
         }
         handler.removeCallbacks(stuckCheck)
+        closeOthers()
         applyInteractivity()
         Log.d(TAG, "stream released ($reason), strips interactive again")
         journal.add("stream released ($reason)")
+    }
+
+    private fun scheduleOthersCheck() {
+        handler.removeCallbacks(othersCheck)
+        others.dueMs?.let { handler.postAtTime(othersCheck, it) }
+    }
+
+    private fun onOthersCheck() {
+        if (!others.elapse(SystemClock.uptimeMillis())) {
+            scheduleOthersCheck()
+            return
+        }
+        Log.i(TAG, "OTHER_EDGES_LIVE while $heldEdge holds a touch")
+        journal.add("other edges live while $heldEdge holds a touch")
+        applyInteractivity()
+    }
+
+    private fun closeOthers() {
+        handler.removeCallbacks(othersCheck)
+        others.close()
     }
 
     private fun scheduleStuckCheck() {
@@ -321,7 +394,11 @@ internal class EdgeTouchOverlay(
             scheduleStuckCheck()
             return
         }
-        val quiet = "${StreamHold.STUCK_STREAM_MS}ms without a touch event"
+        val quiet = if (hold.replayStarted) {
+            "a replay past ${StreamHold.REPLAY_STREAM_MS}ms"
+        } else {
+            "${StreamHold.QUIET_STREAM_MS}ms without a touch event"
+        }
         Log.w(TAG, "${StuckStreamLog.MARKER} released after $quiet")
         journal.add("stuck stream released after $quiet")
         StuckStreamLog.append(context, stuckReport())
@@ -338,10 +415,19 @@ internal class EdgeTouchOverlay(
         append(journal.dump())
     }
 
+    /** Disarmed strips let every touch through to the window below, as a held stream does. */
+    fun setArmed(armed: Boolean) {
+        if (this.armed == armed) return
+        this.armed = armed
+        Log.i(TAG, if (armed) "STRIPS_ARMED" else "STRIPS_DISARMED keyguard")
+        journal.add(if (armed) "strips armed" else "strips disarmed for the keyguard")
+        applyInteractivity()
+    }
+
     /** See the class comment for why this is alpha 0 as well as non-touchable. */
     private fun applyInteractivity() {
-        val interactive = !hold.held
-        strips.values.forEach { view ->
+        strips.forEach { (edge, view) ->
+            val interactive = armed && others.touchable(edge, hold.held)
             val params = view.layoutParams as? WindowManager.LayoutParams ?: return@forEach
             val flags = if (interactive) {
                 params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
@@ -354,6 +440,29 @@ internal class EdgeTouchOverlay(
             params.alpha = alpha
             runCatching { windowManager.updateViewLayout(view, params) }
         }
+    }
+
+    fun stripWindows(): List<StripWindow> = strips.map { (edge, view) ->
+        StripWindow(edge, view.isAttachedToWindow, view.width, view.height)
+    }
+
+    /** Adds each strip's own view back. False when the window manager refuses one. */
+    fun reattach(edges: List<ScreenEdge>): Boolean = edges.all { edge ->
+        val view = strips[edge] ?: return@all false
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return@all false
+        runCatching {
+            if (view.isAttachedToWindow) windowManager.removeViewImmediate(view)
+            windowManager.addView(view, params)
+            Log.i(TAG, "strip $edge reattached ${params.width}x${params.height}")
+            journal.add("strip $edge reattached")
+        }.onFailure { FailureLog.record(context, "reattach $edge", it) }.isSuccess
+    }
+
+    /** Test seam that drops a strip's window but keeps the strip listed, as a framework detach would. */
+    fun detachWindow(edge: ScreenEdge) {
+        val view = strips[edge] ?: return
+        runCatching { windowManager.removeViewImmediate(view) }
+        journal.add("strip $edge detached")
     }
 
     /** Reads coordinates and timestamps only — never window content, text or keystrokes. */

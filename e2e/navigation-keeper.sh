@@ -17,7 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# The switch to keep the bar hidden shows once the permission is granted, and a reset is undone while it is on.
+# The switch to keep the bar hidden shows once the permission is granted, stays locked until the
+# Control Center tile is added, and a reset is undone while it is on.
 # Gestures stopping, by an unbind or a kill, writes the buttons back.
 # Needs a debug build from e2e/device.sh, since it borrows the HyperOS integration.
 
@@ -35,6 +36,7 @@ if ! "${ADB_BIN}" shell dumpsys package "${PKG}" 2>/dev/null | grep -q 'pkgFlags
 fi
 
 PERMISSION='android.permission.WRITE_SECURE_SETTINGS'
+TILE="${PKG}/.setup.GestureTileService"
 
 setting() {
   "${ADB_BIN}" shell settings get "$1" "$2" 2>/dev/null | tr -d '\r'
@@ -45,32 +47,160 @@ put() {
 }
 
 # Pressing Home pauses the activity, so opening it again is a resume that rereads the grant.
+# The launcher takes focus once the pause is done, so that is what it waits for.
 leave_app() {
   "${ADB_BIN}" shell input keyevent KEYCODE_HOME >/dev/null
-  sleep 2
+  away_try=1
+  while [ "${away_try}" -le 10 ]; do
+    if ! "${ADB_BIN}" shell dumpsys window 2>/dev/null | tr -d '\r' |
+      grep -qE "mCurrentFocus.*${PKG}"; then
+      return 0
+    fi
+    sleep 0.5
+    away_try=$((away_try + 1))
+  done
 }
 
 # The HyperOS integration adds required steps the user confirms by hand, and home folds the
-# checklist into its Setup row only once they are done.
+# checklist into its Setup row only once they are done. It returns on home, with ROW_SETUP set.
 confirm_required_steps() {
   did_it="$(string_res action_i_did_it)"
+  ROW_SETUP=''
+  open_home
+  nodes="${HOME_NODES}"
   confirm_try=1
   while [ "${confirm_try}" -le 4 ]; do
-    open_home
-    nodes="$(ui_nodes)"
-    if printf '%s\n' "${nodes}" | grep -q 'resource-id="row_setup"'; then
+    ROW_SETUP="$(printf '%s\n' "${nodes}" | grep -m1 'resource-id="row_setup"' || true)"
+    if [ -n "${ROW_SETUP}" ]; then
       return 0
     fi
-    tap_node "$(printf '%s\n' "${nodes}" | grep -m1 "text=\"${did_it}\"" || true)"
-    sleep 2
+    did_it_nodes="$(printf '%s\n' "${nodes}" | grep "text=\"${did_it}\"" || true)"
+    if [ -n "${did_it_nodes}" ]; then
+      # Bottom first, as a confirmed row folds up and moves only the rows below it. adb reads
+      # stdin, so each tap is cut off from the list it would otherwise swallow.
+      printf '%s\n' "${did_it_nodes}" |
+        sed -n 's/.*bounds="\[[0-9]*,\([0-9]*\)\].*/\1 &/p' | sort -rn | cut -d' ' -f2- |
+        while IFS= read -r did_it_node; do
+          tap_node "${did_it_node}" </dev/null
+        done
+      sleep 2
+      nodes="$(ui_nodes)"
+    else
+      open_home
+      nodes="${HOME_NODES}"
+    fi
     confirm_try=$((confirm_try + 1))
   done
 }
 
+# Taps the Setup row read off home when it is clear of the bottom strip, and falls back to
+# open_screen, which reopens home, when that tap does not reach the screen. The dump that showed
+# the node is left in SETUP_NODES and the node in SETUP_NODE, both empty when it was not found.
 open_setup() {
+  SETUP_FIRST_NODES=''
   leave_app
   confirm_required_steps
+  row_centre="$(printf '%s\n' "${ROW_SETUP}" |
+    sed -n 's/.*bounds="\[[0-9]*,\([0-9]*\)\]\[[0-9]*,\([0-9]*\)\]".*/\1 \2/p' |
+    awk '{print int(($1 + $2) / 2)}')"
+  size="$(screen_size)"
+  if [ -n "${row_centre}" ] && [ "${row_centre}" -lt $((${size#*x} - 260)) ]; then
+    tap_node "${ROW_SETUP}"
+    sleep 1
+    # shellcheck disable=SC2310 # a missing node sends it to the slower path below
+    if scan_setup "$1"; then
+      setup_found "$1"
+      return 0
+    fi
+  fi
   open_screen row_setup "$1"
+  setup_found "$1"
+}
+
+# scan_setup <tag> - the keeper rows sit about two scrolls below the top Setup opens at, so after one
+# dump of that top, left in SETUP_FIRST_NODES, it scrolls there unseen and searches on from that point.
+scan_setup() {
+  SETUP_FIRST_NODES="$(ui_nodes)"
+  # shellcheck disable=SC2310 # a dump short of the top means Setup did not open
+  setup_has_first "${SETUP_FIRST_NODES}" || return 1
+  scroll_app down
+  scroll_app down
+  sleep 1
+  find_id "$1" >/dev/null
+}
+
+setup_found() {
+  SETUP_NODES="$(cat "${LOG_DIR}/found_nodes" 2>/dev/null || true)"
+  SETUP_NODE="$(printf '%s\n' "${SETUP_NODES}" | grep -m1 "resource-id=\"$1\"" || true)"
+}
+
+# reopen_setup <tag> - the resume open_setup makes, without the walk through home, as the app
+# reopens on the screen it left. Home has no back arrow, so landing there takes open_setup.
+reopen_setup() {
+  leave_app
+  open_test_app
+  SETUP_NODE=''
+  # shellcheck disable=SC2310 # a node out of reach sends it to open_setup
+  if ui_nodes | grep -q 'resource-id="nav_back"' && find_id "$1" >/dev/null; then
+    setup_found "$1"
+  fi
+  [ -n "${SETUP_NODE}" ] || open_setup "$1"
+}
+
+# Setup is one scrolled column, and a dump leaves out what is scrolled away. So these prove a dump
+# reaches the list's first or last node before an absent node counts as absent.
+setup_has_first() {
+  first="$(string_res setup_group_required)"
+  printf '%s\n' "$1" | grep -qF "text=\"${first}\""
+}
+
+setup_has_last() {
+  last_hyperos="$(string_res setup_footer_hyperos)"
+  last_plain="$(string_res setup_footer)"
+  printf '%s\n' "$1" | grep -qF -e "text=\"${last_hyperos}\"" -e "text=\"${last_plain}\""
+}
+
+# first_list_text <nodes> - the first text inside the scrolled column, which is its top visible row.
+first_list_text() {
+  printf '%s\n' "$1" | sed -n '/scrollable="true"/,$ s/.* text="\([^"]\{1,\}\)".*/\1/p' | sed -n 1p
+}
+
+# setup_shows_switch <nodes> [<top nodes>] - looks for the switch in a dump at the end of Setup and in
+# one from its top. Together they cover the list only when the top dump also shows the end dump's top row.
+setup_shows_switch() {
+  end_nodes="$1"
+  top_nodes="${2:-}"
+  # shellcheck disable=SC2310 # a false predicate is the answer, not an error
+  if setup_has_first "${end_nodes}" && setup_has_last "${end_nodes}"; then
+    echo "   one dump covers the whole Setup list" >&2
+    printf '%s\n' "${end_nodes}" | grep -q 'resource-id="switch_keep_navigation"'
+    return
+  fi
+  # The grant row can show before the list ends, and then the dump of the end is taken here.
+  # shellcheck disable=SC2310 # a false predicate is the answer, not an error
+  if ! setup_has_last "${end_nodes}"; then
+    scroll_app down
+    scroll_app down
+    sleep 1
+    end_nodes="$(ui_nodes)"
+  fi
+  # shellcheck disable=SC2310 # a dump short of the top is the signal to scroll there
+  if ! setup_has_first "${top_nodes}"; then
+    scroll_app up
+    scroll_app up
+    sleep 1
+    top_nodes="$(ui_nodes)"
+  fi
+  seam="$(first_list_text "${end_nodes}")"
+  seam_count="$(printf '%s\n' "${end_nodes}" | grep -cF "text=\"${seam}\"" || true)"
+  # shellcheck disable=SC2310 # a false predicate sends it to the scrolling scan
+  if [ -n "${seam}" ] && [ "${seam_count}" = 1 ] && setup_has_last "${end_nodes}" &&
+    setup_has_first "${top_nodes}" && printf '%s\n' "${top_nodes}" | grep -qF "text=\"${seam}\""; then
+    echo "   two dumps meeting at '${seam}' cover the whole Setup list" >&2
+    printf '%s\n%s\n' "${end_nodes}" "${top_nodes}" | grep -q 'resource-id="switch_keep_navigation"'
+    return
+  fi
+  find_id switch_keep_navigation >/dev/null
 }
 
 # expect_settings <description> <fsg> <mode> - polls, since the keeper answers asynchronously.
@@ -123,7 +253,13 @@ restore_setting() {
   fi
 }
 
+# The tile is added and removed through SystemUI, which calls the app back to record either.
+remove_tile() {
+  "${ADB_BIN}" shell cmd statusbar remove-tile "${TILE}" >/dev/null 2>&1 || true
+}
+
 restore_device() {
+  remove_tile
   "${ADB_BIN}" shell settings delete global hypergesture_integration >/dev/null 2>&1 || true
   "${ADB_BIN}" shell pm revoke "${PKG}" "${PERMISSION}" >/dev/null 2>&1 || true
   restore_setting global force_fsg_nav_bar "${original_fsg}"
@@ -133,33 +269,86 @@ trap restore_device EXIT
 
 put global hypergesture_integration hyperos
 "${ADB_BIN}" shell pm revoke "${PKG}" "${PERMISSION}" >/dev/null 2>&1 || true
+remove_tile
 
 echo >&2
 echo "== without the grant the row shows the adb command ==" >&2
 open_setup keep_navigation_grant
+setup_nodes="${SETUP_NODES:-$(ui_nodes)}"
 # shellcheck disable=SC2310 # a missing node is a result, reported below
-if find_id keep_navigation_grant >/dev/null; then
+if printf '%s\n' "${setup_nodes}" | grep -q 'resource-id="keep_navigation_grant"' ||
+  find_id keep_navigation_grant >/dev/null; then
   pass "the grant instructions show"
 else
   fail "the grant instructions are missing"
 fi
 # shellcheck disable=SC2310 # a missing node is a result, reported below
-if find_id switch_keep_navigation >/dev/null; then
+if setup_shows_switch "${setup_nodes}" "${SETUP_FIRST_NODES:-}"; then
   fail "the switch shows before the grant"
 else
   pass "the switch waits for the grant"
 fi
 
 echo >&2
-echo "== granted, the switch appears and starts off ==" >&2
+echo "== granted without the tile, the switch shows off and locked, as the bar step is ==" >&2
 "${ADB_BIN}" shell pm grant "${PKG}" "${PERMISSION}"
-open_setup switch_keep_navigation
+reopen_setup switch_keep_navigation
 # shellcheck disable=SC2310 # a missing node is a result, reported below
-node="$(find_id switch_keep_navigation || true)"
+node="${SETUP_NODE:-$(find_id switch_keep_navigation || true)}"
 case "${node}" in
-  *'checked="false"'*) pass "the switch shows, turned off" ;;
-  *) fail "the switch is missing or on after the grant: ${node:-nothing}" ;;
+  *'checked="false"'*'enabled="false"'* | *'enabled="false"'*'checked="false"'*)
+    pass "the switch shows, turned off and locked"
+    ;;
+  *) fail "the switch is missing, on or unlocked before the tile: ${node:-nothing}" ;;
 esac
+waits="$(string_res step_waits_on_tile)"
+# shellcheck disable=SC2310 # a missing text is a result, reported below
+if printf '%s\n' "${SETUP_NODES}" | grep -q "text=\"[^\"]*${waits}" ||
+  ui_nodes | grep -q "text=\"[^\"]*${waits}"; then
+  pass "the switch says it waits for the tile"
+else
+  fail "the switch does not say it waits for the tile"
+fi
+reset_bar
+tap_node "${node}"
+sleep 4
+expect_settings "a tap on the locked switch writes nothing" 0 0
+# shellcheck disable=SC2310 # a missing node is a result, reported below
+case "$(find_id switch_keep_navigation || true)" in
+  *'checked="false"'*) pass "a tap on the locked switch leaves it off" ;;
+  *) fail "a tap on the locked switch turned it on" ;;
+esac
+
+echo >&2
+echo "== the tile added, the switch unlocks ==" >&2
+"${ADB_BIN}" shell cmd statusbar add-tile "${TILE}" >/dev/null
+# Setup collects the stored tile flag, so the open screen unlocks with no resume. The last
+# four tries reopen it, in case the flag reaches the screen only on a resume.
+unlocked=''
+unlock_try=1
+while [ "${unlock_try}" -le 7 ]; do
+  # shellcheck disable=SC2310 # a missing node is the retry signal, reported below
+  if [ "${unlock_try}" -le 3 ]; then
+    node="$(find_id switch_keep_navigation || true)"
+  else
+    reopen_setup switch_keep_navigation
+    node="${SETUP_NODE:-$(find_id switch_keep_navigation || true)}"
+  fi
+  case "${node}" in
+    *'enabled="true"'*)
+      unlocked='1'
+      break
+      ;;
+    *) ;;
+  esac
+  sleep 1
+  unlock_try=$((unlock_try + 1))
+done
+if [ -n "${unlocked}" ]; then
+  pass "the switch unlocks once the tile is added"
+else
+  fail "the switch stays locked with the tile added: ${node:-nothing}"
+fi
 
 echo >&2
 echo "== switched off, a reset stays ==" >&2
@@ -212,9 +401,19 @@ expect_settings "the service hides the bar again on bind" 1 2
 
 echo >&2
 echo "== switching off stops the keeper ==" >&2
-open_setup switch_keep_navigation
-# shellcheck disable=SC2310 # the failure is reported, and the next case then fails too
-set_toggle_id switch_keep_navigation false || fail "could not turn the switch off"
+# The app is in front since the resume, so Setup is a tap from home and the switch two scrolls down,
+# where the toggle's own dump shows Setup opened. Only a missed tap takes the full walk.
+to_home
+tap_node "$(printf '%s\n' "${HOME_NODES}" | grep -m1 'resource-id="row_setup"' || true)"
+sleep 1
+scroll_app down
+scroll_app down
+sleep 1
+# shellcheck disable=SC2310 # a switch out of reach sends it through open_setup, and then it is reported
+if ! set_toggle_id switch_keep_navigation false; then
+  open_setup switch_keep_navigation
+  set_toggle_id switch_keep_navigation false || fail "could not turn the switch off"
+fi
 sleep 2
 reset_bar
 sleep 4

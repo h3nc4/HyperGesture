@@ -34,7 +34,10 @@ enum class ServiceStatus {
             bound: Boolean,
             running: Boolean,
             attachedStrips: Int? = null,
+            connectionLost: Boolean = false,
         ): ServiceStatus = when {
+            // A lost connection leaves the instance alive, but only a toggle brings its strips back.
+            running && connectionLost -> STOPPED
             running && attachedStrips == 0 -> DEGRADED
             running -> WORKING
             switchedOn || bound -> STOPPED

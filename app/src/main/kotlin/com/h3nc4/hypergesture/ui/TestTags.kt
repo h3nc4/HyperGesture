@@ -31,6 +31,7 @@ internal object TestTags {
     const val SWITCH_APP_SWITCH = "switch_app_switch"
     const val SWITCH_CIRCLE_TO_SEARCH = "switch_circle_to_search"
     const val SWITCH_LANDSCAPE_CONFIRM = "switch_landscape_confirm"
+    const val SWITCH_RESTORE_SERVICE = "switch_restore_service"
     const val USAGE_ACCESS = "usage_access"
     const val DIAG_CIRCLE_TO_SEARCH_FAILURE = "diag_circle_to_search_failure"
     const val DIAG_STUCK_STREAM = "diag_stuck_stream"
@@ -42,4 +43,8 @@ internal object TestTags {
     const val UPDATE_ALLOW_INSTALLS = "update_allow_installs"
     const val SWITCH_KEEP_NAVIGATION = "switch_keep_navigation"
     const val KEEP_NAVIGATION_GRANT = "keep_navigation_grant"
+    const val GRANT_STATE = "grant_state"
+
+    /** The step's I did it and Undo buttons add _confirm and _undo to it. */
+    const val STEP_RECENTS_LOCK = "step_recents_lock"
 }

@@ -21,6 +21,8 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -122,36 +124,68 @@ class AppSwitcher(private val context: Context, private val scope: CoroutineScop
 
     // A short window answers in most cases. The long one is read only when it finds nothing
     // to step back to, such as after an hour in one app.
-    private fun readOrder(): List<LaunchTarget> = runCatching {
+    private fun readOrder(): WalkOrder<LaunchTarget> = runCatching {
         val usage = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
-            ?: return@runCatching emptyList()
-        recentApps(usage, RECENT_WINDOW_MS).takeIf { it.size > 1 }
-            ?: recentApps(usage, TRAIL_WINDOW_MS)
-    }.getOrDefault(emptyList())
+            ?: return@runCatching NO_ORDER
+        val filter = walkFilter()
+        recentApps(usage, filter, RECENT_WINDOW_MS).takeIf { it.hasPrevious }
+            ?: recentApps(usage, filter, TRAIL_WINDOW_MS)
+    }.getOrDefault(NO_ORDER)
 
     // Apps by when each was last in front, with launch intents resolved here off the main
     // thread. A step then only starts the activity.
-    private fun recentApps(usage: UsageStatsManager, windowMs: Long): List<LaunchTarget> {
+    private fun recentApps(
+        usage: UsageStatsManager,
+        filter: WalkFilter,
+        windowMs: Long,
+    ): WalkOrder<LaunchTarget> {
         val now = System.currentTimeMillis()
-        val events = usage.queryEvents(now - windowMs, now) ?: return emptyList()
-        val resumed = mutableListOf<String>()
+        val events = usage.queryEvents(now - windowMs, now) ?: return NO_ORDER
+        val resumed = mutableListOf<Resumed>()
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             if (event.eventType != UsageEvents.Event.ACTIVITY_RESUMED) continue
-            resumed.add(event.packageName ?: continue)
+            resumed.add(Resumed(event.packageName ?: continue, event.timeStamp))
         }
-        return newestFirst(resumed, context.packageName) { packageName ->
+        return newestFirst(resumed, MIN_VISIT_MS, filter) { packageName ->
             context.packageManager.getLaunchIntentForPackage(packageName)
                 ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 ?.let { LaunchTarget(packageName, it) }
         }
     }
 
+    // The default launcher and every other home app, which resume between apps on the way home.
+    private fun walkFilter(): WalkFilter {
+        val pm = context.packageManager
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val homePackages = buildSet {
+            pm.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName?.let(::add)
+            pm.queryIntentActivities(home, 0).forEach { add(it.activityInfo.packageName) }
+        }
+        return WalkFilter(
+            ownPackage = context.packageName,
+            homePackages = homePackages,
+            isSystem = { packageName ->
+                runCatching { (pm.getApplicationInfo(packageName, 0).flags and ApplicationInfo.FLAG_SYSTEM) != 0 }
+                    .getOrDefault(false)
+            },
+            hasLauncherEntry = { packageName ->
+                val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                pm.queryIntentActivities(launcher.setPackage(packageName), 0).isNotEmpty()
+            },
+        )
+    }
+
     companion object {
         private const val TAG = "HyperGesture"
         private const val RECENT_WINDOW_MS = 60L * 60L * 1000L
         private const val TRAIL_WINDOW_MS = 6L * 60L * 60L * 1000L
+
+        /** How long a package must stay in front to count as a visit rather than a dialog. */
+        private const val MIN_VISIT_MS = 1_000L
+
+        private val NO_ORDER = WalkOrder<LaunchTarget>(emptyList(), frontInOrder = true)
 
         /** How long a chain of swipes keeps walking one order before it restarts. */
         private const val CHAIN_WINDOW_MS = 5_000L

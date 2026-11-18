@@ -22,7 +22,7 @@ package com.h3nc4.hypergesture.service
  * Whether the strips are held for a touch stream, and which stream that is. Every start and
  * every reinstall hands out a new token, and a release with an older token is ignored.
  */
-internal class StreamHold(private val quietLimitMs: Long) {
+internal class StreamHold(private val quietLimitMs: Long, private val replayLimitMs: Long) {
 
     private var token = 0L
 
@@ -30,17 +30,26 @@ internal class StreamHold(private val quietLimitMs: Long) {
 
     private var reheld = false
 
+    private var replayStartMs: Long? = null
+
+    val replayStarted: Boolean
+        get() = replayStartMs != null
+
     var held = false
         private set
 
     /** When [expire] would release the stream, or null while nothing is held. */
     val deadlineMs: Long?
-        get() = if (held) lastActivityMs + quietLimitMs else null
+        get() {
+            if (!held) return null
+            return replayStartMs?.plus(replayLimitMs) ?: (lastActivityMs + quietLimitMs)
+        }
 
     fun start(nowMs: Long): Long {
         token++
         held = true
         reheld = false
+        replayStartMs = null
         lastActivityMs = nowMs
         return token
     }
@@ -66,13 +75,18 @@ internal class StreamHold(private val quietLimitMs: Long) {
      */
     fun mayReplay(streamToken: Long): Boolean = isCurrent(streamToken) && !reheld
 
+    /** The replay of [streamToken] started, so [expire] waits [replayLimitMs] for it to finish. */
+    fun replaying(streamToken: Long, nowMs: Long) {
+        if (isCurrent(streamToken) && held) replayStartMs = nowMs
+    }
+
     fun release(streamToken: Long): Boolean {
         if (!isCurrent(streamToken) || !held) return false
         held = false
         return true
     }
 
-    /** True when the stream went [quietLimitMs] without a touch event and is now released. */
+    /** True when the stream passed [deadlineMs] and is now released. */
     fun expire(nowMs: Long): Boolean {
         val deadline = deadlineMs ?: return false
         if (nowMs < deadline) return false
@@ -87,8 +101,11 @@ internal class StreamHold(private val quietLimitMs: Long) {
     }
 
     companion object {
-        // Past the longest stretch a live stream goes without a touch event, a replay after its
-        // UP, with a second to spare for a busy main thread.
-        const val STUCK_STREAM_MS = HyperGestureAccessibilityService.LONGEST_REPLAY_HOLD_MS + 1_000L
+        // A finger kept still this long loses only its replay, see [activity], and a lost UP
+        // frees the strips this soon.
+        const val QUIET_STREAM_MS = 2_000L
+
+        // The longest replay hold, with a second to spare for a busy main thread.
+        const val REPLAY_STREAM_MS = HyperGestureAccessibilityService.LONGEST_REPLAY_HOLD_MS + 1_000L
     }
 }

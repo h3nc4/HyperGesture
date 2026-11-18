@@ -50,7 +50,6 @@ android {
                 storePassword = keystorePassword
                 keyAlias = System.getenv("KEYSTORE_ALIAS") ?: "hypergesture"
                 keyPassword = System.getenv("KEYSTORE_KEY_PASSWORD") ?: keystorePassword
-                enableV1Signing = true
                 enableV2Signing = true
             }
         } else {
@@ -92,6 +91,7 @@ android {
     }
 
     testOptions {
+        // Plain JUnit tests reach android.util.Log through FailureLog and the update source.
         unitTests.isReturnDefaultValues = true
         // Robolectric renders Compose against the merged resources and manifest.
         unitTests.isIncludeAndroidResources = true

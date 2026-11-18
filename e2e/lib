@@ -274,8 +274,42 @@ geometry() {
 #
 # What the app shows, read through uiautomator.
 
+# strips_back_since <marker> - the service reconnected after that log line and its strips went up.
+# An unbind after a reconnect, as a retried dump causes, starts the wait over.
+strips_back_since() {
+  "${ADB_BIN}" logcat -d -s HyperGesture:I HyperGestureE2E:I 2>/dev/null | tr -d '\r' | awk -v mark="$1" '
+    index($0, mark) { seen = 1; next }
+    !seen { next }
+    /SERVICE_UNBIND|SERVICE_DESTROY/ { connected = 0; up = 0 }
+    /SERVICE_CONNECTED/ { connected = 1; up = 0 }
+    connected && /strip BOTTOM installed/ { up = 1 }
+    END { exit up ? 0 : 1 }'
+}
+
+# uiautomator suppresses every accessibility service while it dumps, so ours unbinds and
+# reinstalls its strips afterwards, and a swipe sent before that reaches no strip at all.
+await_strips_since() {
+  strips_try=1
+  while [ "${strips_try}" -le 40 ]; do
+    # shellcheck disable=SC2310 # a false predicate is the signal to keep waiting
+    if strips_back_since "$1"; then
+      return 0
+    fi
+    sleep 0.5
+    strips_try=$((strips_try + 1))
+  done
+  echo "   the strips were not back within 20 s of a uiautomator dump" >&2
+}
+
 # A failed dump leaves the last screen's file behind, so it is deleted first and the dump retried.
 dump_nodes() {
+  dump_bound=''
+  if "${ADB_BIN}" shell settings get secure enabled_accessibility_services 2>/dev/null |
+    grep -q "${PKG}"; then
+    dump_bound=1
+  fi
+  dump_mark="DUMP_START_$(date +%s%N)"
+  "${ADB_BIN}" shell log -t HyperGestureE2E "${dump_mark}" >/dev/null 2>&1 || true
   dump_try=1
   while [ "${dump_try}" -le 3 ]; do
     "${ADB_BIN}" shell rm -f /sdcard/hg-ui.xml >/dev/null 2>&1 || true
@@ -285,6 +319,9 @@ dump_nodes() {
     sleep 1
     dump_try=$((dump_try + 1))
   done
+  if [ -n "${dump_bound}" ]; then
+    await_strips_since "${dump_mark}"
+  fi
   "${ADB_BIN}" exec-out cat /sdcard/hg-ui.xml 2>/dev/null | sed 's/<node /\
 <node /g'
 }
@@ -314,9 +351,19 @@ string_res() {
   sed -n "s/.*name=\"$1\">\(.*\)<\/string>.*/\1/p" app/src/main/res/values/strings.xml
 }
 
+# screen_size - the width and height. It reads the file geometry wrote and calls wm only without it.
+screen_size() {
+  if [ -f "${LOG_DIR}/geometry" ]; then
+    read -r size_w size_h _ <"${LOG_DIR}/geometry"
+    echo "${size_w}x${size_h}"
+    return 0
+  fi
+  "${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1
+}
+
 # scroll_app <up|down> - drags the app's own content, clear of every edge strip.
 scroll_app() {
-  size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
+  size="$(screen_size)"
   w="${size%x*}"
   h="${size#*x}"
   if [ "$1" = 'up' ]; then
@@ -328,14 +375,11 @@ scroll_app() {
 
 # Test tags reach uiautomator as resource ids, so these select by tag rather than by text.
 
-# find_id <tag> - scrolls the app from the top until that node's centre clears the bottom
-# strip, which takes a tap there for itself, and prints the node.
-find_id() {
-  scroll_app up
-  scroll_app up
-  size="$("${ADB_BIN}" shell wm size | tr -d '\r' | awk -F': *' '{print $2}' | tail -1)"
-  clear_y=$((${size#*x} - 260))
+# scan_down <tag> <clear y> - scrolls down from where the app is until that node's centre is above
+# clear y, and prints it. A scroll that leaves the screen as it was means the end, so it stops there.
+scan_down() {
   found=''
+  last=''
   tries=1
   while [ "${tries}" -le 8 ]; do
     screen="$(ui_nodes)"
@@ -343,14 +387,43 @@ find_id() {
     centre="$(printf '%s\n' "${found}" |
       sed -n 's/.*bounds="\[[0-9]*,\([0-9]*\)\]\[[0-9]*,\([0-9]*\)\]".*/\1 \2/p' |
       awk '{print int(($1 + $2) / 2)}')"
-    if [ -n "${centre}" ] && [ "${centre}" -lt "${clear_y}" ]; then
+    if [ -n "${centre}" ] && [ "${centre}" -lt "$2" ]; then
+      printf '%s\n' "${screen}" >"${LOG_DIR}/found_nodes"
       printf '%s\n' "${found}"
       return 0
     fi
+    if [ "${screen}" = "${last}" ]; then
+      break
+    fi
+    last="${screen}"
     scroll_app down
     sleep 1
     tries=$((tries + 1))
   done
+  printf '%s\n' "${found}"
+  return 1
+}
+
+# find_id <tag> - finds that node with its centre clear of the bottom strip, which takes a tap
+# there for itself, and prints it. It looks down from where the app is, then down from the top.
+# The dump that showed it stays in LOG_DIR/found_nodes, for a caller that reads more of that screen.
+find_id() {
+  rm -f "${LOG_DIR}/found_nodes"
+  size="$(screen_size)"
+  clear_y=$((${size#*x} - 260))
+  # shellcheck disable=SC2310 # a node out of reach is the signal to start again from the top
+  if found_here="$(scan_down "$1" "${clear_y}")"; then
+    printf '%s\n' "${found_here}"
+    return 0
+  fi
+  scroll_app up
+  scroll_app up
+  # shellcheck disable=SC2310 # a node out of reach is reported below
+  if found_top="$(scan_down "$1" "${clear_y}")"; then
+    printf '%s\n' "${found_top}"
+    return 0
+  fi
+  found="${found_top:-${found_here}}"
   [ -n "${found}" ] || return 1
   printf '%s\n' "${found}"
 }
@@ -369,11 +442,19 @@ text_of_id() {
   printf '%s\n' "${node}" | sed -n 's/.* text="\([^"]*\)".*/\1/p'
 }
 
-# set_toggle_id <tag> <true|false> - sets the switch with that tag on the current screen.
+# set_toggle_id <tag> <true|false> - sets the switch with that tag on the current screen. It polls with
+# back-to-back dumps for 24 s, as long as six tries with a 2 s sleep took, and returns once the switch reads right.
 set_toggle_id() {
   tapped=''
-  tries=1
-  while [ "${tries}" -le 6 ]; do
+  tapped_at=0
+  toggle_now="$(date +%s)"
+  toggle_deadline=$((toggle_now + 24))
+  while [ "${toggle_now}" -lt "${toggle_deadline}" ]; do
+    # find_id scrolls whatever is in front, and on the launcher that opens the app drawer.
+    if ! "${ADB_BIN}" shell dumpsys window 2>/dev/null | tr -d '\r' | grep -qE "mCurrentFocus.*${PKG}"; then
+      echo "   HyperGesture is not in front, opening it again" >&2
+      open_test_app
+    fi
     # shellcheck disable=SC2310 # a missing node is retried and then reported below
     node="$(find_id "$1" || true)"
     case "${node}" in
@@ -381,17 +462,22 @@ set_toggle_id() {
         echo "   '$1' is $2" >&2
         return 0
         ;;
-      # Tapped once, since a loaded emulator redraws late and a second tap would undo it.
+      # A quick second tap would undo a first one that redraws late. The next waits 8 s. Home moves while
+      # the service rebinds or its strips reinstall, and a tap at that moment hits another row.
       *'checked="'*)
-        if [ -z "${tapped}" ]; then
+        toggle_now="$(date +%s)"
+        if [ -z "${tapped}" ] || [ $((toggle_now - tapped_at)) -ge 8 ]; then
+          if [ -n "${tapped}" ]; then
+            echo "   '$1' still not $2 8 s after the tap, tapping it again" >&2
+          fi
           tap_node "${node}"
-          tapped='1'
+          tapped=$((${tapped:-0} + 1))
+          tapped_at="${toggle_now}"
         fi
         ;;
-      *) ;;
+      *) sleep 1 ;;
     esac
-    sleep 2
-    tries=$((tries + 1))
+    toggle_now="$(date +%s)"
   done
   echo "Could not set '$1' to $2 (tapped: ${tapped:-no}). On screen:" >&2
   ui_nodes | grep -o 'resource-id="[^"]\{1,\}"\|text="[^"]\{1,\}"' | sed 's/^/    /' >&2
@@ -401,12 +487,17 @@ set_toggle_id() {
 # open_test_app lands on whichever screen was open last, where Back only returns home.
 # So a suite that touches the UI or needs Back to leave the app goes through these.
 
-# to_home - taps the app bar's back arrow until home, which has none, is showing.
+# to_home - taps the app bar's back arrow until home, which has none, is showing. The dump of home
+# stays in HOME_NODES for a caller that reads home next.
 to_home() {
+  HOME_NODES=''
   back_try=1
   while [ "${back_try}" -le 6 ]; do
-    back_node="$(ui_nodes | grep -m1 'resource-id="nav_back"' || true)"
+    home_nodes="$(ui_nodes)"
+    back_node="$(printf '%s\n' "${home_nodes}" | grep -m1 'resource-id="nav_back"' || true)"
     if [ -z "${back_node}" ]; then
+      # shellcheck disable=SC2034 # read by the suites that source this file
+      HOME_NODES="${home_nodes}"
       return 0
     fi
     tap_node "${back_node}"

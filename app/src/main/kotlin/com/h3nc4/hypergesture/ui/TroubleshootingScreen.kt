@@ -17,6 +17,10 @@
 
 package com.h3nc4.hypergesture.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -61,6 +65,9 @@ internal fun TroubleshootingScreen(model: AppModel) {
         },
     )
 
+    SectionHeader(stringResource(R.string.section_adb_grants))
+    AdbGrants { readAdbGrants(context) }
+
     SectionHeader(stringResource(R.string.section_this_device))
     DeviceRows(diagnostics)
 
@@ -73,6 +80,10 @@ internal fun TroubleshootingScreen(model: AppModel) {
         value = diagnostics.lastCircleToSearchFailure ?: none,
         valueTag = TestTags.DIAG_CIRCLE_TO_SEARCH_FAILURE,
     )
+    diagnostics.stopHistory?.let { history ->
+        InfoRow(title = stringResource(R.string.diag_stop_history))
+        MonospaceBlock(history)
+    }
     val stuck = diagnostics.lastStuckStream
     ValueRow(
         label = stringResource(R.string.diag_last_stuck_stream),
@@ -85,20 +96,46 @@ internal fun TroubleshootingScreen(model: AppModel) {
         MonospaceBlock(if (tail.length < report.length) tail.substringAfter('\n') else tail)
     }
     diagnostics.lastRecordedFailure?.let { failure ->
-        InfoRow(
-            title = stringResource(R.string.diag_recorded_failure),
-            actions = {
-                OutlinedButton(onClick = model::clearRecordedFailure) {
-                    Text(stringResource(R.string.action_clear_failure))
-                }
-            },
+        val copied = stringResource(R.string.snackbar_failure_copied)
+        // Android 13 and later confirm a copy themselves, and a snackbar under that would say it twice.
+        val announce = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+        RecordedFailure(
+            failure = failure,
+            onCopied = { if (announce) model.announce(copied) },
+            onClear = model::clearRecordedFailure,
         )
-        MonospaceBlock(failure.take(MAX_FAILURE_CHARS))
     }
     TextButton(onClick = model::refresh, modifier = Modifier.padding(horizontal = 4.dp)) {
         Text(stringResource(R.string.action_refresh_diagnostics))
     }
     FootNote(stringResource(R.string.diag_local_only))
+}
+
+/** The block shows only the head of the record, so Copy hands over the whole of it. */
+@Composable
+internal fun RecordedFailure(failure: String, onCopied: () -> Unit, onClear: () -> Unit) {
+    val context = LocalContext.current
+    val clipLabel = stringResource(R.string.clip_label_failure)
+    InfoRow(
+        title = stringResource(R.string.diag_recorded_failure),
+        actions = {
+            OutlinedButton(onClick = {
+                copyToClipboard(context, clipLabel, failure)
+                onCopied()
+            }) {
+                Text(stringResource(R.string.action_copy_failure))
+            }
+            OutlinedButton(onClick = onClear) {
+                Text(stringResource(R.string.action_clear_failure))
+            }
+        },
+    )
+    MonospaceBlock(failure.take(MAX_FAILURE_CHARS))
+}
+
+private fun copyToClipboard(context: Context, label: String, text: String) {
+    context.getSystemService(ClipboardManager::class.java)
+        .setPrimaryClip(ClipData.newPlainText(label, text))
 }
 
 @Composable

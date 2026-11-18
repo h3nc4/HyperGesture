@@ -46,6 +46,8 @@ data class Diagnostics(
     val accessibilityServiceRunning: Boolean,
     /** Null until the running service first tries to install its strips. */
     val attachedStrips: Int?,
+    /** The framework reset the live instance's window token without unbinding it. */
+    val connectionLost: Boolean,
     val navigationIntegrationId: String,
     val navigationIntegrationAvailable: Boolean,
     val lastGlobalActionFailure: String?,
@@ -57,6 +59,8 @@ data class Diagnostics(
     val lastRecordedFailure: String?,
     /** The latest touch stream released by the overlay's timer, with the events before it. */
     val lastStuckStream: String?,
+    /** The newest lines of [StopLog], which says why the service stopped and what moved the navigation setting. */
+    val stopHistory: String?,
     val appVersionName: String?,
 ) {
     val serviceStatus: ServiceStatus
@@ -65,6 +69,7 @@ data class Diagnostics(
             bound = accessibilityServiceEnabled,
             running = accessibilityServiceRunning,
             attachedStrips = attachedStrips,
+            connectionLost = connectionLost,
         )
 }
 
@@ -85,6 +90,7 @@ object DiagnosticsCollector {
             accessibilityServiceSwitchedOn = isAccessibilityServiceSwitchedOn(context),
             accessibilityServiceRunning = HyperGestureAccessibilityService.isRunning(),
             attachedStrips = HyperGestureAccessibilityService.attachedStrips.value,
+            connectionLost = HyperGestureAccessibilityService.connectionLost.value,
             navigationIntegrationId = status.integrationId,
             navigationIntegrationAvailable = status.available,
             lastGlobalActionFailure = GestureActionPerformer.lastFailure,
@@ -92,6 +98,7 @@ object DiagnosticsCollector {
             lastCircleToSearchFailure = GestureActionPerformer.lastCircleToSearchFailure,
             lastRecordedFailure = FailureLog.read(context),
             lastStuckStream = StuckStreamLog.latest(context),
+            stopHistory = StopLog.latest(context),
             appVersionName = appVersionName(context),
         )
     }

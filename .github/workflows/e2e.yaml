@@ -41,8 +41,43 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Look for a change outside the site and the prose
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - name: List the pull request's files
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          code=true
+          if [ "${EVENT}" = pull_request ]; then
+            files="$(gh api --paginate "repos/${REPO}/pulls/${PR}/files" --jq '.[].filename')"
+            if [ -n "${files}" ]; then
+              code=false
+              while IFS= read -r path; do
+                case "${path}" in
+                  site/* | *.md | LICENSE | .github/workflows/site.yaml) ;;
+                  *) code=true ;;
+                esac
+              done <<<"${files}"
+            fi
+          fi
+          echo "code: ${code}"
+          echo "code=${code}" >>"${GITHUB_OUTPUT}"
+
   dev-image:
     name: Resolve the dev image
+    needs: [changes]
+    if: needs.changes.outputs.code != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -70,13 +105,15 @@ jobs:
       matrix:
         include:
           - shard: 1
-            suites: navigation-keeper
+            suites: navigation-keeper service-restore
           - shard: 2
-            suites: status-refresh app-switch
+            suites: status-refresh other-edges
           - shard: 3
-            suites: circle-to-search landscape-confirm
+            suites: circle-to-search app-switch screen-repair
           - shard: 4
-            suites: navigation back-revert stop-notice
+            suites: navigation landscape-confirm recents-lock
+          - shard: 5
+            suites: back-revert stop-notice keyguard
     steps:
       - name: Run actions/checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -86,15 +123,16 @@ jobs:
           IMAGE: ${{ needs.dev-image.outputs.image }}
         run: (docker pull -q "${IMAGE}" >/dev/null 2>&1 &)
       - name: Run actions/cache/restore
+        id: gradle-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/ci-cache/gradle
           key:
-            ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
+            ${{ runner.os }}-e2e-gradle-${{ hashFiles('build.gradle.kts', 'settings.gradle.kts', 'app/build.gradle.kts',
             'gradle/libs.versions.toml', 'gradle.properties') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            ${{ runner.os }}-e2e-gradle-
       - name: Create the cache directories
         run: mkdir -p ~/ci-cache/gradle
       - name: Run h3nc4/dev-image-action
@@ -113,6 +151,13 @@ jobs:
           ls -l /dev/kvm
       - name: Build the debug APK while the emulator boots, then run the gesture E2E suites
         run: $DEV_RUN -c './e2e/run.sh -b ${{ matrix.suites }}'
+      - name: Save the Gradle cache of the debug build
+        if: matrix.shard == 5 && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/ci-cache/gradle
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
       - name: Upload emulator log on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -177,16 +222,22 @@ jobs:
 
   gestures:
     name: Gesture end-to-end
-    needs: [dev-image, shards]
+    needs: [changes, dev-image, shards]
     if: always() && github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require every shard to pass
         env:
+          CODE: ${{ needs.changes.outputs.code }}
+          CHANGES: ${{ needs.changes.result }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "results: ${RESULTS}"
+          if [ "${CHANGES}" = success ] && [ "${CODE}" = false ]; then
+            echo "only the site or prose changed, so the shards did not run"
+            exit 0
+          fi
           for result in ${RESULTS}; do
             [ "${result}" = success ] || exit 1
           done

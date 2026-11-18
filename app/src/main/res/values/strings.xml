@@ -76,6 +76,8 @@
     <string name="step_autostart">Autostart</string>
     <string name="step_autostart_body">Lets HyperOS start the gestures again after a reboot.</string>
     <string name="action_open_autostart">Autostart</string>
+    <string name="step_recents_lock">Lock in Recents</string>
+    <string name="step_recents_lock_body">HyperOS closes apps that are not locked. Open Recents, long-press or pull down the HyperGesture card, and tap the lock.</string>
     <string name="action_open_app_info">App info</string>
 
     <!-- Capability 2: the HyperOS navigation integration. -->
@@ -91,6 +93,8 @@
     <string name="keep_navigation_body">HyperOS shows the bar again after a reboot or a launcher change. This hides it again each time, while the service runs.</string>
     <string name="keep_navigation_grant_body">HyperOS shows the bar again after a reboot or a launcher change. To let HyperGesture hide it again, run this once from a computer with USB debugging on. Xiaomi also needs USB debugging (Security settings) on.</string>
     <string name="keep_navigation_grant_command" translatable="false">adb shell pm grant %1$s android.permission.WRITE_SECURE_SETTINGS</string>
+    <string name="label_restore_service">Turn gestures back on</string>
+    <string name="restore_service_body">HyperOS can switch HyperGesture off in Accessibility, for example in Ultra Battery Saver. This switches it back on. To turn gestures off yourself, switch this off first, or switch HyperGesture off twice within a minute.</string>
 
     <!-- Control Center tile. -->
     <string name="step_tile">Control Center tile</string>
@@ -240,10 +244,24 @@
     <string name="fix_greyed_out_title">Switch greyed out</string>
     <string name="fix_greyed_out_body">Allow restricted settings</string>
     <string name="action_open">Open</string>
+    <string name="section_adb_grants">ADB grants</string>
+    <string name="adb_grants_intro">Run a command from a computer with USB debugging on. Xiaomi also needs USB debugging (Security settings) on.</string>
+    <string name="grant_secure_settings_title">Write secure settings</string>
+    <string name="grant_secure_settings_body">Lets Keep the bar hidden put the bar away again after HyperOS brings it back.</string>
+    <string name="grant_usage_access_body">Lets app switching find the previous app. Settings, Usage access gives the same.</string>
+    <string name="usage_access_grant_command" translatable="false">adb shell appops set %1$s GET_USAGE_STATS allow</string>
+    <string name="chip_granted">Granted</string>
+    <string name="chip_missing">Missing</string>
+    <string name="action_copy_command">Copy</string>
+    <string name="action_command_copied">Copied</string>
+    <string name="clip_label_adb_command">HyperGesture adb command</string>
     <string name="section_this_device">This device</string>
     <string name="section_last_problems">Last problems</string>
     <string name="action_refresh_diagnostics">Refresh</string>
     <string name="action_clear_failure">Clear</string>
+    <string name="action_copy_failure">Copy log</string>
+    <string name="clip_label_failure">HyperGesture failure log</string>
+    <string name="snackbar_failure_copied">Log copied</string>
     <string name="diag_android_version">Android version</string>
     <string name="diag_device">Device</string>
     <string name="diag_hyperos">HyperOS / MIUI build</string>
@@ -257,6 +275,7 @@
     <string name="label_last_app_switch_failure">Last app switch problem</string>
     <string name="diag_last_circle_to_search_failure">Last Circle to Search problem</string>
     <string name="diag_last_stuck_stream">Last stuck touch</string>
+    <string name="diag_stop_history">Stops and navigation changes</string>
     <string name="diag_recorded_failure">Recorded failure</string>
     <string name="diag_none">None</string>
     <string name="diag_unknown">Unknown</string>

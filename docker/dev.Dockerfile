@@ -29,10 +29,20 @@ ARG GID="1000"
 
 ########################################
 # Android
+# sdkmanager only installs the newest emulator, platform-tools and system image, so those come
+# as pinned zips. Each sha256 is of a zip whose sha1 matches Google's repository2-3.xml.
 ARG ANDROID_CMDLINE_TOOLS="15859902"
+ARG ANDROID_CMDLINE_TOOLS_SHA256="4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583"
+ARG ANDROID_PLATFORM_TOOLS="37.0.1"
+ARG ANDROID_PLATFORM_TOOLS_SHA256="d230f13842f60f782a8645f9c813f8f845bf36089ea7289f28c48f17979313f1"
+ARG ANDROID_EMULATOR="37.2.13"
+ARG ANDROID_EMULATOR_BUILD="16740729"
+ARG ANDROID_EMULATOR_SHA256="cbc7c3cfb83220b8a0f9c513fdab557712e74d339ec19ddffa43f23350ae9bdd"
+ARG ANDROID_EMULATOR_API="36"
+ARG ANDROID_SYSTEM_IMAGE="07"
+ARG ANDROID_SYSTEM_IMAGE_SHA256="b1bb0769d0bed7698e61f203d7dc9bf6e7c37cd01a39d0d8788a11186bc78160"
 ARG ANDROID_COMPILE_SDK="37.0"
 ARG ANDROID_BUILD_TOOLS="37.0.0"
-ARG ANDROID_EMULATOR_API="36"
 
 # The package mirror to build through. It answers on one network only, so
 # resolving the name is the test for reaching it.
@@ -42,9 +52,17 @@ ARG APT_MIRROR="http://debian.lan.h3nc4.com"
 # Android SDK stage
 FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS android-sdk
 ARG ANDROID_CMDLINE_TOOLS
+ARG ANDROID_CMDLINE_TOOLS_SHA256
+ARG ANDROID_PLATFORM_TOOLS
+ARG ANDROID_PLATFORM_TOOLS_SHA256
+ARG ANDROID_EMULATOR
+ARG ANDROID_EMULATOR_BUILD
+ARG ANDROID_EMULATOR_SHA256
+ARG ANDROID_EMULATOR_API
+ARG ANDROID_SYSTEM_IMAGE
+ARG ANDROID_SYSTEM_IMAGE_SHA256
 ARG ANDROID_COMPILE_SDK
 ARG ANDROID_BUILD_TOOLS
-ARG ANDROID_EMULATOR_API
 
 ENV ANDROID_HOME="/opt/android-sdk"
 ENV ANDROID_SDK_ROOT="${ANDROID_HOME}"
@@ -64,19 +82,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   unzip \
   wget
 
-RUN mkdir -p "${ANDROID_HOME}/cmdline-tools" \
-  && wget -qO /tmp/android-tools.zip \
-  "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS}_latest.zip" \
-  && unzip -q /tmp/android-tools.zip -d "${ANDROID_HOME}/cmdline-tools" \
+RUN fetch() { \
+    wget -qO /tmp/package.zip "https://dl.google.com/android/repository/$1" \
+    && echo "$2  /tmp/package.zip" | sha256sum -c --quiet - \
+    && mkdir -p "$3" && unzip -q /tmp/package.zip -d "$3" && rm /tmp/package.zip; \
+  } \
+  && fetch "commandlinetools-linux-${ANDROID_CMDLINE_TOOLS}_latest.zip" \
+  "${ANDROID_CMDLINE_TOOLS_SHA256}" "${ANDROID_HOME}/cmdline-tools" \
   && mv "${ANDROID_HOME}/cmdline-tools/cmdline-tools" "${ANDROID_HOME}/cmdline-tools/latest" \
-  && rm /tmp/android-tools.zip \
-  && yes | sdkmanager --licenses >/dev/null \
+  && fetch "platform-tools_r${ANDROID_PLATFORM_TOOLS}-linux.zip" \
+  "${ANDROID_PLATFORM_TOOLS_SHA256}" "${ANDROID_HOME}" \
+  && fetch "emulator-linux_x64-${ANDROID_EMULATOR_BUILD}.zip" \
+  "${ANDROID_EMULATOR_SHA256}" "${ANDROID_HOME}" \
+  && fetch "sys-img/google_apis/x86_64-${ANDROID_EMULATOR_API}_r${ANDROID_SYSTEM_IMAGE}.zip" \
+  "${ANDROID_SYSTEM_IMAGE_SHA256}" "${ANDROID_HOME}/system-images/android-${ANDROID_EMULATOR_API}/google_apis"
+
+# avdmanager refuses to create an AVD without an emulator package and ignores the emulator zip's
+# source.properties. This writes the package.xml that sdkmanager would have written.
+RUN major="${ANDROID_EMULATOR%%.*}" rest="${ANDROID_EMULATOR#*.}" \
+  && printf '%s\n' \
+  '<?xml version="1.0" encoding="UTF-8"?>' \
+  '<ns2:repository xmlns:ns2="http://schemas.android.com/repository/android/common/02"' \
+  '  xmlns:ns5="http://schemas.android.com/repository/android/generic/02"' \
+  '  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' \
+  '  <localPackage path="emulator">' \
+  '    <type-details xsi:type="ns5:genericDetailsType"/>' \
+  "    <revision><major>${major}</major><minor>${rest%%.*}</minor><micro>${rest#*.}</micro></revision>" \
+  '    <display-name>Android Emulator</display-name>' \
+  '  </localPackage>' \
+  '</ns2:repository>' >"${ANDROID_HOME}/emulator/package.xml"
+
+RUN yes | sdkmanager --licenses >/dev/null \
   && sdkmanager --install \
-  "platform-tools" \
   "platforms;android-${ANDROID_COMPILE_SDK}" \
-  "build-tools;${ANDROID_BUILD_TOOLS}" \
-  "emulator" \
-  "system-images;android-${ANDROID_EMULATOR_API};google_apis;x86_64" >/dev/null
+  "build-tools;${ANDROID_BUILD_TOOLS}" >/dev/null \
+  && sdkmanager --list_installed
 
 ################################################################################
 # Android AVD stage
@@ -92,7 +132,7 @@ RUN mkdir -p "${ANDROID_AVD_HOME}" \
 
 ################################################################################
 # Debian main stage
-FROM h3nc4/dev-base:debian-13@sha256:5fe9f8bbe41bf6d5432ae98b0e4d89edade174ae58d2f3422ff52a5477d5e5a0 AS main
+FROM h3nc4/dev-base:debian-13@sha256:80a26b3967537848ad1331b5b61b4a60ea2f918968a65918f1d86e7ed021900a AS main
 
 # dev-base ends as the dev user, and the steps below need root.
 USER root
@@ -142,11 +182,11 @@ ENV ANDROID_AVD_HOME="/opt/android-avd"
 ENV JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
 ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/emulator:${ANDROID_HOME}/platform-tools:${PATH}"
 
-COPY --from=android-sdk --chown=${UID}:${GID} --chmod=0777 /opt/android-sdk /opt/android-sdk
+# The SDK is root-owned and read-only. The AVD is world-writable because the emulator writes its
+# disks there, and the entrypoint remaps dev to the host's UID, which doesn't own files under /opt.
+COPY --from=android-sdk /opt/android-sdk /opt/android-sdk
 COPY --from=android-avd --chown=${UID}:${GID} --chmod=0777 /opt/android-avd /opt/android-avd
-
-# Only the top dirs need 0777 set. COPY already set the files inside them.
-RUN chmod 0777 "${ANDROID_HOME}" "${ANDROID_AVD_HOME}"
+RUN chmod 0777 "${ANDROID_AVD_HOME}"
 
 ########################################
 # Clean cache
