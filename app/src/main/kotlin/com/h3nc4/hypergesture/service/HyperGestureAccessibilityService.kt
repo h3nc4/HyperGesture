@@ -435,20 +435,7 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         fun dispatchSegment(index: Int): Boolean = runCatching {
             dispatchGesture(
                 GestureDescription.Builder().addStroke(strokes[index]).build(),
-                object : GestureResultCallback() {
-                    override fun onCompleted(gestureDescription: GestureDescription?) {
-                        if (finished || index < strokes.lastIndex) return
-                        Log.i(TAG, "REPLAY_COMPLETED segments=${strokes.size}")
-                        releaseStrips()
-                    }
-
-                    override fun onCancelled(gestureDescription: GestureDescription?) {
-                        if (finished) return
-                        // The touch never fully reached the app underneath. The strips still come back.
-                        Log.w(TAG, "REPLAY_CANCELLED at segment ${index + 1} of ${strokes.size}")
-                        releaseStrips()
-                    }
-                },
+                segmentCallback(index, strokes.size, { finished }, ::releaseStrips),
                 handler,
             )
         }.getOrElse { throwable ->
@@ -471,6 +458,22 @@ class HyperGestureAccessibilityService : AccessibilityService(), TouchReplayer {
         }, settleDelayMs)
         return true
     }
+
+    private fun segmentCallback(index: Int, count: Int, finished: () -> Boolean, release: () -> Unit) =
+        object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                if (finished() || index < count - 1) return
+                Log.i(TAG, "REPLAY_COMPLETED segments=$count")
+                release()
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                if (finished()) return
+                // The touch never fully reached the app underneath. The strips still come back.
+                Log.w(TAG, "REPLAY_CANCELLED at segment ${index + 1} of $count")
+                release()
+            }
+        }
 
     /** One stroke per segment, each continuing the last. A tap is one stroke. */
     private fun replayStrokes(plan: ReplayPlan): List<GestureDescription.StrokeDescription> = when (plan) {
