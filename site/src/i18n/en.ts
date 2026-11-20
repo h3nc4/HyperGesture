@@ -113,11 +113,11 @@ export const en = {
       },
       {
         title: "Turn it on",
-        body: [path("Settings &gt; Accessibility &gt; HyperGesture &gt; on"), "Open HyperGesture. The first card should say Active. Try a swipe."],
+        body: [path("Settings &gt; Accessibility &gt; HyperGesture &gt; on"), "Open HyperGesture. The first card should say Gestures are on. Try a swipe."],
       },
       {
         title: "On HyperOS, keep it running",
-        body: ["In the Keep me running card, tap Autostart and allow it. Then tap App info, open Power and pick No restrictions, which lets it run in the background."],
+        body: ["In the Setup list, tap Autostart and allow it. Then tap App info, open Power and pick No restrictions, which lets it run in the background."],
       },
       {
         title: "Switch apps",
