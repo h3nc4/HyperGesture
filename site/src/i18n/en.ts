@@ -84,7 +84,7 @@ export const en = {
   install: {
     title: "Install",
     intro: "HyperGesture is not on the Play Store, so Android asks a few extra questions the first time. It takes about five minutes.",
-    more: `Prefer automatic updates? <a href="${links.obtainium}">Add it to Obtainium</a>, or see every build on the <a href="${links.releases}">releases page</a>.`,
+    more: `Prefer automatic updates? <a href="${links.obtainium}">Add it to Obtainium</a>, or see every build on the <a href="${links.releases}">releases page</a>. Or turn on Updates inside HyperGesture, and it checks GitHub for a new release when you open it, once a day at most.`,
     optional: "(optional)",
     steps: [
       {
