@@ -18,7 +18,7 @@
 import { facts, formatSize, links } from "../facts";
 import type { Strings } from "./en";
 
-// The app itself is English only. Its button and card names stay in English here.
+// Button and screen names match the app's pt-BR strings in app/src/main/res/values-pt.
 const path = (text: string) => `<span class="path">${text}</span>`;
 
 export const pt: Strings = {
@@ -77,9 +77,9 @@ export const pt: Strings = {
 
   moves: {
     title: "Gestos de Voltar, Início e Recentes para o HyperOS",
-    optional: "Ative App switching",
-    circle: "Ative Circle to Search",
-    note: "Puxe o dedo de volta antes de soltar e nada acontece. Todas as distâncias e tempos podem ser ajustados em Gesture settings.",
+    optional: "Ative a Troca de apps",
+    circle: "Ative o Circule para Pesquisar",
+    note: "Puxe o dedo de volta antes de soltar e nada acontece. Todas as distâncias e tempos podem ser ajustados em Configurações dos gestos.",
   },
 
   install: {
@@ -118,19 +118,19 @@ export const pt: Strings = {
         title: "Ative o serviço",
         body: [
           path("Configurações &gt; Acessibilidade &gt; HyperGesture &gt; ativar"),
-          "Abra o HyperGesture. O primeiro cartão deve mostrar Active. Teste um gesto.",
+          "Abra o HyperGesture. O primeiro cartão deve mostrar Gestos ativados. Teste um gesto.",
         ],
       },
       {
         title: "No HyperOS, mantenha o app rodando",
         body: [
-          "No cartão Keep me running, toque em Autostart e ative o início automático. Depois toque em App info, abra Economia de bateria e escolha Sem restrições, o que deixa o app rodar em segundo plano.",
+          "Na lista Configuração, toque em Início automático e ative. Depois toque em Informações do app, abra Economia de bateria e escolha Nenhuma restrição, o que deixa o app rodar em segundo plano.",
         ],
       },
       {
         title: "Trocar de app",
         optional: true,
-        body: ["Ative o gesto lateral na borda inferior, toque em Grant e permita o Acesso ao uso."],
+        body: ["Ative o gesto lateral na borda inferior, toque em Permitir e libere o Acesso aos dados de uso."],
       },
     ],
   },
