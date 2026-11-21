@@ -170,7 +170,7 @@ RUN apt-get update -qq && apt-get install --no-install-recommends -y -qq \
 ########################################
 # Gradle. There is no committed wrapper, so the build tool comes from here.
 # Copied from the official image, so Renovate moves its version and digest as one pin.
-COPY --from=gradle:9.9.1-jdk21@sha256:607055593f1acc874a98aa7c1cb5adb414b3879bb0a5e1e7240180020fb97277 /opt/gradle /opt/gradle
+COPY --from=gradle:9.9.2-jdk21@sha256:f8c4f7de6ec4f367cbf7fc46db08129ea6a6e9487995bb705c61fbc20f3bc545 /opt/gradle /opt/gradle
 RUN ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle \
   && gradle --version
 
