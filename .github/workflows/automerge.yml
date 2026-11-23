@@ -44,3 +44,21 @@ jobs:
         with:
           private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
           bot-login: h3nc4-automerge[bot]
+
+  deps-promote:
+    name: Merge dependency promotion if CI passed
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_branch == 'deps-promote'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Run h3nc4/renovate-automerge-action
+        uses: h3nc4/renovate-automerge-action@85f5e01a14bba7c55244f318f5596d294853e0d6 # v1
+        with:
+          private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          bot-login: h3nc4-automerge[bot]
+          merge-method: squash

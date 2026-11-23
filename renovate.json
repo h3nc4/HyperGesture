@@ -3,6 +3,11 @@
   "extends": [
     "config:best-practices"
   ],
+  "baseBranchPatterns": ["deps"],
+  "rebaseWhen": "conflicted",
+  "vulnerabilityAlerts": {
+    "enabled": false
+  },
   "reviewers": [
     "h3nc4"
   ],
@@ -75,11 +80,6 @@
       "addLabels": ["automerge"],
       "automerge": true,
       "platformAutomerge": true
-    },
-    {
-      "description": "Majors never automerge, so rebase them only on a conflict rather than rerunning CI each time main moves",
-      "matchUpdateTypes": ["major"],
-      "rebaseWhen": "conflicted"
     }
   ],
   "customManagers": [

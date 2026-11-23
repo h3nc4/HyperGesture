@@ -1,0 +1,147 @@
+# Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+#
+# This file is part of HyperGesture.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+name: Promote deps to main
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Open the weekly dependency promotion
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      BRANCH: deps-promote
+    steps:
+      - name: Request an app token
+        id: app-token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: "4811373"
+          private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Run actions/checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compare deps with main
+        id: compare
+        run: |
+          git fetch --quiet origin deps
+          deps="$(git rev-parse FETCH_HEAD)"
+          if ! git merge-base --is-ancestor HEAD "${deps}"; then
+            echo "::error::deps lacks part of main, so promoting its tree would revert it." \
+              "Fix the failed deps-sync run first."
+            exit 1
+          fi
+          if git diff --quiet HEAD "${deps}"; then
+            echo "::notice::deps adds nothing to main"
+            echo "ahead=false" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          week="$(date -u +%V)"
+          main="$(git rev-parse HEAD)"
+          {
+            echo "ahead=true"
+            echo "deps=${deps}"
+            echo "main=${main}"
+            echo "title=update dependencies for week ${week#0}"
+          } >>"${GITHUB_OUTPUT}"
+      - name: Bring the promotion branch up to main
+        id: branch
+        if: steps.compare.outputs.ahead == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          MAIN: ${{ steps.compare.outputs.main }}
+        run: |
+          number="$(gh pr list -R "${GITHUB_REPOSITORY}" --head "${BRANCH}" --base main --state open \
+            --json number --jq '.[0].number // empty')"
+          echo "number=${number}" >>"${GITHUB_OUTPUT}"
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${BRANCH}" --silent 2>/dev/null; then
+            if [[ -z "${number}" ]]; then
+              gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH}" --silent
+            else
+              if ! out="$(gh api "repos/${GITHUB_REPOSITORY}/merges" -f "base=${BRANCH}" \
+                -f "head=${MAIN}" -f "commit_message=merge main into ${BRANCH}" 2>&1)"; then
+                printf '%s\n' "${out}"
+                echo "::error::main does not merge into ${BRANCH} cleanly. Close #${number} and run this again."
+                exit 1
+              fi
+              exit 0
+            fi
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f "ref=refs/heads/${BRANCH}" -f "sha=${MAIN}" --silent
+      - name: Lay the tree of deps over the promotion branch
+        if: steps.compare.outputs.ahead == 'true'
+        env:
+          DEPS: ${{ steps.compare.outputs.deps }}
+        run: |
+          git fetch --quiet origin "${BRANCH}"
+          git checkout --quiet --detach FETCH_HEAD
+          git restore --source="${DEPS}" --worktree -- :/
+          git status --short
+      - name: Run planetscale/ghcommit-action
+        if: steps.compare.outputs.ahead == 'true'
+        uses: planetscale/ghcommit-action@a6b150b81dca5dd027baa898604418eec9e11465 # v0.2.22
+        with:
+          commit_message: ${{ steps.compare.outputs.title }}
+          repo: ${{ github.repository }}
+          branch: ${{ env.BRANCH }}
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+      - name: Check the promotion matches the tree of deps
+        if: steps.compare.outputs.ahead == 'true'
+        env:
+          DEPS: ${{ steps.compare.outputs.deps }}
+        run: |
+          git fetch --quiet origin "${BRANCH}"
+          if ! git diff --quiet FETCH_HEAD "${DEPS}"; then
+            git diff --stat FETCH_HEAD "${DEPS}"
+            echo "::error::${BRANCH} differs from deps at ${DEPS}, so it is not opened for merge"
+            exit 1
+          fi
+      - name: Open or retitle the promotion pull request
+        if: steps.compare.outputs.ahead == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          NUMBER: ${{ steps.branch.outputs.number }}
+          TITLE: ${{ steps.compare.outputs.title }}
+        run: |
+          if [[ -n "${NUMBER}" ]]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/pulls/${NUMBER}" -f "title=${TITLE}" --silent
+            echo "::notice::refreshed #${NUMBER}"
+            exit 0
+          fi
+          body="Promotes the dependency updates merged into deps since the last promotion as one commit."
+          number="$(gh api "repos/${GITHUB_REPOSITORY}/pulls" \
+            -f "title=${TITLE}" -f "head=${BRANCH}" -f base=main -f "body=${body}" --jq .number)"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${number}/labels" -f "labels[]=automerge" --silent
+          echo "::notice::opened #${number}"
