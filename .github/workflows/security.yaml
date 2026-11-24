@@ -52,7 +52,7 @@ jobs:
             -v ${RUNNER_TEMP:?}:${RUNNER_TEMP:?} -v ${RUNNER_TOOL_CACHE:?}:${RUNNER_TOOL_CACHE:?}:ro
             --env-file ${RUNNER_TEMP:?}/codeql-tracer.env
       - name: Run github/codeql-action/init
-        uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4
+        uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4
         with:
           languages: java-kotlin
           build-mode: manual
@@ -61,6 +61,6 @@ jobs:
       - name: Build the debug APK and its unit tests
         run: $DEV_RUN -c 'gradle --no-daemon assembleDebug compileDebugUnitTestKotlin'
       - name: Run github/codeql-action/analyze
-        uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4
+        uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4
         with:
           category: "/language:java-kotlin"
