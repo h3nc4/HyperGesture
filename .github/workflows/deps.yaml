@@ -46,6 +46,6 @@ jobs:
           permission-pull-requests: write
           permission-workflows: write
       - name: Run h3nc4/deps-branch-action
-        uses: h3nc4/deps-branch-action@4841debc8032872cccdf3ed5b660f7475660d46b # v1
+        uses: h3nc4/deps-branch-action@58455ed3522c1d2bed0a8463e93ad4c5c04ece8a # v1
         with:
           token: ${{ steps.app-token.outputs.token }}
