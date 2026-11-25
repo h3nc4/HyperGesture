@@ -17,7 +17,7 @@
     "@astrojs/check": "0.9.12",
     "@fontsource-variable/geist": "5.3.0",
     "astro": "7.4.13",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "uqr": "0.1.3"
   }
 }
