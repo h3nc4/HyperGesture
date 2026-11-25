@@ -23,7 +23,9 @@ plugins {
 
 android {
     namespace = "com.h3nc4.hypergesture"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     // AGP's default differs from the dev image's; pinning keeps builds offline-capable.
     buildToolsVersion = "37.0.0"
