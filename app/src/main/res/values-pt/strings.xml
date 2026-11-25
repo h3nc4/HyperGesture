@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (C) 2026  Henrique Almeida <me@h3nc4.com>
+
+  This file is part of HyperGesture.
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<!-- Brazilian Portuguese. A HyperOS screen or option name must match what HyperOS 3 shows in pt-BR. -->
+<resources>
+    <string name="app_name">HyperGesture</string>
+
+    <!-- Shown by the system in the accessibility settings list. -->
+    <string name="accessibility_service_description">Reconhece deslizes a partir das bordas da tela e executa Voltar, Início e Recentes. O serviço é só para navegação, não lê o conteúdo da tela nem o que você digita, e não envia nada para fora do seu aparelho. O app só fala com o GitHub se você ativar a verificação de atualizações.</string>
+    <string name="accessibility_service_summary">Navegação por gestos nas bordas</string>
+
+    <!-- Status, the first thing on home, and the tile's subtitle. -->
+    <string name="status_off">Gestos desativados</string>
+    <string name="status_off_body">Ative o HyperGesture em Acessibilidade para começar.</string>
+    <string name="status_restricted_hint">Chave desabilitada? Permita antes as configurações restritas em Informações do app.</string>
+    <string name="status_stopped">Gestos parados</string>
+    <string name="status_stopped_body">A chave está ativada, mas o serviço não está em execução. Desative e ative de novo.</string>
+    <string name="status_degraded">Gestos não estão prontos</string>
+    <string name="status_degraded_body">O serviço está em execução, mas o Android recusou as faixas das bordas. Se elas continuarem faltando, desative e ative o serviço de novo.</string>
+    <string name="status_working">Gestos ativados</string>
+    <string name="status_working_body">Voltar pelas laterais, Início e Recentes pela borda inferior.</string>
+    <string name="status_working_body_left">Voltar pela lateral esquerda, Início e Recentes pela borda inferior.</string>
+    <string name="status_working_body_right">Voltar pela lateral direita, Início e Recentes pela borda inferior.</string>
+    <string name="status_working_body_bottom">Início e Recentes pela borda inferior.</string>
+    <string name="action_turn_on">Ativar</string>
+    <string name="action_fix">Corrigir</string>
+
+    <!-- Setup checklist. -->
+    <string name="section_setup">Configuração</string>
+    <plurals name="setup_progress">
+        <item quantity="one">Configuração, %1$d de %2$d concluído</item>
+        <item quantity="many">Configuração, %1$d de %2$d concluídos</item>
+        <item quantity="other">Configuração, %1$d de %2$d concluídos</item>
+    </plurals>
+    <plurals name="setup_recommended_left">
+        <item quantity="one">Falta %1$d passo recomendado</item>
+        <item quantity="many">Faltam %1$d passos recomendados</item>
+        <item quantity="other">Faltam %1$d passos recomendados</item>
+    </plurals>
+    <string name="setup_group_required">Obrigatório</string>
+    <string name="setup_group_recommended">Recomendado</string>
+    <string name="setup_footer_hyperos">O HyperOS interrompe apps em segundo plano que ele não conhece. Estes passos mantêm o HyperGesture funcionando.</string>
+    <string name="setup_footer">Estes passos mantêm o HyperGesture funcionando.</string>
+    <string name="chip_done">Feito</string>
+    <string name="chip_to_do">A fazer</string>
+    <string name="chip_check">Confira</string>
+    <string name="chip_locked">Bloqueado</string>
+    <string name="chip_unavailable">Indisponível</string>
+    <string name="action_i_did_it">Já fiz</string>
+    <string name="step_confirmed">Marcado como feito por você</string>
+    <string name="action_undo">Desfazer</string>
+    <string name="step_waits_on_accessibility">Ative a acessibilidade antes</string>
+    <string name="step_waits_on_tile">Adicione o atalho antes</string>
+    <string name="step_restricted">Permitir configurações restritas</string>
+    <string name="step_restricted_body">Em Informações do app, abra o menu e toque em Permitir configurações restritas. Até lá, a chave em Acessibilidade fica desabilitada.</string>
+    <string name="step_accessibility">Ativar a acessibilidade</string>
+    <string name="step_accessibility_body">Necessário para todos os gestos</string>
+    <string name="step_accessibility_stopped">Ativado, mas parado</string>
+    <string name="step_accessibility_done">Ativado e em execução</string>
+    <string name="step_battery">Economia de bateria: Nenhuma restrição</string>
+    <string name="step_battery_body">Em Informações do app, defina Economia de bateria como Nenhuma restrição.</string>
+    <string name="step_autostart">Início automático</string>
+    <string name="step_autostart_body">Deixa o HyperOS iniciar os gestos de novo depois de reiniciar o celular.</string>
+    <string name="action_open_autostart">Início automático</string>
+    <string name="step_recents_lock">Travar nos Recentes</string>
+    <string name="step_recents_lock_body">O HyperOS fecha os apps que não estão travados. Abra os Recentes, segure ou puxe para baixo o card do HyperGesture e toque no cadeado.</string>
+    <string name="action_open_app_info">Informações do app</string>
+
+    <!-- Capability 2: the HyperOS navigation integration. -->
+    <string name="step_navigation_bar">Esconder a barra de navegação</string>
+    <string name="step_navigation_bar_body">Libera o espaço que ela ocupa na tela. Os gestos funcionam de qualquer jeito.</string>
+    <string name="step_navigation_bar_done">Escondida</string>
+    <string name="status_navigation_unavailable_body">Este aparelho não permite que um app altere a barra de navegação. Seus gestos funcionam mesmo assim.</string>
+    <string name="action_open_navigation_settings">Abrir configurações de navegação</string>
+    <string name="outcome_launched">Configurações de navegação abertas. Escolha a navegação por gestos para esconder a barra.</string>
+    <string name="outcome_unsupported">Não disponível neste aparelho. É uma restrição da plataforma, não um problema do HyperGesture.</string>
+    <string name="outcome_failed">Não foi possível abrir a tela: %1$s</string>
+    <string name="label_keep_navigation">Manter a barra escondida</string>
+    <string name="keep_navigation_body">O HyperOS mostra a barra de novo depois de reiniciar o celular ou trocar de launcher. Isto esconde a barra de novo a cada vez, enquanto o serviço estiver em execução.</string>
+    <string name="keep_navigation_grant_body">O HyperOS mostra a barra de novo depois de reiniciar o celular ou trocar de launcher. Para o HyperGesture poder esconder a barra de novo, execute isto uma vez a partir de um computador com a depuração USB ativada. Na Xiaomi, a Depuração USB (configurações de segurança) também precisa estar ativada.</string>
+    <string name="label_restore_service">Religar os gestos</string>
+    <string name="restore_service_body">O HyperOS pode desativar o HyperGesture em Acessibilidade, por exemplo na Economia de bateria ultra. Isto ativa o serviço de novo. Para desligar os gestos você mesmo, desative isto antes, ou desative o HyperGesture duas vezes em menos de um minuto.</string>
+
+    <!-- Control Center tile. -->
+    <string name="step_tile">Atalho no Centro de controle</string>
+    <string name="step_tile_body">Seu caminho de volta se os gestos pararem</string>
+    <string name="step_tile_done">No Centro de controle</string>
+    <string name="action_add_tile">Adicionar</string>
+    <string name="tile_add_added">Atalho adicionado ao Centro de controle.</string>
+    <string name="tile_add_already">O atalho já está no Centro de controle.</string>
+    <string name="tile_add_dismissed">O atalho não foi adicionado. Toque em Adicionar de novo ou adicione o atalho editando o Centro de controle.</string>
+    <string name="tile_add_refused">Este aparelho recusou adicionar o atalho (código %1$d). Adicione o atalho editando o Centro de controle.</string>
+    <string name="tile_add_failed">Não foi possível pedir para adicionar o atalho: %1$s. Adicione o atalho editando o Centro de controle.</string>
+    <string name="tile_add_unsupported">Esta versão do Android não consegue oferecer o atalho. Adicione o atalho editando o Centro de controle.</string>
+
+    <!-- The stop notice in the shade, a second way back beside the tile. -->
+    <string name="step_notifications">Notificações</string>
+    <string name="step_notifications_body">Avisa você se os gestos pararem</string>
+    <string name="step_notifications_done">Permitidas</string>
+    <string name="action_allow">Permitir</string>
+    <string name="action_open_notification_settings">Configurações de notificação</string>
+    <string name="notifications_refused">Não permitidas. Os gestos funcionam sem elas.</string>
+    <string name="notice_channel">Gestos parados</string>
+    <string name="notice_stopped_title">Gestos parados</string>
+    <string name="notice_stopped_body">Toque para ativar os gestos de novo em Acessibilidade.</string>
+
+    <!-- Home. -->
+    <string name="section_features">Recursos</string>
+    <string name="section_more">Mais</string>
+    <string name="feature_on">Ativado</string>
+    <string name="feature_off">Desativado</string>
+    <string name="feature_needs_usage_access">Requer acesso aos dados de uso</string>
+    <string name="feature_needs_assistant">Requer o Google como assistente</string>
+    <string name="action_navigate_up">Voltar</string>
+
+    <!-- App switching. -->
+    <string name="section_app_switch">Troca de apps</string>
+    <string name="label_app_switch">Usar a troca de apps</string>
+    <string name="section_app_switch_body">Deslize para os lados ao longo da borda inferior para alternar entre os apps recentes.</string>
+    <string name="label_usage_access">Acesso aos dados de uso</string>
+    <string name="label_usage_access_granted">Permitido</string>
+    <string name="label_usage_access_missing">Necessário para trocar de app</string>
+    <string name="action_grant_usage_access">Permitir</string>
+    <string name="section_needs">Requer</string>
+    <string name="section_timing">Tempo</string>
+    <string name="section_gestures_it_adds">Gestos que adiciona</string>
+    <string name="label_last_problem">Último problema</string>
+
+    <!-- Circle to Search. -->
+    <string name="section_circle_to_search">Circule para Pesquisar</string>
+    <string name="label_circle_to_search">Usar o Circule para Pesquisar</string>
+    <string name="section_circle_to_search_body">Toque e segure no meio da borda inferior, como na barra de gestos do sistema.</string>
+    <string name="label_circle_to_search_system_timing">Usar o tempo do sistema</string>
+    <string name="label_circle_to_search_hold">Tempo segurando</string>
+    <string name="label_assistant">Google como assistente</string>
+    <string name="assistant_google">Definido</string>
+    <string name="assistant_other">Não definido</string>
+    <string name="label_circle_to_search_assistant">Requer o Google como app assistente digital padrão.</string>
+    <string name="action_open_assistant_settings">Configurações do assistente</string>
+    <string name="toast_circle_to_search_failed">O Circule para Pesquisar não abriu. Confira se o Google é o app assistente digital padrão.</string>
+
+    <!-- Gesture settings. -->
+    <string name="section_gestures">Configurações dos gestos</string>
+    <string name="gesture_settings_summary">Borda %1$d dp, lateral %2$d dp, inferior %3$d dp</string>
+    <string name="gestures_title">Seus gestos</string>
+    <string name="gesture_back_name">Voltar</string>
+    <string name="gesture_back_how">Deslize para dentro a partir de qualquer lateral</string>
+    <string name="gesture_back_left_how">Deslize para dentro a partir da lateral esquerda</string>
+    <string name="gesture_back_right_how">Deslize para dentro a partir da lateral direita</string>
+    <string name="gesture_home_recents_name">Início e Recentes</string>
+    <string name="gesture_home_recents_how">Deslize para cima a partir da borda inferior, ou deslize para cima e segure</string>
+    <string name="gesture_switch_apps_name">App anterior e próximo app</string>
+    <string name="gesture_switch_apps_how">Deslize para a direita ou para a esquerda ao longo da borda inferior</string>
+    <string name="gesture_previous_app_name">App anterior</string>
+    <string name="gesture_previous_app_how">Deslize para a direita ao longo da borda inferior</string>
+    <string name="gesture_next_app_name">Próximo app</string>
+    <string name="gesture_next_app_how">Deslize para a esquerda ao longo da borda inferior</string>
+    <string name="gesture_circle_to_search_name">Circule para Pesquisar</string>
+    <string name="gesture_circle_to_search_how">Toque e segure no meio da borda inferior</string>
+    <string name="section_edges">Bordas</string>
+    <string name="label_edge_width">Largura da borda</string>
+    <string name="label_left_edge_back">Borda esquerda</string>
+    <string name="label_right_edge_back">Borda direita</string>
+    <string name="label_landscape_confirm">Confirmar na horizontal</string>
+    <string name="label_landscape_confirm_body">Deslize para cima duas vezes para sair de um app na horizontal</string>
+    <string name="section_distance_and_timing">Distância e tempo</string>
+    <string name="label_side_distance">Deslize lateral</string>
+    <string name="label_bottom_distance">Deslize inferior</string>
+    <string name="label_recents_hold">Segurar para Recentes</string>
+    <string name="label_maximum_duration">Tempo para iniciar o deslize</string>
+    <string name="section_feedback">Resposta</string>
+    <string name="label_haptics">Vibrar</string>
+    <string name="value_dp">%1$d dp</string>
+    <string name="value_ms">%1$d ms</string>
+    <string name="action_reset_defaults">Restaurar padrões</string>
+    <string name="snackbar_reset">Configurações dos gestos restauradas</string>
+
+    <!-- Update check. Off by default, and the only code that touches the network. -->
+    <string name="update_switch">Verificar atualizações</string>
+    <string name="update_switch_body">Pergunta ao GitHub pela versão mais recente uma vez por dia, quando você abre o app.</string>
+    <string name="section_updates">Atualizações</string>
+    <string name="update_summary_up_to_date">Atualizado</string>
+    <string name="update_summary_available">Atualização disponível (%1$s)</string>
+    <string name="update_summary_checking">Verificando…</string>
+    <string name="update_summary_no_network">Sem conexão</string>
+    <string name="update_summary_rate_limited">O GitHub está limitando os pedidos</string>
+    <string name="update_summary_http_error">O GitHub respondeu HTTP %1$d</string>
+    <string name="update_summary_bad_response">Resposta ilegível do GitHub</string>
+    <string name="update_summary_check_failed">A verificação falhou</string>
+    <string name="update_summary_no_apk">%1$s ainda não tem APK</string>
+    <string name="update_summary_nothing_published">Nenhuma versão ainda</string>
+    <string name="update_summary_unreadable_version">Não foi possível comparar as versões</string>
+    <string name="update_status">Versão mais recente</string>
+    <string name="update_not_checked">Ainda não verificado</string>
+    <string name="update_check_now">Verificar agora</string>
+    <string name="update_download_install">Baixar e instalar</string>
+    <string name="update_allow_installs">Permitir instalações</string>
+    <string name="update_last_checked">Verificado %1$s</string>
+    <string name="update_checking">Perguntando ao GitHub pela versão mais recente…</string>
+    <string name="update_up_to_date">Atualizado. Você tem a %1$s, e a versão mais recente é a %2$s.</string>
+    <string name="update_available">A %1$s está disponível. Você tem a %2$s.</string>
+    <string name="update_no_apk">A versão %1$s não tem APK anexado, então ainda não há nada para instalar.</string>
+    <string name="update_nothing_published">O GitHub ainda não lista nenhuma versão publicada.</string>
+    <string name="update_unreadable_version">Não foi possível comparar as versões, porque %1$s não é um número de versão.</string>
+    <string name="update_no_network">Não foi possível acessar o GitHub (%1$s). Confira a conexão e tente de novo.</string>
+    <string name="update_rate_limited">O GitHub está limitando os pedidos desta rede. Tente de novo mais tarde.</string>
+    <string name="update_rate_limited_until">O GitHub está limitando os pedidos desta rede. Tente de novo depois das %1$s.</string>
+    <string name="update_http_error">O GitHub respondeu com HTTP %1$d. Tente de novo mais tarde.</string>
+    <string name="update_bad_response">O GitHub enviou uma resposta que este app não conseguiu ler (%1$s).</string>
+    <string name="update_check_failed">A verificação falhou (%1$s). Tente de novo.</string>
+    <string name="update_downloading">Baixando %1$s…</string>
+    <string name="update_permission_needed">O Android precisa da sua permissão para o HyperGesture instalar uma atualização. Permita, volte para cá, e o download começa.</string>
+    <string name="update_confirming">Confirme a atualização no aviso do sistema.</string>
+    <string name="update_checksum_mismatch">O download não bateu com o checksum publicado no GitHub, então foi apagado e nada foi instalado.</string>
+    <string name="update_unverified">O GitHub não publicou checksum para este APK, então não foi possível verificar o arquivo e nada foi instalado.</string>
+    <string name="update_blocked_host">O download foi redirecionado para %1$s, que não é um endereço do GitHub, então foi interrompido.</string>
+    <string name="update_download_failed">O download falhou (%1$s). Tente de novo.</string>
+    <string name="update_install_failed">A atualização não foi instalada (%1$s).</string>
+    <string name="update_signature_conflict">O Android recusou a atualização, porque ela foi assinada com uma chave diferente da desta cópia (%1$s).</string>
+    <string name="update_declined">A atualização foi cancelada no aviso do sistema, e esta cópia continua como estava.</string>
+    <string name="update_installed">Atualização instalada.</string>
+
+    <!-- Troubleshooting. Local only, never transmitted. -->
+    <string name="section_troubleshooting">Solução de problemas</string>
+    <string name="section_known_fixes">Soluções conhecidas</string>
+    <string name="fix_stopped_title">Gestos pararam depois de uma atualização</string>
+    <string name="fix_stopped_body">Desative e ative o serviço</string>
+    <string name="fix_greyed_out_title">Chave desabilitada</string>
+    <string name="fix_greyed_out_body">Permitir configurações restritas</string>
+    <string name="action_open">Abrir</string>
+    <string name="section_adb_grants">Permissões por ADB</string>
+    <string name="adb_grants_intro">Execute um comando a partir de um computador com a depuração USB ativada. Na Xiaomi, a Depuração USB (configurações de segurança) também precisa estar ativada.</string>
+    <string name="grant_secure_settings_title">Alterar configurações seguras</string>
+    <string name="grant_secure_settings_body">Deixa o Manter a barra escondida esconder a barra de novo depois que o HyperOS a mostrar.</string>
+    <string name="grant_usage_access_body">Deixa a troca de apps encontrar o app anterior. Permitir o Acesso aos dados de uso nas Configurações faz o mesmo.</string>
+    <string name="chip_granted">Permitido</string>
+    <string name="chip_missing">Faltando</string>
+    <string name="action_copy_command">Copiar</string>
+    <string name="action_command_copied">Copiado</string>
+    <string name="clip_label_adb_command">Comando adb do HyperGesture</string>
+    <string name="section_this_device">Este aparelho</string>
+    <string name="section_last_problems">Últimos problemas</string>
+    <string name="action_refresh_diagnostics">Atualizar</string>
+    <string name="action_clear_failure">Limpar</string>
+    <string name="action_copy_failure">Copiar registro</string>
+    <string name="clip_label_failure">Registro de falha do HyperGesture</string>
+    <string name="snackbar_failure_copied">Registro copiado</string>
+    <string name="diag_android_version">Versão do Android</string>
+    <string name="diag_device">Aparelho</string>
+    <string name="diag_hyperos">Versão do HyperOS / MIUI</string>
+    <string name="diag_navigation_mode">Modo de navegação</string>
+    <string name="diag_service_enabled">Serviço ativado</string>
+    <string name="diag_service_bound">Serviço conectado</string>
+    <string name="diag_service_running">Serviço em execução</string>
+    <string name="diag_strips_attached">Faixas das bordas colocadas</string>
+    <string name="diag_integration">Integração de navegação</string>
+    <string name="diag_last_failure">Última falha</string>
+    <string name="label_last_app_switch_failure">Último problema na troca de apps</string>
+    <string name="diag_last_circle_to_search_failure">Último problema no Circule para Pesquisar</string>
+    <string name="diag_last_stuck_stream">Último toque travado</string>
+    <string name="diag_stop_history">Paradas e mudanças de navegação</string>
+    <string name="diag_recorded_failure">Falha registrada</string>
+    <string name="diag_none">Nenhuma</string>
+    <string name="diag_unknown">Desconhecido</string>
+    <string name="value_yes">Sim</string>
+    <string name="value_no">Não</string>
+    <string name="value_android_version">%1$s (API %2$d)</string>
+    <string name="value_navigation_gestural">Gestos</string>
+    <string name="value_navigation_buttons">Botões</string>
+    <string name="integration_hyperos">HyperOS</string>
+    <string name="integration_generic">Android genérico</string>
+    <string name="diag_local_only">Tudo aqui fica no seu aparelho.</string>
+
+    <!-- About. -->
+    <string name="section_about">Sobre</string>
+    <string name="about_version">Versão</string>
+    <string name="about_version_summary">Versão %1$s</string>
+    <string name="about_website">Site</string>
+    <string name="about_source">Código-fonte</string>
+    <string name="diag_license">Licença</string>
+    <string name="section_credits">Créditos</string>
+    <string name="credit_victor_body">Circule para Pesquisar, atalho no Centro de controle</string>
+    <string name="credit_cts_body">Como o Circule para Pesquisar é aberto</string>
+</resources>
