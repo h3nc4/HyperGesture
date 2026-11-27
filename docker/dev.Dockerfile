@@ -50,7 +50,7 @@ ARG APT_MIRROR="http://debian.lan.h3nc4.com"
 
 ################################################################################
 # Android SDK stage
-FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS android-sdk
+FROM debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0 AS android-sdk
 ARG ANDROID_CMDLINE_TOOLS
 ARG ANDROID_CMDLINE_TOOLS_SHA256
 ARG ANDROID_PLATFORM_TOOLS
@@ -132,7 +132,7 @@ RUN mkdir -p "${ANDROID_AVD_HOME}" \
 
 ################################################################################
 # Debian main stage
-FROM h3nc4/dev-base:debian-13@sha256:80a26b3967537848ad1331b5b61b4a60ea2f918968a65918f1d86e7ed021900a AS main
+FROM h3nc4/dev-base:debian-13@sha256:c040ca0fec4d29b6cde3571d2105e53f0adfc46c148dd89b01f72294befc80ca AS main
 
 # dev-base ends as the dev user, and the steps below need root.
 USER root
